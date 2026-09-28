@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE PATH</title>
+<meta name="description" content="THE PATH is a first-person story game in development. The first chapter is free to play in your browser.">
+<meta name="theme-color" content="#07060a">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="THE PATH">
+<meta property="og:description" content="Something is waiting downtown. A first-person story game in development; the first chapter is free to play in your browser.">
+<meta property="og:url" content="https://namkuzu-da-os.github.io/thepath/">
+<meta property="og:image" content="https://namkuzu-da-os.github.io/thepath/assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
+<link rel="preload" as="image" href="assets/scene.webp" type="image/webp">
+<link rel="preload" as="image" href="assets/path-mark.webp" type="image/webp">
+<style>
+  :root {
+    --page: #07060a;
+    --ink: #f1e8da;
+    --ink-soft: #d8cdbd;
+    --ink-dim: #a99d8c;
+    --line: rgba(241, 228, 210, 0.26);
+    --line-soft: rgba(241, 228, 210, 0.13);
+    --gold: #f2b86a;
+    --neon: #ff3d34;
+    --neon-hot: #ff6a52;
+    --title: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+    --serif: "EB Garamond", Garamond, "Times New Roman", serif;
+    --wrap: 1180px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--serif); font-size: 18px; line-height: 1.5; overflow-x: hidden; }
+  img, video { display: block; max-width: 100%; }
+  a { color: inherit; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---------- the night street behind everything ---------- */
+  .scene { position: absolute; inset: 0 0 auto 0; height: max(100svh, 69.5vw); max-height: 1500px; z-index: -1; overflow: hidden; pointer-events: none;
+    background-color: var(--page);
+    background-image: url(assets/scene.jpg);
+    background-image: image-set(url(assets/scene.webp) type("image/webp"), url(assets/scene.jpg) type("image/jpeg"));
+    background-size: cover; background-position: 58% 0; }
+  .scene::before { content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 34% 30% at 50% 26%, rgba(6, 5, 9, 0.62), transparent 72%),
+      radial-gradient(ellipse 26% 9% at 80% 50%, rgba(255, 60, 90, 0.10), transparent 70%),
+      linear-gradient(90deg, rgba(7, 6, 10, 0.55) 0%, rgba(7, 6, 10, 0) 38%); }
+  .scene::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(7, 6, 10, 0.10) 0%, rgba(7, 6, 10, 0.28) 38%, rgba(7, 6, 10, 0.80) 68%, var(--page) 94%); }
+
+  .wrap { width: min(var(--wrap), calc(100% - 32px)); margin-inline: auto; }
+
+  /* ---------- nav ---------- */
+  .top { position: relative; z-index: 5; }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 30px; }
+  .brand { display: none; font-family: var(--title); font-size: 15px; letter-spacing: 0.32em; text-decoration: none; }
+  .links { display: flex; gap: clamp(22px, 4vw, 48px); margin: 0; padding: 0; list-style: none; }
+  .links a { display: inline-block; padding: 6px 0 9px; font-family: var(--title); font-size: 12.5px; font-weight: 500; letter-spacing: 0.24em;
+    text-decoration: none; color: var(--ink-soft); border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; }
+  .links a:hover { color: var(--ink); }
+  .links a[aria-current="true"] { color: var(--ink); border-bottom-color: var(--neon); box-shadow: 0 7px 10px -8px rgba(255, 61, 52, 0.9); }
+  .tagline-dev { display: flex; align-items: center; gap: 16px; font-family: var(--title); font-size: 11.5px; letter-spacing: 0.26em; color: var(--ink-soft); white-space: nowrap; }
+  .tagline-dev::before, .tagline-dev::after { content: ""; width: 34px; height: 1px; background: var(--line); }
+  .menu-btn { display: none; }
+
+  /* ---------- hero ---------- */
+  .hero { text-align: center; padding-top: 8px; }
+  .mark { width: clamp(150px, 16vw, 232px); margin: 0 auto -14px; filter: drop-shadow(0 0 18px rgba(242, 160, 80, 0.35)); animation: breathe 6s ease-in-out infinite; }
+  .mark img { width: 100%; height: auto; }
+  h1 { margin: 0; font-family: var(--title); font-weight: 500; font-size: clamp(36px, 4.6vw, 68px); line-height: 1.05; letter-spacing: 0.34em; padding-left: 0.34em;
+    color: #f6eee2; text-shadow: 0 0 22px rgba(255, 220, 180, 0.18), 0 2px 18px rgba(0, 0, 0, 0.8); }
+  .tagline { margin: 6px 0 0; font-size: clamp(20px, 1.9vw, 27px); letter-spacing: 0.05em; color: var(--ink); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); }
+
+  /* ---------- trailer ---------- */
+  .player { position: relative; width: min(840px, 100%); margin: clamp(22px, 2.6vw, 34px) auto 0; padding: 6px; border: 1px solid var(--line);
+    background: rgba(8, 6, 10, 0.55); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.6) inset; }
+  .player::before { content: ""; position: absolute; inset: -5px; border: 1px solid var(--line-soft); pointer-events: none; }
+  .screen { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+  .screen video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .cover { all: unset; position: absolute; inset: 0; cursor: pointer; display: block; }
+  .cover::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%); }
+  .cover .big { position: absolute; left: 50%; top: 50%; width: clamp(64px, 11vw, 98px); aspect-ratio: 1; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 2px solid rgba(250, 244, 236, 0.92); background: rgba(10, 8, 12, 0.42); display: grid; place-items: center;
+    box-shadow: 0 0 26px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.35); transition: transform 0.2s, background 0.2s, box-shadow 0.2s; }
+  .cover .big svg { width: 38%; margin-left: 9%; fill: #fbf6ef; }
+  .cover:hover .big, .cover:focus-visible .big { transform: translate(-50%, -50%) scale(1.06); background: rgba(40, 10, 12, 0.55); box-shadow: 0 0 30px rgba(255, 61, 52, 0.45); }
+  .cover:focus-visible { outline: 2px solid var(--neon-hot); outline-offset: 3px; }
+  .cover .bar { position: absolute; left: 14px; right: 14px; bottom: 12px; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px;
+    font-family: var(--serif); font-size: 14px; color: #f3ece2; font-variant-numeric: tabular-nums; }
+  .cover .track { grid-column: 1 / -1; grid-row: 2; height: 3px; background: rgba(255, 255, 255, 0.28); }
+  .cover .track i { display: block; width: 0; height: 100%; background: #fff; }
+  .cover .bar svg { width: 17px; height: 17px; fill: none; stroke: #f3ece2; stroke-width: 1.6; }
+
+  /* ---------- the button ---------- */
+  .cta { text-align: center; margin-top: clamp(22px, 2.4vw, 30px); }
+  .play { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-width: min(560px, 100%); padding: 17px 44px;
+    font-family: var(--title); font-weight: 600; font-size: clamp(14px, 1.35vw, 18px); letter-spacing: 0.2em; text-decoration: none; color: #fff1ea;
+    background: linear-gradient(to bottom, #6a1010, #3d0707 60%, #4e0909); border: 2px solid var(--neon); border-radius: 3px;
+    text-shadow: 0 0 6px rgba(255, 90, 70, 0.85), 0 0 16px rgba(255, 50, 40, 0.5);
+    box-shadow: 0 0 6px rgba(255, 61, 52, 0.9), 0 0 22px rgba(255, 50, 40, 0.55), 0 0 60px rgba(255, 40, 30, 0.28), inset 0 0 14px rgba(255, 70, 50, 0.55), inset 0 0 36px rgba(255, 40, 30, 0.18);
+    transition: box-shadow 0.25s, transform 0.25s, background 0.25s; animation: hum 7s infinite; }
+  .play::before { content: ""; position: absolute; inset: 4px; border: 1px solid rgba(255, 150, 130, 0.28); border-radius: 1px; pointer-events: none; }
+  .play .arrow { font-family: var(--serif); font-size: 1.5em; line-height: 0.6; letter-spacing: 0; }
+  .play:hover, .play:focus-visible { background: linear-gradient(to bottom, #7e1414, #4a0909 60%, #5c0b0b); transform: translateY(-1px);
+    box-shadow: 0 0 8px rgba(255, 80, 60, 1), 0 0 30px rgba(255, 50, 40, 0.75), 0 0 80px rgba(255, 40, 30, 0.38), inset 0 0 18px rgba(255, 80, 60, 0.65), inset 0 0 40px rgba(255, 40, 30, 0.22); }
+  .play:focus-visible { outline: 2px solid #ffd2c4; outline-offset: 4px; }
+  .blurb { margin: 14px auto 0; max-width: 900px; text-wrap: balance; font-size: clamp(16px, 1.25vw, 18.5px); color: var(--ink-soft); }
+
+  /* ---------- rules with a star ---------- */
+  .rule { display: flex; align-items: center; gap: 14px; margin: clamp(26px, 3vw, 38px) auto; width: min(820px, 100%); }
+  .rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--line) 30%, var(--line) 70%, transparent); }
+  .star { width: 22px; height: 22px; flex: none; filter: drop-shadow(0 0 5px rgba(255, 190, 110, 0.9)) drop-shadow(0 0 12px rgba(255, 150, 60, 0.6)); }
+
+  /* ---------- screenshots ---------- */
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(16px, 2vw, 26px); scroll-margin-top: 24px; }
+  .shot { position: relative; margin: 0; border: 1px solid var(--line); background: #000; overflow: hidden; }
+  .shot picture { display: block; }
+  .shot img { width: 100%; height: auto; aspect-ratio: 2.45 / 1; object-fit: cover; }
+  .shot.j img { object-position: 50% 0%; }
+  .shot.f img { object-position: 50% 42%; }
+  .shot::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(4, 3, 6, 0) 38%, rgba(4, 3, 6, 0.55) 68%, rgba(4, 3, 6, 0.94) 100%); pointer-events: none; }
+  .shot figcaption { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 0 16px 14px; }
+  .shot .num { font-family: var(--title); font-size: 17px; letter-spacing: 0.08em; padding: 3px 9px 2px; border: 1px solid rgba(241, 228, 210, 0.55); background: rgba(6, 5, 8, 0.55); }
+  .shot .dash { width: 14px; height: 1px; background: var(--ink-soft); flex: none; }
+  .shot .t { display: grid; gap: 2px; }
+  .shot .name { font-family: var(--title); font-size: 15px; letter-spacing: 0.2em; line-height: 1.2; }
+  .shot .sub { font-family: var(--title); font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.3; }
+
+  /* ---------- about + footer ---------- */
+  .about { text-align: center; max-width: 640px; margin: 0 auto; scroll-margin-top: 24px; }
+  .about h2 { margin: 0 0 10px; font-family: var(--title); font-weight: 500; font-size: 14px; letter-spacing: 0.34em; padding-left: 0.34em; color: var(--ink-soft); }
+  .about p { margin: 0; text-wrap: balance; font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6; color: var(--ink); }
+  footer { padding-bottom: 36px; }
+  .foot { display: flex; align-items: center; gap: 22px; width: min(820px, 100%); margin: 0 auto; font-size: 14.5px; letter-spacing: 0.04em; color: var(--ink-soft); }
+  .foot::before, .foot::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+  .foot ul { display: flex; gap: 12px; margin: 0; padding: 0; list-style: none; white-space: nowrap; }
+  .foot li + li::before { content: "•"; margin-right: 12px; color: var(--ink-dim); }
+  .rule.small { margin-top: clamp(30px, 3.4vw, 44px); margin-bottom: 14px; }
+  .rule.small .star { width: 18px; height: 18px; }
+
+  @keyframes breathe { 50% { filter: drop-shadow(0 0 26px rgba(242, 170, 90, 0.5)); } }
+  @keyframes hum { 0%, 91%, 93.5%, 96%, 100% { opacity: 1; } 92% { opacity: 0.86; } 95% { opacity: 0.93; } }
+
+  /* ---------- tablet ---------- */
+  @media (max-width: 900px) {
+    .tagline-dev { display: none; }
+    .top .wrap { justify-content: center; }
+  }
+
+  /* ---------- phone ---------- */
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .scene { height: 62svh; background-size: auto 100%; background-position: 72% 0; }
+    .scene::before { background: radial-gradient(ellipse 70% 32% at 50% 30%, rgba(6, 5, 9, 0.66), transparent 75%), linear-gradient(rgba(7, 6, 10, 0.22), rgba(7, 6, 10, 0.22)); }
+    .top .wrap { justify-content: space-between; padding-top: 18px; }
+    .brand { display: block; }
+    .menu-btn { all: unset; cursor: pointer; display: grid; gap: 5px; padding: 10px 2px 10px 12px; }
+    .menu-btn span { display: block; width: 24px; height: 2px; background: var(--ink); transition: transform 0.2s, opacity 0.2s; }
+    .menu-btn[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .menu-btn[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .menu-btn[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .menu-btn:focus-visible { outline: 1px dashed var(--ink-soft); }
+    #nav { position: absolute; top: calc(100% + 8px); left: 16px; right: 16px; display: none; padding: 8px 18px 14px; background: #0b090e;
+      border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7); }
+    #nav.open { display: block; }
+    .links { flex-direction: column; gap: 0; }
+    .links a { display: block; padding: 12px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+    .links a[aria-current="true"] { box-shadow: none; border-bottom-color: var(--neon); }
+    .tagline-dev.in-menu { display: flex; margin-top: 12px; font-size: 10.5px; }
+    .tagline-dev.in-menu::before, .tagline-dev.in-menu::after { width: 20px; }
+    .hero { padding-top: 22px; }
+    .mark { width: 128px; margin-bottom: -8px; }
+    h1 { font-size: clamp(34px, 10.5vw, 46px); letter-spacing: 0.26em; padding-left: 0.26em; }
+    .tagline { font-size: 19px; }
+    .player { padding: 4px; }
+    .player::before { inset: -4px; }
+    .cover .bar { left: 10px; right: 10px; bottom: 8px; font-size: 12px; gap: 12px; }
+    .play { min-width: 0; width: 100%; padding: 13px 18px; font-size: 13.5px; letter-spacing: 0.16em; gap: 12px; }
+    .play .label { display: grid; justify-items: center; gap: 2px; }
+    .blurb { font-size: 15px; }
+    .shots { grid-template-columns: 1fr; }
+    .shot img { aspect-ratio: 2.05 / 1; }
+    .shot.f img { object-position: 50% 24%; }
+    .shot figcaption { padding: 0 12px 10px; }
+    .shot .num { font-size: 15px; }
+    .shot .name { font-size: 13px; }
+    .shot .sub { font-size: 9.5px; letter-spacing: 0.18em; }
+    .foot { gap: 10px; font-size: 12.5px; }
+    .foot ul { gap: 8px; flex-wrap: wrap; justify-content: center; white-space: normal; }
+    .foot li + li::before { margin-right: 8px; }
+    .foot::before, .foot::after { max-width: 24px; }
+  }
+  @media (min-width: 641px) { .tagline-dev.in-menu { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .mark, .play { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+
+<header class="top" id="home">
+  <div class="wrap">
+    <a class="brand" href="#home">THE PATH</a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><span></span><span></span><span></span></button>
+    <nav id="nav" aria-label="Page">
+      <ul class="links">
+        <li><a href="#home" aria-current="true">HOME</a></li>
+        <li><a href="#screenshots">SCREENSHOTS</a></li>
+        <li><a href="#about">ABOUT</a></li>
+      </ul>
+      <div class="tagline-dev in-menu">A GAME IN DEVELOPMENT</div>
+    </nav>
+    <div class="tagline-dev">A GAME IN DEVELOPMENT</div>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap" aria-labelledby="title">
+    <div class="mark">
+      <picture>
+        <source srcset="assets/path-mark.webp" type="image/webp">
+        <img src="assets/path-mark.png" width="390" height="430" alt="THE PATH mark: a winding road through a gold ring, crossed by a line of stars">
+      </picture>
+    </div>
+    <h1 id="title">THE PATH</h1>
+    <p class="tagline">Something is waiting downtown.</p>
+
+    <div class="player">
+      <div class="screen">
+        <video id="trailer" preload="metadata" playsinline poster="assets/poster.jpg" aria-label="THE PATH trailer">
+          <source src="assets/trailer.mp4" type="video/mp4">
+        </video>
+        <button class="cover" id="cover" type="button" aria-label="Play the trailer">
+          <span class="big"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5v17L20 12z"/></svg></span>
+          <span class="bar" aria-hidden="true">
+            <span>0:00 / <span id="dur">1:19</span></span><span></span>
+            <svg viewBox="0 0 24 24"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+            <span class="track"><i></i></span>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <div class="cta">
+      <a class="play" href="play/"><span class="label"><span>PLAY &mdash; FIRST CHAPTER</span> <span>IN DEVELOPMENT</span></span><span class="arrow" aria-hidden="true">&rarr;</span></a>
+      <p class="blurb">Free browser chapter: 1982, the ride downtown, THE JUNCTION arcade, and the cabinet with no name.</p>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="rule" aria-hidden="true"><svg class="star" viewBox="0 0 24 24"><path fill="#ffe2b0" d="M12 0c.6 6.6 5.4 11.4 12 12-6.6.6-11.4 5.4-12 12-.6-6.6-5.4-11.4-12-12C6.6 11.4 11.4 6.6 12 0z"/></svg></div>
+
+    <section class="shots" id="screenshots" aria-label="Screenshots">
+      <figure class="shot j">
+        <picture>
+          <source type="image/webp" srcset="assets/shot-junction-640.webp 640w, assets/shot-junction.webp 1280w" sizes="(max-width: 640px) 100vw, 580px">
+          <img src="assets/shot-junction.jpg" srcset="assets/shot-junction-640.jpg 640w, assets/shot-junction.jpg 1280w" sizes="(max-width: 640px) 100vw, 580px"
+            width="1280" height="720" loading="lazy" decoding="async" alt="THE JUNCTION video arcade at night, its red neon sign lit over a row of arched windows">
+        </picture>
+        <figcaption><span class="num">01</span><span class="dash"></span><span class="t"><span class="name">THE JUNCTION</span><span class="sub">A quiet night downtown.</span></span></figcaption>
+      </figure>
+      <figure class="shot f">
+        <picture>
+          <source type="image/webp" srcset="assets/shot-floor-640.webp 640w, assets/shot-floor.webp 1280w" sizes="(max-width: 640px) 100vw, 580px">
+          <img src="assets/shot-floor.jpg" srcset="assets/shot-floor-640.jpg 640w, assets/shot-floor.jpg 1280w" sizes="(max-width: 640px) 100vw, 580px"
+            width="1280" height="720" loading="lazy" decoding="async" alt="The arcade floor: cabinets on a checkered floor under a lit office window">
+        </picture>
+        <figcaption><span class="num">02</span><span class="dash"></span><span class="t"><span class="name">THE ARCADE FLOOR</span><span class="sub">Some games feel different here.</span></span></figcaption>
+      </figure>
+    </section>
+
+    <div class="rule" aria-hidden="true"><svg class="star" viewBox="0 0 24 24"><path fill="#ffe2b0" d="M12 0c.6 6.6 5.4 11.4 12 12-6.6.6-11.4 5.4-12 12-.6-6.6-5.4-11.4-12-12C6.6 11.4 11.4 6.6 12 0z"/></svg></div>
+
+    <section class="about" id="about" aria-labelledby="about-h">
+      <h2 id="about-h">ABOUT</h2>
+      <p>THE PATH is a first-person story game in development. The first chapter is free to play in your browser.</p>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="rule small" aria-hidden="true"><svg class="star" viewBox="0 0 24 24"><path fill="#ffe2b0" d="M12 0c.6 6.6 5.4 11.4 12 12-6.6.6-11.4 5.4-12 12-.6-6.6-5.4-11.4-12-12C6.6 11.4 11.4 6.6 12 0z"/></svg></div>
+    <div class="foot"><ul><li>Free web chapter</li><li>Browser playable</li><li>More to come</li></ul></div>
+  </div>
+</footer>
+
+<script>
+  (() => {
+    const v = document.getElementById('trailer'), cover = document.getElementById('cover'), dur = document.getElementById('dur');
+    const fmt = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    const setDur = () => { if (isFinite(v.duration) && v.duration > 0) dur.textContent = fmt(v.duration); };
+    v.addEventListener('loadedmetadata', setDur); setDur();
+    cover.addEventListener('click', () => {
+      cover.hidden = true; v.controls = true;
+      const p = v.play(); if (p && p.catch) p.catch(() => {});
+      v.focus();
+    });
+
+    const btn = document.querySelector('.menu-btn'), nav = document.getElementById('nav');
+    const setOpen = (open) => { btn.setAttribute('aria-expanded', String(open)); nav.classList.toggle('open', open); };
+    btn.addEventListener('click', () => setOpen(btn.getAttribute('aria-expanded') !== 'true'));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.top')) setOpen(false); });
+
+    const links = [...document.querySelectorAll('.links a')];
+    links.forEach((a) => a.addEventListener('click', () => setOpen(false)));
+    const mark = (id) => links.forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === '#' + id)));
+    const spy = () => {
+      const y = window.scrollY + window.innerHeight * 0.45;
+      const about = document.getElementById('about'), shots = document.getElementById('screenshots');
+      const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      mark(atEnd || y >= about.offsetTop ? 'about' : y >= shots.offsetTop ? 'screenshots' : 'home');
+    };
+    let raf = 0;
+    window.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; spy(); }); }, { passive: true });
+    spy();
+  })();
+</script>
+</body>
+</html>
