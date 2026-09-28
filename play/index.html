@@ -1,0 +1,307 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body style="margin:0">
+<title>THE PATH · First Chapter</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --night: #0a0705;        /* the basement after the lamp */
+    --amber: #ffb028;        /* phosphor, the BBS colour */
+    --amber-dim: #96601a;
+    --amber-ghost: rgba(255, 176, 40, 0.14);
+    --paper: #efe6d2;        /* typed memo paper */
+    --ink: #2a211a;
+    --stamp: #b3321f;
+    --screen: "VT323", "Lucida Console", "Courier New", monospace;
+    --type: "Courier Prime", "Courier New", Courier, monospace;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { background: var(--night); color: var(--amber); overflow: hidden; font-family: var(--screen); }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .layer { position: fixed; inset: 0; pointer-events: none; }
+  .layer.interactive { pointer-events: auto; }
+  .glow { text-shadow: 0 0 6px rgba(255, 150, 20, 0.55), 0 0 18px rgba(255, 120, 10, 0.25); }
+
+  /* ---------- loading ---------- */
+  #loading { display: grid; place-items: center; background: var(--night); z-index: 50; }
+  #loading .box { width: min(420px, calc(100% - 32px)); font-size: 26px; letter-spacing: 0.06em; }
+  #loading .bar { margin-top: 10px; height: 14px; border: 2px solid var(--amber-dim); padding: 2px; }
+  #loading .fill { height: 100%; width: 0%; background: var(--amber); }
+  #loading .err { color: #ff6a4a; font-size: 22px; margin-top: 12px; }
+
+  /* ---------- title ---------- */
+  #title { display: flex; align-items: flex-end; padding: 0 clamp(16px, 6vw, 88px) clamp(28px, 9vh, 96px);
+    background: linear-gradient(90deg, rgba(10, 7, 5, 0.86) 0%, rgba(10, 7, 5, 0.55) 42%, rgba(10, 7, 5, 0) 70%); z-index: 20; }
+  #title .stack { display: grid; gap: 14px; max-width: 560px; }
+  #title .eyebrow { font-size: 22px; letter-spacing: 0.32em; color: var(--amber-dim); }
+  #title h1 { margin: 0; font-weight: 400; font-size: clamp(76px, 13vw, 168px); line-height: 0.78; letter-spacing: 0.02em; }
+  #title .sub { font-family: var(--type); font-style: italic; font-size: 17px; color: #e8c890; max-width: 42ch; line-height: 1.45; }
+  .menu { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 2px; font-size: 34px; }
+  .menu button { all: unset; cursor: pointer; display: flex; gap: 14px; align-items: center; padding: 0 6px; color: var(--amber); }
+  .menu button::before { content: ""; width: 14px; height: 26px; background: transparent; }
+  .menu button:hover::before, .menu button:focus-visible::before, .menu button.on::before { background: var(--amber); animation: blink 1s steps(1) infinite; }
+  .menu button:focus-visible { outline: 1px dashed var(--amber-dim); outline-offset: 2px; }
+  .menu .note { font-size: 20px; color: var(--amber-dim); margin-left: 10px; }
+  #title .fine { font-size: 20px; color: var(--amber-dim); letter-spacing: 0.04em; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- HUD ---------- */
+  #hud { z-index: 10; }
+  #prompt { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); font-size: 34px; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 12px; opacity: 0; transition: opacity 0.18s; white-space: nowrap;
+    background: rgba(10, 7, 5, 0.62); padding: 5px 14px 5px 8px; border-radius: 3px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
+  #prompt.on { opacity: 1; }
+  .key { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 7px; border: 2px solid var(--amber);
+    border-radius: 3px; font-size: 26px; line-height: 1; background: rgba(10, 7, 5, 0.55); box-shadow: inset 0 -3px 0 var(--amber-dim); }
+  #line { position: absolute; left: 50%; bottom: 21vh; transform: translateX(-50%); width: min(760px, calc(100% - 32px));
+    text-align: center; font-family: var(--type); font-size: 21px; color: #f3dcae; line-height: 1.4; opacity: 0; transition: opacity 0.5s; }
+  #line.on { opacity: 1; }
+  #line span { background: rgba(10, 7, 5, 0.62); padding: 3px 10px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  /* the areaway door, while the yard is still on its way: a small pill of dots, then the door opens by itself */
+  #wait { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); font-size: 34px; letter-spacing: 0.2em; color: var(--amber);
+    background: rgba(10, 7, 5, 0.62); padding: 2px 14px 6px 18px; border-radius: 3px; opacity: 0; transition: opacity 0.3s; }
+  #wait.on { opacity: 1; }
+  #wait span { animation: waitdot 1.2s infinite; }
+  #wait span:nth-child(2) { animation-delay: 0.2s; } #wait span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes waitdot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+  #pocket { position: absolute; top: 18px; left: 20px; font-size: 26px; letter-spacing: 0.08em; opacity: 0; transition: opacity 0.6s; }
+  #pocket.on { opacity: 0.92; }
+  #pocket .coin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber); margin-left: 4px; vertical-align: -1px; }
+  #pocket .coin.kept { background: var(--amber); }
+  #cabhint { position: absolute; left: 50%; bottom: 3.5vh; transform: translateX(-50%); display: flex; gap: 26px; font-size: 24px;
+    color: var(--amber); opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+  #cabhint.on { opacity: 0.95; }
+  #cabhint .key { min-width: 28px; height: 28px; font-size: 21px; }
+
+  /* ---------- controls card (double rule, the E2 mock) ---------- */
+  #card { position: absolute; right: clamp(16px, 4vw, 48px); top: clamp(16px, 5vh, 48px); padding: 14px 18px 12px; min-width: 250px;
+    border: 3px double var(--amber); background: rgba(10, 7, 5, 0.72); font-size: 24px; opacity: 0; transition: opacity 0.8s; }
+  #card.on { opacity: 1; }
+  #card h3 { margin: 0 0 8px; font-weight: 400; font-size: 22px; letter-spacing: 0.3em; color: var(--amber-dim); }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: center; }
+  .keys .k { display: flex; gap: 4px; }
+  .keys .key { min-width: 26px; height: 26px; font-size: 19px; }
+
+  /* ---------- pause ---------- */
+  #pause { z-index: 30; background: rgba(8, 5, 3, 0.8); display: flex; align-items: center; padding: 0 clamp(16px, 7vw, 96px); }
+  #pause .panel { display: grid; gap: 14px; width: min(560px, 100%); }
+  #pause h2 { margin: 0; font-weight: 400; font-size: 60px; letter-spacing: 0.08em; }
+  .set { display: grid; grid-template-columns: 1fr auto; gap: 8px 20px; font-size: 26px; align-items: center; margin-top: 6px; }
+  .set .val { display: flex; gap: 8px; align-items: center; }
+  .set button { all: unset; cursor: pointer; padding: 0 8px; border: 1px solid var(--amber-dim); color: var(--amber); font-size: 24px; }
+  .set button.on { background: var(--amber); color: var(--night); border-color: var(--amber); }
+  .set button:focus-visible { outline: 1px dashed var(--amber); outline-offset: 2px; }
+  .set input[type=range] { width: 140px; accent-color: #ffb028; }
+  .hr { height: 0; border-top: 3px double var(--amber-dim); margin: 6px 0; }
+
+  /* ---------- the end ---------- */
+  #end { z-index: 40; background: #070a12; display: grid; place-items: center; text-align: center; color: #cfe3ff; }
+  #end .stack { display: grid; gap: 14px; justify-items: center; padding-inline: 16px; }
+  #end h2 { margin: 0; font-weight: 400; font-size: clamp(54px, 9vw, 110px); color: #bcd6ff; text-shadow: 0 0 20px rgba(120, 170, 255, 0.45); letter-spacing: 0.04em; }
+  #end p { margin: 0; font-family: var(--type); font-size: 19px; max-width: 46ch; line-height: 1.5; color: #a9bfdc; }
+  #end .stats { font-size: 26px; color: #86a6d4; letter-spacing: 0.08em; }
+  #end .menu button { color: #cfe3ff; } #end .menu button:hover::before, #end .menu button:focus-visible::before { background: #cfe3ff; }
+
+  /* ---------- the pitch: a typed memo under the door ---------- */
+  #pitch { z-index: 60; background: rgba(6, 4, 3, 0.9); overflow-y: auto; padding-block: clamp(16px, 5vh, 56px); padding-inline: 16px; }
+  #pitch .sheet { position: relative; margin: 0 auto; max-width: 780px; background: var(--paper); color: var(--ink); font-family: var(--type);
+    padding: clamp(22px, 5vw, 56px) clamp(18px, 6vw, 64px) 40px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    background-image: repeating-linear-gradient(transparent 0 27px, rgba(80, 60, 40, 0.07) 27px 28px); }
+  #pitch .stamp { position: absolute; top: 26px; right: 22px; transform: rotate(4deg); border: 3px solid var(--stamp); color: var(--stamp);
+    font-family: var(--screen); font-size: 26px; letter-spacing: 0.12em; padding: 2px 10px; opacity: 0.85; }
+  #pitch .memo-head { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 16px; margin-bottom: 22px; padding-right: 150px; }
+  #pitch .memo-head b { letter-spacing: 0.08em; }
+  #pitch h2 { font-size: 30px; margin: 0 0 12px; line-height: 1.15; text-wrap: balance; }
+  #pitch h3 { font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase; margin: 28px 0 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+  #pitch p, #pitch li { font-size: 17px; line-height: 1.55; max-width: 66ch; }
+  #pitch ul { padding-left: 1.2em; margin: 6px 0; }
+  #pitch li { margin: 4px 0; }
+  #pitch table { border-collapse: collapse; font-size: 16px; width: 100%; font-variant-numeric: tabular-nums; }
+  #pitch td, #pitch th { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px dashed rgba(42, 33, 26, 0.35); vertical-align: top; }
+  #pitch .tablewrap { overflow-x: auto; }
+  #pitch .close { all: unset; cursor: pointer; position: sticky; top: 0; float: right; margin: -10px -10px 0 0; font-family: var(--screen); font-size: 26px;
+    color: var(--paper); background: var(--ink); padding: 2px 12px; }
+  #pitch .close:focus-visible { outline: 2px dashed var(--stamp); }
+  #pitch .sig { margin-top: 26px; font-style: italic; }
+  @media (max-width: 560px) { #pitch .memo-head { padding-right: 0; } #pitch .stamp { position: static; display: inline-block; margin-bottom: 12px; } }
+
+  /* ---------- THE HANDSHAKE: the terminal the site opens on (js/handshake.js) ---------- */
+  #hs { z-index: 70; background: #000; display: grid; place-items: center; --ph: #9df5e1; --ph-dim: #4f9e8c; --ph-hot: #eafff9; overflow: hidden; }
+  #hs .tube { position: relative; width: min(calc(100vw - 32px), calc((100dvh - 96px) * 4 / 3)); height: min(calc((100vw - 32px) * 3 / 4), calc(100dvh - 96px));
+    border-radius: 26px / 30px; overflow: hidden; container-type: size; background: radial-gradient(ellipse at 50% 45%, #0c1b18 0%, #06100e 58%, #020605 100%);
+    box-shadow: 0 0 0 3px #0b0d0c, 0 0 0 5px #151816, 0 0 70px rgba(90, 220, 190, 0.07); transition: background 0.6s; }
+  #hs .tube.off { background: radial-gradient(ellipse at 50% 45%, #050908 0%, #020303 70%); }
+  #hs .screen { position: absolute; inset: 5% 6% 6%; display: flex; flex-direction: column; font-family: var(--screen); font-size: min(4cqh, 2.9cqw);
+    line-height: 1.1; color: var(--ph); text-shadow: 0 0 4px rgba(120, 255, 220, 0.55), 0 0 14px rgba(60, 220, 190, 0.22); animation: hsflick 0.14s steps(2) infinite; }
+  #hs .top { flex: 0 0 auto; }
+  #hs .top.map { flex: 0 0 47%; margin-bottom: 0.5em; }
+  #hs .top canvas { display: block; width: 100%; height: 100%; }
+  #hs .banner { margin-bottom: 0.8em; }
+  #hs .banner .big { font-size: 3.1em; line-height: 0.9; letter-spacing: 0.04em; color: var(--ph-hot); }
+  #hs .banner.pulse { animation: hspulse 1.6s ease-out; }
+  #hs .text { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  #hs .ln { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.1em; }
+  #hs .ln.dim, #hs .dim { color: var(--ph-dim); }
+  #hs .ln.hot, #hs .ln.echo { color: var(--ph-hot); }
+  #hs .cmd { cursor: pointer; text-decoration: underline; text-decoration-color: rgba(157, 245, 225, 0.35); text-underline-offset: 0.15em; }
+  #hs .cmd:hover { color: #fff; background: rgba(157, 245, 225, 0.14); }
+  #hs .cur { display: inline-block; width: 0.5em; height: 0.92em; margin-left: 1px; background: currentColor; vertical-align: -0.1em; animation: blink 1s steps(1) infinite; }
+  #hs .scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.26) 0 1px, transparent 1px 3px); }
+  #hs .glass { position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.55) 100%), linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, transparent 35%); }
+  #hs .markslot { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; z-index: 2; font-family: var(--screen); color: var(--ph); }
+  #hs .press { pointer-events: auto; cursor: pointer; text-align: center; font-size: min(5.4cqh, 5cqw); display: grid; gap: 0.6em; text-shadow: 0 0 6px rgba(120, 255, 220, 0.5); }
+  #hs .press .skip { font-size: 0.62em; color: var(--ph-dim); text-decoration: underline; text-underline-offset: 0.2em; }
+  #hs .press .phones { font-size: 0.5em; letter-spacing: 0.3em; color: var(--ph-dim); }
+  #hs .tube.pon .screen { animation: hspon 0.6s ease-out, hsflick 0.14s steps(2) infinite 0.6s; }
+  #hs .tube.unstable .screen { animation: hsjit 0.09s steps(2) infinite; }
+  #hs .tube.tear .screen { animation: hstear 0.07s steps(2) infinite; filter: brightness(1.5) blur(0.4px); }
+  #hs .pathmark { width: min(58cqh, 62cqw); overflow: visible; color: var(--ph); transition: color 0.7s, filter 0.7s, transform 1.4s;
+    filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 12px rgba(157, 245, 225, 0.45)); }
+  #hs .pathmark .s { fill: none; stroke: currentColor; stroke-dasharray: 1 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.7s ease-in-out; }
+  #hs .pathmark .rv { stroke-dasharray: 1 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.9s ease-in-out 0.5s; }
+  #hs .pathmark .road { fill: currentColor; }
+  #hs .pathmark .stars, #hs .pathmark .dots { fill: currentColor; stroke: currentColor; opacity: 0; transition: opacity 0.7s 1.5s; }
+  #hs .pathmark.draw .s, #hs .pathmark.draw .rv { stroke-dashoffset: 0; }
+  #hs .pathmark.draw .stars, #hs .pathmark.draw .dots { opacity: 1; }
+  #hs .pathmark.flare { color: #ffe3a0; transform: scale(1.1); filter: drop-shadow(0 0 6px #ffe3a0) drop-shadow(0 0 34px #fff) brightness(1.5); }
+  #hs .avr { font-size: min(6.5cqh, 6cqw); letter-spacing: 0.5em; padding-left: 0.5em; margin-top: 2.5cqh; min-height: 1.1em; text-shadow: 0 0 8px rgba(120, 255, 220, 0.6); }
+  #hs .accepted { font-size: min(3.2cqh, 3cqw); letter-spacing: 0.3em; color: var(--ph-dim); min-height: 1.1em; margin-top: 1cqh; }
+  #hs .hs-hint { position: absolute; right: 6%; bottom: 2%; font-family: var(--screen); font-size: min(2.8cqh, 2.3cqw); color: var(--ph-dim); letter-spacing: 0.08em;
+    opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 3; }
+  #hs .hs-hint.on { opacity: 0.9; }
+  #hs .hs-sub { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);
+    text-align: center; font-family: var(--type); font-style: italic; font-size: clamp(16px, 2.1vw, 22px); line-height: 1.35; opacity: 0; transition: opacity 0.35s; pointer-events: none; }
+  #hs .hs-sub.on { opacity: 1; }
+  #hs .hs-sub.boy { color: #f1e3c4; }
+  #hs .hs-sub.girl { color: #f5cdbd; }
+  #hs .hs-white { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.4s ease-in; pointer-events: none; z-index: 5; }
+  #hs .hs-white.on { opacity: 1; }
+  #hs input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; font-size: 16px; }
+  @keyframes hsflick { 50% { opacity: 0.975; } }
+  @keyframes hspulse { 0% { filter: brightness(2.2); } 100% { filter: none; } }
+  @keyframes hspon { 0% { transform: scale(0.7, 0.004); filter: brightness(5); } 45% { transform: scale(1, 0.02); filter: brightness(3); } 100% { transform: none; filter: none; } }
+  @keyframes hsjit { 50% { transform: translate(-0.4%, 0.25%) skewX(-0.7deg); } }
+  @keyframes hstear { 0% { clip-path: inset(0 0 0 0); transform: translateX(0); } 50% { clip-path: inset(18% 0 34% 0); transform: translateX(2.5%); } }
+  @media (max-aspect-ratio: 5/6) {
+    #hs .tube { width: calc(100vw - 16px); height: calc(100dvh - 110px); border-radius: 18px; }
+    #hs .screen { font-size: min(3.6cqh, 5.3cqw); inset: 4% 5% 5%; }
+  }
+  @media (prefers-reduced-motion: reduce) { #hs .screen, #hs .tube.unstable .screen, #hs .tube.tear .screen { animation: none !important; } }
+
+  #fade { z-index: 45; background: #000; opacity: 0; transition: opacity 1.2s; }
+  @media (prefers-reduced-motion: reduce) { .menu button::before { animation: none !important; } }
+</style>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/build/index.module.js"
+} }
+</script>
+
+<canvas id="view" tabindex="0" aria-label="The basement"></canvas>
+
+<div id="hud" class="layer">
+  <div id="pocket"><span id="pocketText">QUARTERS 0</span></div>
+  <div id="prompt"><span class="key">E</span><span id="promptText">DIG</span></div>
+  <div id="line"><span id="lineText"></span></div>
+  <div id="wait" aria-live="polite" aria-label="Opening the door"><span>.</span><span>.</span><span>.</span></div>
+  <div id="cabhint"><span><span class="key">&larr;&rarr;&uarr;&darr;</span> MOVE</span><span><span class="key">SPACE</span> FIRE</span><span><span class="key">&#9003;</span> WALK AWAY</span></div>
+  <div id="card">
+    <h3>CONTROLS</h3>
+    <div class="keys">
+      <span class="k"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span></span><span>walk</span>
+      <span class="k"><span class="key">&larr;</span><span class="key">&rarr;</span></span><span>turn (or the mouse)</span>
+      <span class="k"><span class="key">E</span></span><span>use what's in front of you</span>
+      <span class="k"><span class="key">SHIFT</span></span><span>hurry</span>
+      <span class="k"><span class="key">ESC</span></span><span>pause &amp; settings</span>
+    </div>
+  </div>
+</div>
+
+<div id="fade" class="layer"></div>
+
+<div id="title" class="layer interactive" hidden>
+  <div class="stack">
+    <div class="eyebrow">WORLD ONE &middot; 1982</div>
+    <h1 class="glow">THE NODE</h1>
+    <div class="sub">A basement at the edge of town. The lamp is on, the TV is still warm, and the board says it's quiet. Beat one of ours and check back.</div>
+    <ul class="menu" role="menu">
+      <li><button id="btnBegin" class="on">BEGIN</button></li>
+      <li><button id="btnPitch">CREDITS</button></li>
+    </ul>
+    <div class="fine">mouse + keyboard &middot; headphones</div>
+  </div>
+</div>
+
+<div id="pause" class="layer interactive" hidden>
+  <div class="panel">
+    <h2 class="glow">PAUSED</h2>
+    <ul class="menu">
+      <li><button id="btnResume" class="on">RESUME</button></li>
+      <li><button id="btnPausePitch">CREDITS</button></li>
+      <li><button id="btnQuit">QUIT TO TITLE</button></li>
+    </ul>
+    <div class="hr"></div>
+    <div class="set">
+      <span>LOOK</span><span class="val" id="setLook"><button data-v="clean">CLEAN</button><button data-v="soft">RETRO</button><button data-v="full">FULL RETRO</button></span>
+      <span>MOUSE</span><span class="val"><input id="setSens" type="range" min="0.2" max="3" step="0.05" value="1" aria-label="Mouse sensitivity"></span>
+      <span>INVERT Y</span><span class="val" id="setInvert"><button data-v="0">OFF</button><button data-v="1">ON</button></span>
+      <span>VOLUME</span><span class="val"><input id="setVol" type="range" min="0" max="1" step="0.05" value="0.7" aria-label="Volume"></span>
+      <span>FULLSCREEN</span><span class="val"><button id="btnFull">TOGGLE</button></span>
+    </div>
+    <div class="hr"></div>
+    <div class="keys" style="font-size:22px">
+      <span class="k"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span></span><span>walk &middot; <span class="key">&larr;</span><span class="key">&rarr;</span> or mouse to turn</span>
+      <span class="k"><span class="key">E</span></span><span>use &middot; <span class="key">SHIFT</span> hurry &middot; <span class="key">V</span> switch the look</span>
+      <span class="k"><span class="key">&#9003;</span></span><span>walk away from a cabinet or the board</span>
+    </div>
+  </div>
+</div>
+
+<div id="end" class="layer interactive" hidden>
+  <div class="stack">
+    <div class="stats" id="endStats"></div>
+    <h2 id="endTitle">THE CABINET WITH NO NAME</h2>
+    <p id="endText">It's here. That's where the web game stops for now. Next time, you put a quarter in.</p>
+    <ul class="menu">
+      <li><button id="btnAgain" class="on">PLAY AGAIN</button></li>
+      <li><button id="btnEndPitch">CREDITS</button></li>
+    </ul>
+  </div>
+</div>
+
+<div id="pitch" class="layer interactive" hidden>
+  <div class="sheet" id="pitchSheet">
+    <button class="close" id="btnPitchClose">CLOSE &times;</button>
+    <div id="pitchBody"></div>
+  </div>
+</div>
+
+<div id="hs" class="layer interactive">
+  <div class="tube off">
+    <div class="screen"><div class="top"></div><div class="text"></div></div>
+    <div class="markslot"><div class="press"><div>CLICK TO CONNECT<span class="cur"></span></div><div class="phones">HEADPHONES ON</div></div></div>
+    <div class="scan"></div><div class="glass"></div>
+    <div class="hs-hint"></div>
+    <div class="hs-white"></div>
+  </div>
+  <div class="hs-sub"></div>
+  <input type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Type to the terminal">
+</div>
+
+<div id="loading" class="layer">
+  <div class="box glow">
+    <div id="loadText">OPENING THE BASEMENT</div>
+    <div class="bar"><div class="fill" id="loadFill"></div></div>
+    <div class="err" id="loadErr" hidden></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body></html>
