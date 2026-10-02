@@ -9,7 +9,7 @@
   "received_month": 0,
   "received_week": 0,
   "pay": {
-    "card": "",
+    "card": "https://ko-fi.com/daryllbuilds",
     "btc": "",
     "sol": "",
     "usdc_sol": "",

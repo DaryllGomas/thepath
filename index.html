@@ -520,7 +520,7 @@
       <div class="give">
         <p class="ask">If you want to help, <b>tips move the bar.</b> A dollar, ten, twenty: whatever you think it&rsquo;s worth.</p>
         <div class="card-row">
-          <a class="btn off" id="sCard" aria-disabled="true">TIP BY CARD</a>
+          <a class="btn off" id="sCard" aria-disabled="true">TIP BY CARD OR PAYPAL</a>
           <span class="sub" id="sCardSub">Card tips are coming soon.</span>
         </div>
         <p class="crypto-h">Or tip in crypto</p>
@@ -602,9 +602,9 @@
 
     function payments(pay) {
       const card = $('#sCard'), sub = $('#sCardSub');
-      if (typeof pay.card === 'string' && /^https:\/\/(buy|donate)\.stripe\.com\//.test(pay.card)) {
+      if (typeof pay.card === 'string' && /^https:\/\/ko-fi\.com\/[A-Za-z0-9_]+\/?$/.test(pay.card)) {
         card.href = pay.card; card.target = '_blank'; card.rel = 'noopener'; card.classList.remove('off'); card.removeAttribute('aria-disabled');
-        sub.textContent = 'Secure checkout through Stripe. You choose the amount.';
+        sub.textContent = 'Opens my Ko-fi page (card or PayPal). You choose the amount, from $5.';
       } else { card.removeAttribute('href'); card.classList.add('off'); card.setAttribute('aria-disabled', 'true'); sub.textContent = 'Card tips are coming soon.'; }
       dlg.querySelectorAll('.coin').forEach((c) => {
         const key = c.dataset.coin, spec = COINS[key], a = typeof pay[key] === 'string' ? pay[key].trim() : '';
