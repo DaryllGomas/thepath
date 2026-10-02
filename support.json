@@ -1,5 +1,5 @@
 {
-  "_how": "Edit by hand, then push. received_* = money actually received (tips + paid client work), before fees and taxes, less refunds; crypto at its USD value the day it arrived. Pacific time; weeks run Monday to Sunday. week_start = that Monday. Payment fields left empty show 'Coming soon'. card = a Stripe Payment Link (https://buy.stripe.com/...).",
+  "_how": "The pop-up's payment buttons come from 'pay' below: fill a field to switch that method on (card = a Stripe Payment Link, https://buy.stripe.com/...), then push. The totals are LIVE from the invoicing app's income ledger, published daily through https://pulse.bigpicsolutions.com/v1/support; the totals here are only the fallback if Pulse can't be reached.",
   "updated": "2026-10-02",
   "month": "2026-10",
   "month_number": 1,
