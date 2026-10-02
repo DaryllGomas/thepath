@@ -1,0 +1,18 @@
+{
+  "_how": "Edit by hand, then push. received_* = money actually received (tips + paid client work), before fees and taxes, less refunds; crypto at its USD value the day it arrived. Pacific time; weeks run Monday to Sunday. week_start = that Monday. Payment fields left empty show 'Coming soon'. card = a Stripe Payment Link (https://buy.stripe.com/...).",
+  "updated": "2026-10-02",
+  "month": "2026-10",
+  "month_number": 1,
+  "week_start": "2026-09-28",
+  "goal_month": 3000,
+  "goal_week": 692,
+  "received_month": 0,
+  "received_week": 0,
+  "pay": {
+    "card": "",
+    "btc": "",
+    "sol": "",
+    "usdc_sol": "",
+    "near": ""
+  }
+}
