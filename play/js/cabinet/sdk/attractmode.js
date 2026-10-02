@@ -76,7 +76,7 @@ export class AttractMode {
         let s = (Math.imul(this._seed, 7919) + Math.imul(this._demoRuns++, 104729) + 17) | 0;
         if (s === 0) s = 1;
         const credit = CreditInfo.make(1, 0);
-        this._demo = this._cart.newSim();
+        this._demo = this._cart.newSim(); this._demo.isDemo = true;      // a demo never moves a game's saved progress
         if (this._renderer == null) this._renderer = this._cart.newRenderer();
         this._bot = this._cart.newBot();
         this._demo.reset(s, credit, Mercy.resolve(this._spec.knobs, credit));
@@ -100,7 +100,7 @@ export class AttractMode {
         s.text('1UP', 16, 8, arc, pal.accent);
         s.text(d6(this.lastScore), 16, 18, dsp, pal.text);
         s.textCentered('HI-SCORE', 160, 8, arc, pal.accent);
-        s.textCentered(d6(this._table.top), 160, 18, dsp, pal.text);
+        s.textCentered(this._table.topBlank ? '------' : d6(this._table.top), 160, 18, dsp, pal.text);   // a blank top: no high score yet
     }
 
     _drawCredit(s) {
@@ -123,6 +123,7 @@ export class AttractMode {
 
     _drawTitle(s) {
         const arc = PixelFont.Arcade, spec = this._spec, pal = this._pal;
+        if (spec.drawTitle) { spec.drawTitle(s, this.time, this); this._drawCredit(s); return; }      // a cartridge with its own title screen
         s.clear(pal.background);
         this._drawHeader(s);
         this._drawTitleName(s, spec.name, 42, 4);
@@ -165,6 +166,7 @@ export class AttractMode {
         const rows = this._table.entries;
         for (let i = 0; i < rows.length && i < HighScoreTable.Rows; i++) {
             const y = 84 + i * 22;
+            if (rows[i].blank) { this._drawBlankRow(s, i, y); continue; }
             const c = rows[i].player ? pal.accent : (i === 0 ? pal.highlight : pal.text);
             s.text(AttractMode.Ranks[i], 48, y, arc, c, 2);
             s.text(d6(rows[i].score), 108, y, dsp, c, 2);
@@ -174,6 +176,11 @@ export class AttractMode {
         this._drawCredit(s);
     }
 }
+
+// a held-empty row (HighScoreTable.holdTop): its rank, and nothing where the score and the name go
+AttractMode.prototype._drawBlankRow = function (s, i, y) {
+    s.text(AttractMode.Ranks[i], 48, y, PixelFont.Arcade, this._pal.highlight, 2);
+};
 
 AttractMode.Page = Object.freeze({ Title: 0, Demo: 1, Scores: 2 });
 AttractMode.PageNames = Object.freeze(['Title', 'Demo', 'Scores']);

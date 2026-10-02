@@ -1,4 +1,4 @@
-// THE DELIVERY (docs/THE_GAME/THE_LINE_2026-09-26.md, beat 6): once three of ours are beaten, a black van pulls up
+// THE DELIVERY (docs/THE_PLAN/CANON.md item 7): once THE ARCADE ANSWERS (js/answer.js: Starvector's last wave), a black van pulls up
 // outside Flynn's, two men in black suits wheel a black cabinet with no name in through the front doors on a hand
 // truck, stand it in the empty spot at the back, walk out without a word, and the van drives off.
 // The men are the Unity suits kit (two poses, swapped every stride, MenInSuits' numbers); the cabinet is the real

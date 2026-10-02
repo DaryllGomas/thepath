@@ -60,6 +60,8 @@
     text-align: center; font-family: var(--type); font-size: 21px; color: #f3dcae; line-height: 1.4; opacity: 0; transition: opacity 0.5s; }
   #line.on { opacity: 1; }
   #line span { background: rgba(10, 7, 5, 0.62); padding: 3px 10px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  /* a sound from somewhere else (the walkie in the yard): quieter, in italics */
+  #line.faint span { font-style: italic; color: #cdb993; background: rgba(10, 7, 5, 0.5); }
   /* the areaway door, while the yard is still on its way: a small pill of dots, then the door opens by itself */
   #wait { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); font-size: 34px; letter-spacing: 0.2em; color: var(--amber);
     background: rgba(10, 7, 5, 0.62); padding: 2px 14px 6px 18px; border-radius: 3px; opacity: 0; transition: opacity 0.3s; }
@@ -97,13 +99,29 @@
   .set input[type=range] { width: 140px; accent-color: #ffb028; }
   .hr { height: 0; border-top: 3px double var(--amber-dim); margin: 6px 0; }
 
-  /* ---------- the end ---------- */
-  #end { z-index: 40; background: #070a12; display: grid; place-items: center; text-align: center; color: #cfe3ff; }
-  #end .stack { display: grid; gap: 14px; justify-items: center; padding-inline: 16px; }
-  #end h2 { margin: 0; font-weight: 400; font-size: clamp(54px, 9vw, 110px); color: #bcd6ff; text-shadow: 0 0 20px rgba(120, 170, 255, 0.45); letter-spacing: 0.04em; }
-  #end p { margin: 0; font-family: var(--type); font-size: 19px; max-width: 46ch; line-height: 1.5; color: #a9bfdc; }
-  #end .stats { font-size: 26px; color: #86a6d4; letter-spacing: 0.08em; }
-  #end .menu button { color: #cfe3ff; } #end .menu button:hover::before, #end .menu button:focus-visible::before { background: #cfe3ff; }
+  /* ---------- the end: after the white, a near-white page, one small line, a way to play again (no title) ---------- */
+  #end { z-index: 40; background: #f4f1ea; display: grid; place-items: center; text-align: center; color: #857d71; opacity: 0; transition: opacity 1.8s ease; }
+  #end.on { opacity: 1; }
+  #end .stack { display: grid; gap: 30px; justify-items: center; padding-inline: 16px; }
+  #end p { margin: 0; font-family: var(--type); font-size: 18px; max-width: 46ch; line-height: 1.5; color: #8a8276; letter-spacing: 0.01em; opacity: 0; transition: opacity 1.6s ease 1.4s; }
+  #end.on p { opacity: 1; }
+  #end .menu { font-size: 28px; opacity: 0; transition: opacity 1.4s ease 3.2s; }
+  #end.on .menu { opacity: 1; }
+  #end .menu button { color: #9d9486; }
+  #end .menu button:hover::before, #end .menu button:focus-visible::before, #end .menu button.on::before { background: #b9b0a2; }
+  #end .menu button:focus-visible { outline: none; }
+
+  /* ---------- THE PATH, once, in the pull (js/ending.js): flat, about 0.6 s, a soft fade in and out ---------- */
+  #pathflash { z-index: 12; display: grid; place-items: center; opacity: 0; transition: opacity 0.18s ease-in-out; will-change: opacity; }
+  #pathflash.on { opacity: 1; }
+  #pathflash::before { content: ""; position: absolute; left: 50%; top: 50%; width: min(64vmin, 580px); aspect-ratio: 1; transform: translate(-50%, -50%);
+    border-radius: 50%; background: radial-gradient(closest-side, rgba(12, 9, 22, 0.78), rgba(12, 9, 22, 0.5) 62%, rgba(12, 9, 22, 0)); }
+  #pathflash svg { position: relative; width: min(56vmin, 520px); height: auto; overflow: visible; color: #fff4dc;
+    filter: drop-shadow(0 0 1.5px rgba(16, 10, 28, 0.95)) drop-shadow(0 0 12px rgba(255, 236, 196, 0.45)); }
+  #pathflash .s { fill: none; stroke: currentColor; }
+  #pathflash .road { fill: currentColor; }
+  #pathflash .stars, #pathflash .dots { fill: currentColor; stroke: currentColor; }
+  @media (prefers-reduced-motion: reduce) { #pathflash { transition-duration: 0.3s; } }
 
   /* ---------- the pitch: a typed memo under the door ---------- */
   #pitch { z-index: 60; background: rgba(6, 4, 3, 0.9); overflow-y: auto; padding-block: clamp(16px, 5vh, 56px); padding-inline: 16px; }
@@ -168,8 +186,6 @@
   #hs .pathmark.draw .s, #hs .pathmark.draw .rv { stroke-dashoffset: 0; }
   #hs .pathmark.draw .stars, #hs .pathmark.draw .dots { opacity: 1; }
   #hs .pathmark.flare { color: #ffe3a0; transform: scale(1.1); filter: drop-shadow(0 0 6px #ffe3a0) drop-shadow(0 0 34px #fff) brightness(1.5); }
-  #hs .avr { font-size: min(6.5cqh, 6cqw); letter-spacing: 0.5em; padding-left: 0.5em; margin-top: 2.5cqh; min-height: 1.1em; text-shadow: 0 0 8px rgba(120, 255, 220, 0.6); }
-  #hs .accepted { font-size: min(3.2cqh, 3cqw); letter-spacing: 0.3em; color: var(--ph-dim); min-height: 1.1em; margin-top: 1cqh; }
   #hs .hs-hint { position: absolute; right: 6%; bottom: 2%; font-family: var(--screen); font-size: min(2.8cqh, 2.3cqw); color: var(--ph-dim); letter-spacing: 0.08em;
     opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 3; }
   #hs .hs-hint.on { opacity: 0.9; }
@@ -178,6 +194,14 @@
   #hs .hs-sub.on { opacity: 1; }
   #hs .hs-sub.boy { color: #f1e3c4; }
   #hs .hs-sub.girl { color: #f5cdbd; }
+  #hs .hs-skip { position: absolute; left: 4%; bottom: 2%; font-family: var(--screen); font-size: min(2.8cqh, 2.3cqw); color: var(--ph-dim); letter-spacing: 0.08em; opacity: 0; transition: opacity 0.6s; z-index: 4; cursor: pointer; pointer-events: none; }
+  #hs .hs-skip.on { opacity: 0.85; pointer-events: auto; }
+  /* the one glitch (js/handshake.js: glitch): static with a mark flashing through, ~0.4 s, when the password is accepted */
+  #hs .hs-glitch { position: absolute; inset: 0; display: grid; place-content: center; pointer-events: none; z-index: 3; opacity: 0; color: #d7fff6;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0 2px, rgba(0,0,0,0.5) 2px 5px); }
+  #hs .hs-glitch.on { opacity: 1; animation: hsglitch 0.42s steps(6) 1; }
+  #hs .hs-glitch svg { width: min(60cqh, 60cqw); height: min(60cqh, 60cqw); filter: drop-shadow(0 0 6px currentColor); }
+  @keyframes hsglitch { 0% { transform: translateX(-6px); } 20% { transform: translateX(8px); opacity: 0.7; } 40% { transform: translateX(-3px); } 60% { transform: translateX(5px); opacity: 0.9; } 100% { transform: none; } }
   #hs .hs-white { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.4s ease-in; pointer-events: none; z-index: 5; }
   #hs .hs-white.on { opacity: 1; }
   #hs input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; font-size: 16px; }
@@ -191,6 +215,9 @@
     #hs .screen { font-size: min(3.6cqh, 5.3cqw); inset: 4% 5% 5%; }
   }
   @media (prefers-reduced-motion: reduce) { #hs .screen, #hs .tube.unstable .screen, #hs .tube.tear .screen { animation: none !important; } }
+
+  /* a cabinet at full screen (js/main.js: body.cabfull): the picture is the glass, so the lines and the pocket count step aside */
+  body.cabfull #line, body.cabfull #pocket, body.cabfull #card { opacity: 0 !important; }
 
   #fade { z-index: 45; background: #000; opacity: 0; transition: opacity 1.2s; }
   @media (prefers-reduced-motion: reduce) { .menu button::before { animation: none !important; } }
@@ -225,12 +252,13 @@
 </div>
 
 <div id="fade" class="layer"></div>
+<div id="pathflash" class="layer" aria-hidden="true"></div>
 
 <div id="title" class="layer interactive" hidden>
   <div class="stack">
     <div class="eyebrow">WORLD ONE &middot; 1982</div>
     <h1 class="glow">THE NODE</h1>
-    <div class="sub">A basement at the edge of town. The lamp is on, the TV is still warm, and the board says it's quiet. Beat one of ours and check back.</div>
+    <div class="sub">A basement at the edge of town. The lamp is on, the TV is still warm, and the board has new posts.</div>
     <ul class="menu" role="menu">
       <li><button id="btnBegin" class="on">BEGIN</button></li>
       <li><button id="btnPitch">CREDITS</button></li>
@@ -266,12 +294,9 @@
 
 <div id="end" class="layer interactive" hidden>
   <div class="stack">
-    <div class="stats" id="endStats"></div>
-    <h2 id="endTitle">THE CABINET WITH NO NAME</h2>
-    <p id="endText">It's here. That's where the web game stops for now. Next time, you put a quarter in.</p>
+    <p id="endText">The web game ends here, for now.</p>
     <ul class="menu">
       <li><button id="btnAgain" class="on">PLAY AGAIN</button></li>
-      <li><button id="btnEndPitch">CREDITS</button></li>
     </ul>
   </div>
 </div>
@@ -304,4 +329,3 @@
 </div>
 
 <script type="module" src="js/main.js"></script>
-</body></html>

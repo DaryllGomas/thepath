@@ -4,9 +4,10 @@
 // and the program with no name. Starting it breaks the connection the wrong way, THE PATH flashes, white; then
 // main.js wakes you on the couch. Mercy everywhere: no fail state, the machine is the hint system, and every
 // command on screen can be clicked instead of typed. Original names only (no film titles, lines or places).
-import { pathMarkSVG } from './marks.js';
+import { pathMarkSVG, gateMarkSVG } from './marks.js';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let ABORT = false;                                    // ESC: the sequence stops where it is (every later wait never returns)
+const sleep = (ms) => (ABORT ? new Promise(() => {}) : new Promise((r) => setTimeout(r, ms)));
 const UP = (s) => String(s || '').trim().toUpperCase().replace(/\s+/g, ' ');
 const YES = /^(Y|YES|YEAH|YEP|SURE|OK|OKAY|GO|BEGIN)$/, NO = /^(N|NO|NOPE|NAH|NEVER|STOP)$/;
 const PASSWORD = /^(LOGIN |LOGON )?(LIGHTNING|LIGHTENING)$/;
@@ -212,6 +213,10 @@ export class Handshake {
     this.tube = q('.tube'); this.top = q('.top'); this.text = q('.text'); this.sub = q('.hs-sub'); this.hint = q('.hs-hint');
     this.white = q('.hs-white'); this.slot = q('.markslot'); this.inp = q('input');
     this.buf = {}; this.live = new Set(); this.map = null;
+    this.skipAt = 0; this.shown = new Set(); this.skipEl = el('div', 'hs-skip'); this.skipEl.textContent = 'PRESS ESC TO SKIP'; this.skipEl.addEventListener('click', () => this.skipNow());
+    this.tube.append(this.skipEl);
+    this.fxEl = el('div', 'hs-glitch'); this.tube.append(this.fxEl);   // the one glitch: THE PASSWORD is accepted
+    this.skipP = new Promise((res) => { this.resolveSkip = res; });
     this.f = { name: '', in: false, open: false, loginFails: 0, unknown: 0, grid: 0, deniedRuns: 0 };
     this.asking = null; this.streaming = false; this.rush = false; this.auto = false; this.taught = false; this.stage = 'press'; this.lastKey = performance.now();
     this.inLine = el('div', 'ln in'); this.inPrompt = el('span', 'p'); this.inText = el('span', 't');
@@ -243,7 +248,7 @@ export class Handshake {
     this.keyNames = Object.keys(this.buf).filter((n) => /^key_\d+$/.test(n));
   }
   play(name, { gain = 1, rate = 1, loop = false, offset = 0 } = {}) {
-    const b = this.buf[name]; if (!b || !this.ctx) return null;
+    const b = this.buf[name]; if (!b || !this.ctx || ABORT) return null;
     const src = this.ctx.createBufferSource(), g = this.ctx.createGain();
     src.buffer = b; src.loop = loop; src.playbackRate.value = rate; g.gain.value = gain * this.volume();
     src.connect(g).connect(this.ctx.destination); src.start(0, offset);
@@ -262,6 +267,7 @@ export class Handshake {
   // ------------------------------------------------ input
   onKey(e) {
     this.lastKey = performance.now();
+    if (e.code === 'Escape') { e.preventDefault(); if (this.skipAt && performance.now() >= this.skipAt) this.skipNow(); else if (this.stage === 'press' && this.returning) this.skipNow(); return; }
     if (e.code === 'Tab') { e.preventDefault(); return; }
     if (this.stage === 'press') { if (!e.repeat && this.pressed && !/^(Shift|Control|Alt|Meta)/.test(e.key)) { e.preventDefault(); this.pressed(e.code); } return; }
     if (this.streaming) { if (e.code === 'Space' || e.code === 'Enter') this.rush = true; e.preventDefault(); return; }
@@ -283,7 +289,10 @@ export class Handshake {
       const t0 = performance.now(); let ni = 0;
       const timer = setInterval(() => {
         const idle = (performance.now() - Math.max(t0, this.lastKey)) / 1000;
-        if (ni < nudges.length && idle > nudges[ni][0] && !this.inText.textContent) { this.note(nudges[ni][1]); ni++; }
+        if (ni < nudges.length && idle > Math.max(25, nudges[ni][0]) && !this.inText.textContent) {
+          if (!this.shown.has(nudges[ni][1])) { this.shown.add(nudges[ni][1]); this.note(nudges[ni][1]); }   // a hint never repeats
+          ni++;
+        }
       }, 500);
       this.asking = { prompt: this.inPrompt.textContent, resolve, timer };
     });
@@ -368,6 +377,30 @@ export class Handshake {
     try { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume(); } catch (e) { /* no audio */ }
     this.slot.replaceChildren();
     if (how === 'skip') { this.stage = 'gone'; return 'skip'; }
+    // ESC to skip: at once for a returning player, after 30 s for a first-timer
+    const showSkip = () => { this.skipAt = performance.now(); this.skipEl.classList.add('on'); };
+    if (this.returning) showSkip(); else this.skipTimer = setTimeout(showSkip, 30000);
+    return Promise.race([this.sequence(), this.skipP]).finally(() => { clearTimeout(this.skipTimer); this.skipEl.classList.remove('on'); });
+  }
+  skipNow() {
+    if (ABORT || this.stage === 'gone') return;
+    ABORT = true;
+    this.silence(); if (this.map) { this.map.stop(); this.map = null; }
+    if (this.asking) { clearInterval(this.asking.timer); this.asking = null; }
+    try { localStorage.setItem('node.handshake.v1', '1'); } catch (e) { /* private window */ }
+    this.stage = 'gone'; this.resolveSkip('skip');
+  }
+  // the ONE glitch of the opening: the password is accepted. A short tear of static with one of our marks flashing through.
+  async glitch() {
+    let reduced = false; try { reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* fine */ }
+    this.play('static_burst', { gain: 0.5 });
+    if (reduced) return;
+    this.fxEl.innerHTML = gateMarkSVG();
+    this.fxEl.classList.add('on'); this.tube.classList.add('tear');
+    await sleep(420);
+    this.fxEl.classList.remove('on'); this.tube.classList.remove('tear'); this.fxEl.innerHTML = '';
+  }
+  async sequence() {
     await this.loading;
     if (this.jump === 'hs-games' || this.jump === 'hs-untitled') {
       this.powerOn(); this.f.in = true; this.f.open = this.jump === 'hs-untitled'; this.f.name = 'TESTER';
@@ -542,6 +575,7 @@ export class Handshake {
   }
   async granted() {
     this.f.in = true;
+    await this.glitch();
     await this.say('ACCESS GRANTED.', { after: 500 });
     await this.say('YOU FOUND THE WAY BACK IN.', { cps: 26, after: 900 });
     await this.voice("Who's Lightning?", 'girl');
@@ -649,7 +683,8 @@ export class Handshake {
     await this.say('SIMULATION ENDED.', { after: 500 });
     await this.say('OBJECTIVE ACHIEVED     NO\nSURVIVING COMMAND      NO\nWINNER                 NONE', { cps: 40, after: 1200 });
     // his line (2026-09-26): the game ends on its lesson
-    await this.say('THE LESSON IS: THERE IS NO WINNER.', { cps: 16, cls: 'hot', after: 1400 });
+    await this.say('THE LESSON IS: THERE IS NO WINNER.', { cps: 16, cls: 'hot', after: 1000 });
+    await this.say("DON'T PLAY THEIR GAME.", { cps: 16, cls: 'hot', after: 1400 });
     for (let reps = 0; ;) {
       const a = UP(await this.ask('REPEAT? ({Y}/{N})> ', { nudges: reps >= 2 ? [[15, 'YOU KNOW THE ANSWER.']] : [] }));
       if (NO.test(a)) break;
@@ -704,15 +739,11 @@ export class Handshake {
     this.tube.classList.add('tear'); this.play('static_burst', { gain: 0.6 });
     await sleep(1000);
     this.clear(); this.tube.classList.remove('tear', 'unstable');
-    this.slot.innerHTML = pathMarkSVG() + '<div class="avr"></div><div class="accepted"></div>';
+    // the shape, and nothing else: no name, no caption (canon: "No name. No explanation. Just the shape.")
+    this.slot.innerHTML = pathMarkSVG();
     const svg = this.slot.querySelector('svg'); void svg.getBoundingClientRect(); svg.classList.add('draw');
     await sleep(2500);
-    const avr = this.slot.querySelector('.avr');
-    for (const ch of 'A·V·R') { avr.textContent += ch; await sleep(200); }
-    await sleep(500);
-    const acc = this.slot.querySelector('.accepted');
-    for (const ch of 'HANDSHAKE ACCEPTED') { acc.textContent += ch; await sleep(28); }
-    await sleep(700);
+    await sleep(1100);
     svg.classList.add('flare'); this.play('static_burst', { gain: 0.7 });
     await sleep(800);
     this.white.classList.add('on'); await sleep(400);

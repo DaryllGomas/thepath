@@ -70,6 +70,28 @@ function withBakeCurve(m) {
   };
   return m;
 }
+// THE OFFICE LAMP (js/answer.js: the third knock). The office upstairs starts DARK, nobody home, its terminal still on; its
+// lamp clicks on with the third knock (today: Starvector's last wave). The office was baked with every lamp lit, so 'off' is that bake
+// scaled down inside the room's box only (the stair, the balcony and the landing's sconce outside it keep their light), and
+// its lamps' glass goes dim with it. W.officeLamp(k): 0 off .. 1 on (the bake as it was).
+const OFFICE_LAMP = { lamp: { value: 0 }, dark: { value: 0.035 } };
+const OFFICE_BOX = { lo: [85.44, -34.05, -175.08], hi: [90.1, -30.9, -168.92] };      // the office's inside faces, web x y z
+const OFFICE_KEEP = /^M_Office_(Screen|Glass)$/;                                        // the terminal stays on; the glass is unbaked
+function withOfficeLamp(m, glow) {
+  const prev = m.onBeforeCompile, v = (a) => `vec3( ${a.map((x) => x.toFixed(3)).join(', ')} )`;
+  m.onBeforeCompile = (s, r) => {
+    if (prev) prev.call(m, s, r);
+    s.uniforms.officeLamp = OFFICE_LAMP.lamp; s.uniforms.officeDark = OFFICE_LAMP.dark;
+    s.vertexShader = 'varying vec3 vOfficeW;\n' + s.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n\tvOfficeW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    s.fragmentShader = 'uniform float officeLamp, officeDark;\nvarying vec3 vOfficeW;\n' + s.fragmentShader.replace('#include <opaque_fragment>', `{
+		vec3 oIn3 = step( ${v(OFFICE_BOX.lo)}, vOfficeW ) * step( vOfficeW, ${v(OFFICE_BOX.hi)} );
+		outgoingLight *= mix( 1.0, officeDark * ${glow ? '0.25' : '1.0'}, oIn3.x * oIn3.y * oIn3.z * ( 1.0 - officeLamp ) );
+	}
+	#include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey = () => 'officeLamp|' + (glow ? 'glow' : prev ? 'baked' : 'plain');
+  return m;
+}
 // The lino's gloss, cheaply: one small HDR cube of the room, taken once when you first walk in (W.captureSheen), read back
 // box-projected (so a bulb's reflection sits under the bulb, not under the cube's centre), softened by a mip level and
 // four taps spread in the plane of incidence (a glossy floor stretches a light into a streak toward you, not a round
@@ -156,6 +178,7 @@ function buildFlynnsEnv(E, group, byPath) {
       else m.side = THREE.FrontSide;
     }
     if (m.isMeshBasicMaterial && !m.transparent) m.side = THREE.FrontSide;
+    if (/^M_Office_/.test(src.name) && !OFFICE_KEEP.test(src.name) && m.isMeshBasicMaterial) withOfficeLamp(m, lit);
     mats.set(key, m); return m;
   };
   const outside = new Map();
@@ -503,6 +526,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
     group.add(mesh); drawCalls++;
   }
   const env = E ? buildFlynnsEnv(E, group, byPath) : null;
+  const signMats = [];             // the sign's neon and its lit letters (W.signLight)
   if (sign) {
     sign.scene.updateMatrixWorld(true);
     sign.scene.traverse((o) => {
@@ -511,6 +535,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
       o.material.side = /NeonCream/.test(o.material.name) ? THREE.DoubleSide : THREE.FrontSide;
       const mesh = new THREE.Mesh(toWorld(o.geometry, o.matrixWorld), o.material); mesh.matrixAutoUpdate = false;
       mesh.name = (o.parent && o.parent.userData.path) || o.name; group.add(mesh); drawCalls++;
+      if (/^M_Junction_(Neon|Letter)/.test(o.material.name) && !signMats.includes(o.material)) { o.material.userData.ei0 = o.material.emissiveIntensity; signMats.push(o.material); }
     });
   }
   if (env) drawCalls += env.calls;
@@ -674,6 +699,32 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
     W.poolT = 0;
     return { ...ENV_TUNE, k: ENV_CURVE.envK.value, g: ENV_CURVE.envG.value, sheenLod: SHEEN.u.sheenLod.value, sheenMs: SHEEN.ms, rig: defs.filter((d) => /^Env/.test(d.name)).map((d) => d.name + ' ' + d.intensity) };
   };
+  // THE ARCADE ANSWERS (js/answer.js) moves three things in the room:
+  //   W.signLight(k)  THE JUNCTION's sign outside, 0 dark .. 1 lit: its neon, its letters, and the red it throws on the street
+  //                   and through the front windows onto the cabinets (the first knock)
+  //   W.officeLamp(k) the office upstairs, 0 dark .. 1 its lamp on (the third knock; see OFFICE_LAMP)
+  //   W.roomLight(k)  the room's own light, 1 as baked .. 0: the bake, the bulbs, the neon on the walls, the rig that lights the
+  //                   cabinets and the props, the room's bounce, the floor's gloss. The cabinets' screens and marquees are
+  //                   their own light and never dip (the answer)
+  // (a light is never taken below 0.5 % of itself: the pool drops a light at zero and would take it back a quarter second late)
+  W.signLight = (k) => {
+    k = Math.max(0, Math.min(1.5, k)); W.signK = k;
+    for (const m of signMats) m.emissiveIntensity = m.userData.ei0 * k;
+    const d = byName[SIGN_LIGHT.name]; if (d) d.intensity = d.base * Math.max(0.005, k);
+  };
+  W.officeLamp = (k) => { if (k !== undefined) OFFICE_LAMP.lamp.value = Math.max(0, Math.min(1, k)); return OFFICE_LAMP.lamp.value; };
+  W.roomK = 1;
+  W.roomLight = (k) => {
+    if (!env) return;
+    k = Math.max(0, Math.min(1, k));
+    if (W.roomK === 1 && k !== 1) W.roomBase = { envK: ENV_CURVE.envK.value };
+    const base = W.roomBase || { envK: ENV_CURVE.envK.value };
+    W.roomK = k;
+    ENV_CURVE.envK.value = base.envK * k;
+    for (const m of env.tuned) if (m.userData.glow) m.color.copy(m.userData.glow.col).multiplyScalar((ENV_TUNE.fx[m.name] ?? (/FixtureOn/.test(m.name) ? ENV_TUNE.fx.fixture : 1)) * k);
+    for (const d of defs) if (/^Env/.test(d.name)) d.intensity = d.base * Math.max(0.005, k);
+    if (SHEEN.taken) SHEEN.u.sheen.value = ENV_TUNE.sheen * k;
+  };
   W.update = (dt, cam, feetY) => updateOutside(W, dt, cam, feetY);
   return W;
 }
@@ -715,7 +766,7 @@ function updateOutside(W, dt, cam, feetY) {
       const s = Math.min(1, Math.max(0, inside / F.ramp)); W.inside = s * s * (3 - 2 * s);
       W.sun.intensity *= 1 - W.inside;
       _c.setRGB(ENV_TUNE.ambCol[0], ENV_TUNE.ambCol[1], ENV_TUNE.ambCol[2], THREE.SRGBColorSpace);
-      W.ambient.color.lerp(_c, W.inside); W.ambient.intensity = lerp(W.ambient.intensity, ENV_TUNE.amb, W.inside);
+      W.ambient.color.lerp(_c, W.inside); W.ambient.intensity = lerp(W.ambient.intensity, ENV_TUNE.amb * (W.roomK ?? 1), W.inside);
     }
   }
   W.sky.position.copy(cam.position);
@@ -887,7 +938,7 @@ export class OutdoorBody {
   }
   collide() {
     const r = this.radius;
-    for (const bvh of [this.W.bvh, this.W.doorsOpen ? null : this.W.doorBvh, this.W.polyPlaced ? this.W.polyBvh : null]) {
+    for (const bvh of [this.W.bvh, this.W.doorsOpen ? null : this.W.doorBvh, this.W.polyPlaced ? this.W.polyBvh : null, this.W.extraBvh || null]) {
       if (!bvh) continue;
       _seg.start.set(this.pos.x, this.pos.y + r, this.pos.z); _seg.end.set(this.pos.x, this.pos.y + this.height - r, this.pos.z);
       _box.makeEmpty(); _box.expandByPoint(_seg.start); _box.expandByPoint(_seg.end); _box.min.addScalar(-r); _box.max.addScalar(r);
@@ -910,7 +961,7 @@ export class OutdoorBody {
   apply(dt) {
     const c = this.cam;
     if (this.lookOverride) {
-      const o = this.lookOverride; o.t = Math.min(1, o.t + dt / 0.55);
+      const o = this.lookOverride; o.t = Math.min(1, o.t + dt / (o.secs || 0.55));
       const s = o.t * o.t * (3 - 2 * o.t);
       c.position.lerpVectors(o.fromPos, o.pos, s); c.quaternion.slerpQuaternions(o.fromQ, o.q, s);
       return;
@@ -923,9 +974,9 @@ export class OutdoorBody {
     const pos = center.clone().addScaledVector(normal, dist);
     this.lookAtPose(pos, center);
   }
-  lookAtPose(pos, target) {
+  lookAtPose(pos, target, secs) {          // secs: the glide's length (default 0.55 s)
     const m = new THREE.Matrix4().lookAt(pos, target, new THREE.Vector3(0, 1, 0));
-    this.lookOverride = { fromPos: this.cam.position.clone(), fromQ: this.cam.quaternion.clone(), pos: pos.clone(), q: new THREE.Quaternion().setFromRotationMatrix(m), t: 0 };
+    this.lookOverride = { fromPos: this.cam.position.clone(), fromQ: this.cam.quaternion.clone(), pos: pos.clone(), q: new THREE.Quaternion().setFromRotationMatrix(m), t: 0, secs };
   }
   release() {
     if (!this.lookOverride) return;

@@ -58,8 +58,10 @@ export async function loadBasement(base, opts, onProgress) {
     if (matCache.has(key)) return matCache.get(key);
     const m = meta.materials[mi];
     const mat = new THREE.MeshStandardMaterial({ name: m.name });
+    const clockGlass = m.name === 'M_wall_clock_glass';   // the dump gave the glass the clock's own texture (it smeared the case over the dial): plain clear glass
     mat.color.setRGB(m.color[0], m.color[1], m.color[2], THREE.LinearSRGBColorSpace);
-    if (m.map && textures['tex/' + m.map]) {
+    if (clockGlass) mat.color.setRGB(1, 1, 1);
+    if (m.map && !clockGlass && textures['tex/' + m.map]) {
       const t = textures['tex/' + m.map].clone();
       const [sx, sy, ox, oy] = m.st;
       t.repeat.set(sx, sy); t.offset.set(ox, 1 - sy - oy);
@@ -75,7 +77,7 @@ export async function loadBasement(base, opts, onProgress) {
       mat.emissiveIntensity = mx;
       if (m.emissiveMap && textures['tex/' + m.emissiveMap]) mat.emissiveMap = textures['tex/' + m.emissiveMap];
     }
-    if (m.transparent) { mat.transparent = true; mat.opacity = m.alpha; mat.depthWrite = false; }
+    if (m.transparent) { mat.transparent = true; mat.opacity = clockGlass ? 0.04 : m.alpha; mat.depthWrite = false; }
     if (m.clip > 0) mat.alphaTest = m.clip;
     if (m.doubleSided) mat.side = THREE.DoubleSide;
     mat.lightMap = lm >= 0 ? textures[meta.lightmaps[lm].file] : flatLM;
@@ -91,6 +93,8 @@ export async function loadBasement(base, opts, onProgress) {
   const live = [];                  // meshes that stay separate
   const screens = {};
   const byPath = {};
+  const jukeParts = [];
+  const bounds = {};                // world-space box per named prop (glTF node names, slashes dropped), for the things to look at
   gltf.scene.traverse((o) => {
     if (!o.isMesh) return;
     let n = o; while (n && n.userData.lm === undefined && n.parent) n = n.parent;
@@ -99,6 +103,8 @@ export async function loadBasement(base, opts, onProgress) {
     const mi = parseInt((o.material && o.material.name || 'm-1').slice(1), 10);
     const m = meta.materials[mi];
     const geo = toFloat(o.geometry).applyMatrix4(o.matrixWorld);
+    geo.computeBoundingBox();
+    (bounds[path] = bounds[path] || new THREE.Box3()).union(geo.boundingBox);
     if (m && m.kind === 'crt') {
       const mesh = new THREE.Mesh(geo, null);
       mesh.name = path;
@@ -107,6 +113,7 @@ export async function loadBasement(base, opts, onProgress) {
       return;
     }
     const mat = m ? litMaterial(mi, ud.lm ?? -1) : new THREE.MeshStandardMaterial();
+    if (/^Jukebox/.test(path)) jukeParts.push({ geo: geo.clone(), mat });     // (kept aside: the Junction's jukebox is these same meshes, js/jukebox.js)
     const dynamic = !ud.active || /^Areaway\/AreawayHinge|^Lightning\/|Kibble/.test(path);
     if (dynamic) {
       const mesh = new THREE.Mesh(geo, mat);
@@ -135,6 +142,33 @@ export async function loadBasement(base, opts, onProgress) {
     }
   }
   for (const m of live) scene.add(m);
+
+  // ---- THE WALL CLOCK READS 3:33 (canon: every clock does). The Poly Haven model came without hands, so three are made here
+  // to sit on its dial: black hour and minute, a red second hand. The dial faces -x (the room), 12 up, 3 toward +z.
+  const clk = bounds['WallClockwall_clock'];
+  if (clk) {
+    const c = new THREE.Vector3(); clk.getCenter(c);
+    const HX = clk.min.x + 0.0135;          // just in front of the dial (x 8.9784 of a box spanning 8.9567 .. 9.0036)
+    const handMat = (hex) => { const m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, metalness: 0 }); m.lightMap = flatLM; m.lightMapIntensity = Math.PI * LM_RANGE; return m; };
+    const black = handMat(0x000000), red = handMat(0xb00c12);
+    // a hand: a slim tapered blade from `tail` behind the pivot to `len` past it, at clock angle `deg` (clockwise from 12)
+    const hand = (mat, len, tail, w, dx, deg) => {
+      const sh = new THREE.Shape(); sh.moveTo(-tail, -w * 0.5); sh.lineTo(len * 0.86, -w * 0.5); sh.lineTo(len, 0); sh.lineTo(len * 0.86, w * 0.5); sh.lineTo(-tail, w * 0.5); sh.closePath();
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.0012, bevelEnabled: false });   // shape x -> along the hand, z -> thickness
+      g.translate(0, 0, -0.0006);
+      const mesh = new THREE.Mesh(g, mat);
+      // shape x -> world +y (12 o'clock), shape y -> world +z, extrusion z -> world +x (a right-handed frame)
+      const a = deg * DEG;
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.makeBasis(new THREE.Vector3(0, Math.cos(a), Math.sin(a)), new THREE.Vector3(0, -Math.sin(a), Math.cos(a)), new THREE.Vector3(1, 0, 0)).setPosition(HX - dx, c.y, c.z);
+      mesh.receiveShadow = false; mesh.castShadow = false;
+      return mesh;
+    };
+    const hh = 3 * 30 + 33 * 0.5, mm = 33 * 6, ss = 50 * 6;                                 // 3:33:50
+    scene.add(hand(black, 0.070, 0.016, 0.0115, 0.0000, hh), hand(black, 0.112, 0.022, 0.0075, 0.0016, mm), hand(red, 0.124, 0.034, 0.0026, 0.0032, ss));
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.0050, 20), red);
+    cap.rotation.z = Math.PI / 2; cap.position.set(HX - 0.0036, c.y, c.z); scene.add(cap);
+  }
 
   // ---- the areaway door swings on its hinge (inward, 100 degrees, 0.6 s: DoorSwing)
   const door = new THREE.Group(); door.position.set(3.33, 1.01, -6.97); scene.add(door);
@@ -192,7 +226,7 @@ export async function loadBasement(base, opts, onProgress) {
   scene.fog = new THREE.FogExp2(new THREE.Color().setRGB(fc[0], fc[1], fc[2], THREE.SRGBColorSpace), 0.03);
   scene.background = scene.fog.color.clone();
 
-  return { scene, meta, screens, door, cat, poses, kibble, lights, metals, drawCalls,
+  return { scene, meta, screens, bounds, door, cat, poses, kibble, lights, metals, drawCalls, jukeParts,
     lightmaps: meta.lightmaps.map((l) => textures[l.file]),
     colliders: meta.colliders.filter((c) => c.kind === 'box' && c.on && !c.trigger) };
 }

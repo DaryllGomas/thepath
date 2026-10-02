@@ -1,0 +1,1788 @@
+{
+ "cabinet": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26.1,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.952
+  },
+  "start": {
+   "peak": -14.5,
+   "rms": -24.7,
+   "lufsM": -24.1,
+   "lufsI": -25.9,
+   "hf": 0.0031,
+   "hfMax": 0.0038,
+   "hfAt": 0.26,
+   "dur": 0.552
+  },
+  "lifeLost": {
+   "peak": -13.3,
+   "rms": -20.8,
+   "lufsM": -22.4,
+   "lufsI": -24.2,
+   "hf": 0.0004,
+   "hfMax": 0.0014,
+   "hfAt": 0,
+   "dur": 0.488
+  },
+  "die": {
+   "peak": -11.1,
+   "rms": -20.5,
+   "lufsM": -21.1,
+   "lufsI": -22.6,
+   "hf": 0.0003,
+   "hfMax": 0.0015,
+   "hfAt": 0.09,
+   "dur": 1.292
+  },
+  "ward": {
+   "peak": -20.7,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "attractDrone": {
+   "peak": -20.2,
+   "rms": -32.8,
+   "lufsM": -29.9,
+   "lufsI": -34.2,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 14.54,
+   "dur": 17.169
+  },
+  "attractShimmer": {
+   "peak": -27.2,
+   "rms": -42.9,
+   "lufsM": -38.1,
+   "lufsI": -42.1,
+   "hf": 0.0015,
+   "hfMax": 0.0019,
+   "hfAt": 1.92,
+   "dur": 7.973
+  },
+  "starLand": {
+   "peak": -24.8,
+   "rms": -38.9,
+   "lufsM": -34.7,
+   "lufsI": -39,
+   "hf": 0.001,
+   "hfMax": 0.0011,
+   "hfAt": 0.09,
+   "dur": 1.328
+  },
+  "redraw": {
+   "peak": -25.3,
+   "rms": -36.1,
+   "lufsM": -33.7,
+   "lufsI": -36.1,
+   "hf": 0.001,
+   "hfMax": 0.004,
+   "hfAt": 3.5,
+   "dur": 4.133
+  },
+  "redrawStep": {
+   "peak": -32.6,
+   "rms": -46.6,
+   "lufsM": -50.6,
+   "lufsI": -51.7,
+   "hf": 0.0014,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.176
+  },
+  "redrawChime": {
+   "peak": -22,
+   "rms": -35.8,
+   "lufsM": -32.4,
+   "lufsI": -36.4,
+   "hf": 0.0009,
+   "hfMax": 0.0009,
+   "hfAt": 0.17,
+   "dur": 1.024
+  },
+  "redrawSettle": {
+   "peak": -15,
+   "rms": -27.3,
+   "lufsM": -24.7,
+   "lufsI": -27.1,
+   "hf": 0.0017,
+   "hfMax": 0.0018,
+   "hfAt": 0,
+   "dur": 1.839
+  }
+ },
+ "hearth": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.948
+  },
+  "start": {
+   "peak": -14.5,
+   "rms": -24.7,
+   "lufsM": -24.1,
+   "lufsI": -25.9,
+   "hf": 0.0031,
+   "hfMax": 0.0038,
+   "hfAt": 0.26,
+   "dur": 0.552
+  },
+  "lifeLost": {
+   "peak": -13.3,
+   "rms": -20.8,
+   "lufsM": -22.4,
+   "lufsI": -24.2,
+   "hf": 0.0004,
+   "hfMax": 0.0014,
+   "hfAt": 0,
+   "dur": 0.488
+  },
+  "die": {
+   "peak": -11.1,
+   "rms": -20.5,
+   "lufsM": -21.1,
+   "lufsI": -22.6,
+   "hf": 0.0003,
+   "hfMax": 0.0015,
+   "hfAt": 0.09,
+   "dur": 1.292
+  },
+  "ward": {
+   "peak": -21.7,
+   "rms": -34.2,
+   "lufsM": -36.5,
+   "lufsI": -38.8,
+   "hf": 0.0002,
+   "hfMax": 0.0002,
+   "hfAt": 0,
+   "dur": 0.259
+  },
+  "fireBed": {
+   "peak": -24.1,
+   "rms": -36.5,
+   "lufsM": -35.3,
+   "lufsI": -37.6,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.39,
+   "dur": 6.978
+  },
+  "crackle": {
+   "peak": -29,
+   "rms": -40.9,
+   "lufsM": -52.3,
+   "lufsI": null,
+   "hf": 0.0119,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.022
+  },
+  "pop": {
+   "peak": -27.2,
+   "rms": -39.4,
+   "lufsM": -49.4,
+   "lufsI": null,
+   "hf": 0.0003,
+   "hfMax": 0.0003,
+   "hfAt": 0,
+   "dur": 0.041
+  },
+  "pickup": {
+   "peak": -21.6,
+   "rms": -37,
+   "lufsM": -44.6,
+   "lufsI": -44.6,
+   "hf": 0.0016,
+   "hfMax": 0.0016,
+   "hfAt": 0,
+   "dur": 0.073
+  },
+  "feed": {
+   "peak": -17.1,
+   "rms": -28.3,
+   "lufsM": -30,
+   "lufsI": -32.3,
+   "hf": 0.0012,
+   "hfMax": 0.002,
+   "hfAt": 0.09,
+   "dur": 0.315
+  },
+  "feedBig": {
+   "peak": -15.1,
+   "rms": -26.5,
+   "lufsM": -26,
+   "lufsI": -27.9,
+   "hf": 0.001,
+   "hfMax": 0.0013,
+   "hfAt": 0.09,
+   "dur": 0.506
+  },
+  "wardHit": {
+   "peak": -21.9,
+   "rms": -34.9,
+   "lufsM": -41.5,
+   "lufsI": -41.5,
+   "hf": 0,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.13
+  },
+  "bite": {
+   "peak": -20.2,
+   "rms": -33.9,
+   "lufsM": -34,
+   "lufsI": -35.7,
+   "hf": 0.0008,
+   "hfMax": 0.0011,
+   "hfAt": 0,
+   "dur": 0.397
+  },
+  "knocked": {
+   "peak": -20.9,
+   "rms": -34.3,
+   "lufsM": -39.1,
+   "lufsI": -39.1,
+   "hf": 0.0012,
+   "hfMax": 0.0012,
+   "hfAt": 0,
+   "dur": 0.162
+  },
+  "scatter": {
+   "peak": -35.4,
+   "rms": -49.1,
+   "lufsM": -60.3,
+   "lufsI": null,
+   "hf": 0.002,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.028
+  },
+  "shade": {
+   "peak": -23.7,
+   "rms": -37.5,
+   "lufsM": -35.7,
+   "lufsI": -37.2,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.43,
+   "dur": 0.788
+  },
+  "wakeBull": {
+   "peak": -12.5,
+   "rms": -22.6,
+   "lufsM": -23.3,
+   "lufsI": -24.8,
+   "hf": 0,
+   "hfMax": 0.0001,
+   "hfAt": 1.02,
+   "dur": 1.218
+  },
+  "wakeDeer": {
+   "peak": -17.8,
+   "rms": -26.2,
+   "lufsM": -25.1,
+   "lufsI": -26.8,
+   "hf": 0.0011,
+   "hfMax": 0.0022,
+   "hfAt": 0.85,
+   "dur": 1.072
+  },
+  "gore": {
+   "peak": -22.7,
+   "rms": -37.1,
+   "lufsM": -43,
+   "lufsI": -43,
+   "hf": 0.0008,
+   "hfMax": 0.0008,
+   "hfAt": 0,
+   "dur": 0.123
+  },
+  "blaze": {
+   "peak": -14,
+   "rms": -25.4,
+   "lufsM": -24.2,
+   "lufsI": -26.1,
+   "hf": 0.0017,
+   "hfMax": 0.0025,
+   "hfAt": 0.26,
+   "dur": 0.682
+  },
+  "overtime": {
+   "peak": -18.1,
+   "rms": -25.9,
+   "lufsM": -25.5,
+   "lufsI": -27.1,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.68,
+   "dur": 0.885
+  },
+  "tick": {
+   "peak": -29.8,
+   "rms": -43.1,
+   "lufsM": -55.5,
+   "lufsI": null,
+   "hf": 0.0021,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.024
+  },
+  "win": {
+   "peak": -7.5,
+   "rms": -21.2,
+   "lufsM": -20.4,
+   "lufsI": -22.7,
+   "hf": 0.0015,
+   "hfMax": 0.0017,
+   "hfAt": 0.51,
+   "dur": 0.641
+  }
+ },
+ "constellation": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.948
+  },
+  "start": {
+   "peak": -14.6,
+   "rms": -24.7,
+   "lufsM": -23.6,
+   "lufsI": -25.3,
+   "hf": 0.0037,
+   "hfMax": 0.0057,
+   "hfAt": 0.26,
+   "dur": 0.56
+  },
+  "lifeLost": {
+   "peak": -12.8,
+   "rms": -21.2,
+   "lufsM": -22,
+   "lufsI": -23.9,
+   "hf": 0.0007,
+   "hfMax": 0.0017,
+   "hfAt": 0.17,
+   "dur": 0.484
+  },
+  "die": {
+   "peak": -11.6,
+   "rms": -20.8,
+   "lufsM": -20.7,
+   "lufsI": -22.3,
+   "hf": 0.001,
+   "hfMax": 0.0018,
+   "hfAt": 0.68,
+   "dur": 1.287
+  },
+  "ward": {
+   "peak": -20.6,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "shot": {
+   "peak": -19.1,
+   "rms": -32.2,
+   "lufsM": -33.8,
+   "lufsI": -35.3,
+   "hf": 0.0001,
+   "hfMax": 0.0004,
+   "hfAt": 0.17,
+   "dur": 0.332
+  },
+  "whistle": {
+   "peak": -24.9,
+   "rms": -38.3,
+   "lufsM": -36.9,
+   "lufsI": -40,
+   "hf": 0.0014,
+   "hfMax": 0.002,
+   "hfAt": 0,
+   "dur": 0.556
+  },
+  "sky": {
+   "peak": -27.4,
+   "rms": -37.8,
+   "lufsM": -35.7,
+   "lufsI": -37.7,
+   "hf": 0.0009,
+   "hfMax": 0.0018,
+   "hfAt": 3.17,
+   "dur": 5.482
+  },
+  "burst": {
+   "peak": -16.5,
+   "rms": -30.6,
+   "lufsM": -29.9,
+   "lufsI": -33.1,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0,
+   "dur": 0.533
+  },
+  "kill": {
+   "peak": -22.3,
+   "rms": -38.6,
+   "lufsM": -42.5,
+   "lufsI": -42.5,
+   "hf": 0.016,
+   "hfMax": 0.016,
+   "hfAt": 0,
+   "dur": 0.138
+  },
+  "ground": {
+   "peak": -17.9,
+   "rms": -31.1,
+   "lufsM": -35.2,
+   "lufsI": -37.9,
+   "hf": 0,
+   "hfMax": 0.0001,
+   "hfAt": 0.09,
+   "dur": 0.228
+  },
+  "baseLost": {
+   "peak": -13,
+   "rms": -26.3,
+   "lufsM": -26.3,
+   "lufsI": -29.5,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.34,
+   "dur": 0.501
+  },
+  "templeHit": {
+   "peak": -12.4,
+   "rms": -26.7,
+   "lufsM": -24.5,
+   "lufsI": -28.6,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.51,
+   "dur": 0.964
+  },
+  "templeAlert": {
+   "peak": -25.1,
+   "rms": -37.6,
+   "lufsM": -38.6,
+   "lufsI": -40.4,
+   "hf": 0.0015,
+   "hfMax": 0.0018,
+   "hfAt": 0,
+   "dur": 0.287
+  },
+  "light": {
+   "peak": -22.2,
+   "rms": -33.7,
+   "lufsM": -33,
+   "lufsI": -35.8,
+   "hf": 0.0007,
+   "hfMax": 0.0008,
+   "hfAt": 0,
+   "dur": 0.546
+  },
+  "waveClear": {
+   "peak": -28.7,
+   "rms": -42.9,
+   "lufsM": -42,
+   "lufsI": -44.1,
+   "hf": 0.0099,
+   "hfMax": 0.0227,
+   "hfAt": 0.17,
+   "dur": 0.365
+  },
+  "waveStart": {
+   "peak": -19.8,
+   "rms": -30.8,
+   "lufsM": -32.3,
+   "lufsI": -34.9,
+   "hf": 0.0002,
+   "hfMax": 0.0004,
+   "hfAt": 0.17,
+   "dur": 0.338
+  },
+  "reload": {
+   "peak": -31.6,
+   "rms": -43.6,
+   "lufsM": -57.2,
+   "lufsI": null,
+   "hf": 0.0007,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.019
+  },
+  "dry": {
+   "peak": -23.7,
+   "rms": -37.4,
+   "lufsM": -46.4,
+   "lufsI": -46.4,
+   "hf": 0.0018,
+   "hfMax": 0.0018,
+   "hfAt": 0,
+   "dur": 0.066
+  },
+  "strokeBreak": {
+   "peak": -24,
+   "rms": -40,
+   "lufsM": -39.6,
+   "lufsI": -42.7,
+   "hf": 0.0004,
+   "hfMax": 0.0005,
+   "hfAt": 0.17,
+   "dur": 0.458
+  },
+  "split": {
+   "peak": -24.8,
+   "rms": -40.9,
+   "lufsM": -46,
+   "lufsI": -46,
+   "hf": 0.0015,
+   "hfMax": 0.0014,
+   "hfAt": 0,
+   "dur": 0.1
+  },
+  "win": {
+   "peak": -12.8,
+   "rms": -21.4,
+   "lufsM": -20.5,
+   "lufsI": -22.9,
+   "hf": 0.0004,
+   "hfMax": 0.0304,
+   "hfAt": 0.26,
+   "dur": 1.163
+  }
+ },
+ "beacon": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26.1,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.952
+  },
+  "start": {
+   "peak": -13.8,
+   "rms": -24.7,
+   "lufsM": -23.9,
+   "lufsI": -25.7,
+   "hf": 0.0023,
+   "hfMax": 0.0025,
+   "hfAt": 0.26,
+   "dur": 0.559
+  },
+  "lifeLost": {
+   "peak": -14.2,
+   "rms": -20.9,
+   "lufsM": -22.3,
+   "lufsI": -24.1,
+   "hf": 0.0008,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.487
+  },
+  "die": {
+   "peak": -10.8,
+   "rms": -20.6,
+   "lufsM": -20.8,
+   "lufsI": -22.5,
+   "hf": 0.0007,
+   "hfMax": 0.0019,
+   "hfAt": 0.34,
+   "dur": 1.289
+  },
+  "ward": {
+   "peak": -20.7,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "thrust": {
+   "peak": -20.5,
+   "rms": -34.1,
+   "lufsM": -28.2,
+   "lufsI": -31.8,
+   "hf": 0.0002,
+   "hfMax": 0.0002,
+   "hfAt": 1.12,
+   "dur": 4.666
+  },
+  "zap": {
+   "peak": -20.7,
+   "rms": -35.8,
+   "lufsM": -40.4,
+   "lufsI": -40.4,
+   "hf": 0.0025,
+   "hfMax": 0.0025,
+   "hfAt": 0,
+   "dur": 0.102
+  },
+  "chip": {
+   "peak": -25.3,
+   "rms": -39.2,
+   "lufsM": -48.6,
+   "lufsI": null,
+   "hf": 0.0287,
+   "hfMax": 0.0287,
+   "hfAt": 0,
+   "dur": 0.048
+  },
+  "segBreak": {
+   "peak": -19.9,
+   "rms": -33.5,
+   "lufsM": -35,
+   "lufsI": -37.5,
+   "hf": 0.0009,
+   "hfMax": 0.0011,
+   "hfAt": 0,
+   "dur": 0.268
+  },
+  "ringClear": {
+   "peak": -21.4,
+   "rms": -34.5,
+   "lufsM": -33.4,
+   "lufsI": -36.7,
+   "hf": 0.005,
+   "hfMax": 0.0088,
+   "hfAt": 0.09,
+   "dur": 0.438
+  },
+  "formed": {
+   "peak": -32,
+   "rms": -44.1,
+   "lufsM": -53,
+   "lufsI": null,
+   "hf": 0.0009,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.057
+  },
+  "coreDrone": {
+   "peak": -24.1,
+   "rms": -32,
+   "lufsM": -31,
+   "lufsI": -33.1,
+   "hf": 0.0001,
+   "hfMax": 0.0002,
+   "hfAt": 6.35,
+   "dur": 6.9
+  },
+  "charge": {
+   "peak": -21,
+   "rms": -41.6,
+   "lufsM": -33.8,
+   "lufsI": -37.3,
+   "hf": 0.0005,
+   "hfMax": 0.0011,
+   "hfAt": 0.19,
+   "dur": 2.331
+  },
+  "shardLaunch": {
+   "peak": -22.7,
+   "rms": -35.1,
+   "lufsM": -37.3,
+   "lufsI": -39.7,
+   "hf": 0.0003,
+   "hfMax": 0.0003,
+   "hfAt": 0,
+   "dur": 0.258
+  },
+  "shardKill": {
+   "peak": -24.2,
+   "rms": -37.1,
+   "lufsM": -41.5,
+   "lufsI": -41.5,
+   "hf": 0.0018,
+   "hfMax": 0.0018,
+   "hfAt": 0,
+   "dur": 0.115
+  },
+  "lit": {
+   "peak": -10.4,
+   "rms": -26.2,
+   "lufsM": -21.7,
+   "lufsI": -25.8,
+   "hf": 0.002,
+   "hfMax": 0.0027,
+   "hfAt": 0.34,
+   "dur": 1.569
+  },
+  "shipDie": {
+   "peak": -14.1,
+   "rms": -28.5,
+   "lufsM": -26.1,
+   "lufsI": -28.8,
+   "hf": 0.0003,
+   "hfMax": 0.0006,
+   "hfAt": 0,
+   "dur": 0.752
+  },
+  "respawn": {
+   "peak": -28,
+   "rms": -39.3,
+   "lufsM": -43.7,
+   "lufsI": -46.5,
+   "hf": 0.0011,
+   "hfMax": 0.0012,
+   "hfAt": 0,
+   "dur": 0.172
+  },
+  "win": {
+   "peak": -11.5,
+   "rms": -22.2,
+   "lufsM": -20.7,
+   "lufsI": -23.1,
+   "hf": 0.002,
+   "hfMax": 0.0055,
+   "hfAt": 0.34,
+   "dur": 0.928
+  }
+ },
+ "labyrinth": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.948
+  },
+  "start": {
+   "peak": -15.4,
+   "rms": -24.6,
+   "lufsM": -23.8,
+   "lufsI": -25.5,
+   "hf": 0.0032,
+   "hfMax": 0.0045,
+   "hfAt": 0.26,
+   "dur": 0.547
+  },
+  "lifeLost": {
+   "peak": -13.2,
+   "rms": -20.9,
+   "lufsM": -22,
+   "lufsI": -23.8,
+   "hf": 0.0008,
+   "hfMax": 0.0018,
+   "hfAt": 0.17,
+   "dur": 0.486
+  },
+  "die": {
+   "peak": -11.1,
+   "rms": -20.7,
+   "lufsM": -20.7,
+   "lufsI": -22,
+   "hf": 0.0009,
+   "hfMax": 0.002,
+   "hfAt": 0.34,
+   "dur": 1.288
+  },
+  "ward": {
+   "peak": -20.7,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "pellet": {
+   "peak": -21.3,
+   "rms": -34.4,
+   "lufsM": -44.3,
+   "lufsI": null,
+   "hf": 0.0006,
+   "hfMax": 0.0006,
+   "hfAt": 0,
+   "dur": 0.044
+  },
+  "power": {
+   "peak": -14.6,
+   "rms": -27.7,
+   "lufsM": -27,
+   "lufsI": -28.8,
+   "hf": 0.0028,
+   "hfMax": 0.01,
+   "hfAt": 0.26,
+   "dur": 0.433
+  },
+  "fright": {
+   "peak": -21.8,
+   "rms": -35.9,
+   "lufsM": -31.9,
+   "lufsI": -34.7,
+   "hf": 0.0016,
+   "hfMax": 0.0017,
+   "hfAt": 4.01,
+   "dur": 6.769
+  },
+  "returning": {
+   "peak": -13.6,
+   "rms": -25.9,
+   "lufsM": -27,
+   "lufsI": -28.4,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.26,
+   "dur": 0.396
+  },
+  "banish": {
+   "peak": -22.8,
+   "rms": -37.6,
+   "lufsM": -40.3,
+   "lufsI": -43,
+   "hf": 0.0022,
+   "hfMax": 0.0037,
+   "hfAt": 0.09,
+   "dur": 0.212
+  },
+  "emerge": {
+   "peak": -22.6,
+   "rms": -35.3,
+   "lufsM": -36.5,
+   "lufsI": -39.2,
+   "hf": 0.001,
+   "hfMax": 0.0017,
+   "hfAt": 0,
+   "dur": 0.396
+  },
+  "turnAbout": {
+   "peak": -26.1,
+   "rms": -37.7,
+   "lufsM": -44.6,
+   "lufsI": -44.6,
+   "hf": 0.0001,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.126
+  },
+  "warn": {
+   "peak": -19.3,
+   "rms": -31.2,
+   "lufsM": -30.5,
+   "lufsI": -31.2,
+   "hf": 0.0013,
+   "hfMax": 0.0022,
+   "hfAt": 1.45,
+   "dur": 1.602
+  },
+  "slide": {
+   "peak": -15.5,
+   "rms": -25.2,
+   "lufsM": -26,
+   "lufsI": -26.9,
+   "hf": 0.0001,
+   "hfMax": 0.0009,
+   "hfAt": 1.11,
+   "dur": 1.204
+  },
+  "turned": {
+   "peak": -19.5,
+   "rms": -33.1,
+   "lufsM": -40.3,
+   "lufsI": -40.3,
+   "hf": 0,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.108
+  },
+  "caught": {
+   "peak": -12.1,
+   "rms": -20.8,
+   "lufsM": -21.6,
+   "lufsI": -23.6,
+   "hf": 0.0013,
+   "hfMax": 0.0019,
+   "hfAt": 0.17,
+   "dur": 0.434
+  },
+  "win": {
+   "peak": -11.3,
+   "rms": -22,
+   "lufsM": -20.8,
+   "lufsI": -23.7,
+   "hf": 0.0003,
+   "hfMax": 0.0021,
+   "hfAt": 0.17,
+   "dur": 0.963
+  }
+ },
+ "resonance": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26.1,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.952
+  },
+  "start": {
+   "peak": -14.8,
+   "rms": -24.6,
+   "lufsM": -24.3,
+   "lufsI": -26,
+   "hf": 0.0011,
+   "hfMax": 0.0018,
+   "hfAt": 0.26,
+   "dur": 0.551
+  },
+  "lifeLost": {
+   "peak": -13.3,
+   "rms": -20.6,
+   "lufsM": -22.5,
+   "lufsI": -24.4,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.09,
+   "dur": 0.497
+  },
+  "die": {
+   "peak": -11.5,
+   "rms": -20.2,
+   "lufsM": -20.8,
+   "lufsI": -22.4,
+   "hf": 0.0001,
+   "hfMax": 0.0012,
+   "hfAt": 1.28,
+   "dur": 1.287
+  },
+  "ward": {
+   "peak": -20.6,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "waveTone": {
+   "peak": -23.2,
+   "rms": -35.2,
+   "lufsM": -30.1,
+   "lufsI": -35.3,
+   "hf": 0.0014,
+   "hfMax": 0.0019,
+   "hfAt": 5.05,
+   "dur": 6.634
+  },
+  "pulse": {
+   "peak": -19.3,
+   "rms": -33.2,
+   "lufsM": -40.8,
+   "lufsI": -40.8,
+   "hf": 0.0012,
+   "hfMax": 0.0012,
+   "hfAt": 0,
+   "dur": 0.072
+  },
+  "chime": {
+   "peak": -18.1,
+   "rms": -30.1,
+   "lufsM": -27.6,
+   "lufsI": -30.9,
+   "hf": 0.0005,
+   "hfMax": 0.0007,
+   "hfAt": 0,
+   "dur": 0.833
+  },
+  "chainBonus": {
+   "peak": -23,
+   "rms": -38.3,
+   "lufsM": -38.1,
+   "lufsI": -40.3,
+   "hf": 0.0062,
+   "hfMax": 0.0137,
+   "hfAt": 0.23,
+   "dur": 0.304
+  },
+  "offphase": {
+   "peak": -19.6,
+   "rms": -38.6,
+   "lufsM": -40.5,
+   "lufsI": -43,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.09,
+   "dur": 0.305
+  },
+  "split": {
+   "peak": -21.5,
+   "rms": -36.3,
+   "lufsM": -38.6,
+   "lufsI": -40.2,
+   "hf": 0.0011,
+   "hfMax": 0.0016,
+   "hfAt": 0.12,
+   "dur": 0.281
+  },
+  "cut": {
+   "peak": -29.7,
+   "rms": -44.2,
+   "lufsM": -53.6,
+   "lufsI": null,
+   "hf": 0.0079,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.041
+  },
+  "broken": {
+   "peak": -21.1,
+   "rms": -35.5,
+   "lufsM": -42.2,
+   "lufsI": -42.2,
+   "hf": 0.0007,
+   "hfMax": 0.0007,
+   "hfAt": 0,
+   "dur": 0.098
+  },
+  "passed": {
+   "peak": -27,
+   "rms": -38,
+   "lufsM": -40,
+   "lufsI": -41.9,
+   "hf": 0.0013,
+   "hfMax": 0.0016,
+   "hfAt": 0.09,
+   "dur": 0.314
+  },
+  "landed": {
+   "peak": -14.4,
+   "rms": -26.7,
+   "lufsM": -30,
+   "lufsI": -32.4,
+   "hf": 0,
+   "hfMax": 0.0001,
+   "hfAt": 0.17,
+   "dur": 0.31
+  },
+  "struck": {
+   "peak": -19.3,
+   "rms": -31.9,
+   "lufsM": -34,
+   "lufsI": -36.5,
+   "hf": 0.0002,
+   "hfMax": 0.0003,
+   "hfAt": 0,
+   "dur": 0.252
+  },
+  "shardFall": {
+   "peak": -27.5,
+   "rms": -40.8,
+   "lufsM": -40.5,
+   "lufsI": -43.2,
+   "hf": 0.0013,
+   "hfMax": 0.0015,
+   "hfAt": 0,
+   "dur": 0.434
+  },
+  "tell": {
+   "peak": -28,
+   "rms": -41.9,
+   "lufsM": -39.7,
+   "lufsI": -41.5,
+   "hf": 0.0003,
+   "hfMax": 0.0007,
+   "hfAt": 0.68,
+   "dur": 0.925
+  },
+  "shardGround": {
+   "peak": -34.1,
+   "rms": -44.2,
+   "lufsM": -56.5,
+   "lufsI": null,
+   "hf": 0.0002,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.024
+  },
+  "spawn": {
+   "peak": -38.8,
+   "rms": -48.1,
+   "lufsM": -48.8,
+   "lufsI": -50.5,
+   "hf": 0.0071,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.269
+  },
+  "chainBreak": {
+   "peak": -26.7,
+   "rms": -35.6,
+   "lufsM": -36.9,
+   "lufsI": -38.6,
+   "hf": 0.0005,
+   "hfMax": 0.0006,
+   "hfAt": 0.09,
+   "dur": 0.315
+  },
+  "almost": {
+   "peak": -28.1,
+   "rms": -41.2,
+   "lufsM": -39.9,
+   "lufsI": -41.9,
+   "hf": 0.0184,
+   "hfMax": 0.0369,
+   "hfAt": 0.17,
+   "dur": 0.349
+  },
+  "win": {
+   "peak": -12.4,
+   "rms": -22.9,
+   "lufsM": -20.6,
+   "lufsI": -23.7,
+   "hf": 0.0004,
+   "hfMax": 0.0017,
+   "hfAt": 1.02,
+   "dur": 3.605
+  }
+ },
+ "ascent": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26.1,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.952
+  },
+  "start": {
+   "peak": -14.1,
+   "rms": -24.8,
+   "lufsM": -23.9,
+   "lufsI": -25.6,
+   "hf": 0.0039,
+   "hfMax": 0.0058,
+   "hfAt": 0.26,
+   "dur": 0.557
+  },
+  "lifeLost": {
+   "peak": -13.4,
+   "rms": -21,
+   "lufsM": -22.1,
+   "lufsI": -23.9,
+   "hf": 0.0008,
+   "hfMax": 0.0019,
+   "hfAt": 0.17,
+   "dur": 0.487
+  },
+  "die": {
+   "peak": -10.8,
+   "rms": -20.6,
+   "lufsM": -20.7,
+   "lufsI": -22,
+   "hf": 0.0007,
+   "hfMax": 0.0019,
+   "hfAt": 1.28,
+   "dur": 1.286
+  },
+  "ward": {
+   "peak": -20.7,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "thrust": {
+   "peak": -17.1,
+   "rms": -33.4,
+   "lufsM": -29.5,
+   "lufsI": -32.8,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 3.35,
+   "dur": 4.658
+  },
+  "sideJet": {
+   "peak": -22.5,
+   "rms": -35.1,
+   "lufsM": -30.5,
+   "lufsI": -32.3,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.61,
+   "dur": 3.04
+  },
+  "safePing": {
+   "peak": -25.4,
+   "rms": -37.2,
+   "lufsM": -42.3,
+   "lufsI": -42.3,
+   "hf": 0.0006,
+   "hfMax": 0.0006,
+   "hfAt": 0,
+   "dur": 0.131
+  },
+  "fastPing": {
+   "peak": -25.3,
+   "rms": -39,
+   "lufsM": -43.5,
+   "lufsI": -43.5,
+   "hf": 0.0002,
+   "hfMax": 0.0002,
+   "hfAt": 0,
+   "dur": 0.144
+  },
+  "takeoff": {
+   "peak": -25.1,
+   "rms": -37,
+   "lufsM": -40.9,
+   "lufsI": -43.5,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.09,
+   "dur": 0.21
+  },
+  "softLand": {
+   "peak": -21.1,
+   "rms": -30.5,
+   "lufsM": -32.4,
+   "lufsI": -34.6,
+   "hf": 0.0016,
+   "hfMax": 0.0021,
+   "hfAt": 0.17,
+   "dur": 0.307
+  },
+  "padLit": {
+   "peak": -16,
+   "rms": -32.2,
+   "lufsM": -29.4,
+   "lufsI": -33.1,
+   "hf": 0.0019,
+   "hfMax": 0.0021,
+   "hfAt": 0.09,
+   "dur": 0.941
+  },
+  "almost": {
+   "peak": -30.4,
+   "rms": -43.3,
+   "lufsM": -42.4,
+   "lufsI": -44.3,
+   "hf": 0.0113,
+   "hfMax": 0.0236,
+   "hfAt": 0.17,
+   "dur": 0.344
+  },
+  "templeOpens": {
+   "peak": -8.3,
+   "rms": -18.9,
+   "lufsM": -18.7,
+   "lufsI": -19.9,
+   "hf": 0.0005,
+   "hfMax": 0.0059,
+   "hfAt": 1.79,
+   "dur": 2.345
+  },
+  "stomp": {
+   "peak": -20.5,
+   "rms": -37.8,
+   "lufsM": -41.7,
+   "lufsI": -41.7,
+   "hf": 0.0215,
+   "hfMax": 0.022,
+   "hfAt": 0,
+   "dur": 0.156
+  },
+  "crystalHit": {
+   "peak": -25,
+   "rms": -36.5,
+   "lufsM": -41.3,
+   "lufsI": -41.3,
+   "hf": 0.002,
+   "hfMax": 0.002,
+   "hfAt": 0,
+   "dur": 0.13
+  },
+  "crash": {
+   "peak": -12,
+   "rms": -26.8,
+   "lufsM": -24.2,
+   "lufsI": -27.8,
+   "hf": 0.0006,
+   "hfMax": 0.0011,
+   "hfAt": 0,
+   "dur": 0.829
+  },
+  "splash": {
+   "peak": -14.3,
+   "rms": -28.4,
+   "lufsM": -23.8,
+   "lufsI": -26.7,
+   "hf": 0.0014,
+   "hfMax": 0.0033,
+   "hfAt": 0,
+   "dur": 0.977
+  },
+  "bump": {
+   "peak": -28.3,
+   "rms": -37.9,
+   "lufsM": -47.2,
+   "lufsI": -47.2,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0,
+   "dur": 0.064
+  },
+  "dry": {
+   "peak": -22.4,
+   "rms": -38,
+   "lufsM": -40.9,
+   "lufsI": -42.9,
+   "hf": 0.0001,
+   "hfMax": 0.0001,
+   "hfAt": 0.09,
+   "dur": 0.31
+  },
+  "lowFuel": {
+   "peak": -28.7,
+   "rms": -35.9,
+   "lufsM": -38.3,
+   "lufsI": -40.1,
+   "hf": 0.0019,
+   "hfMax": 0.002,
+   "hfAt": 0.09,
+   "dur": 0.282
+  },
+  "crystalIn": {
+   "peak": -32.1,
+   "rms": -48,
+   "lufsM": -45.9,
+   "lufsI": -47.5,
+   "hf": 0.0338,
+   "hfMax": 0.0369,
+   "hfAt": 0.09,
+   "dur": 0.419
+  },
+  "win": {
+   "peak": -10.9,
+   "rms": -21.5,
+   "lufsM": -20.6,
+   "lufsI": -21.3,
+   "hf": 0.0009,
+   "hfMax": 0.0019,
+   "hfAt": 2.39,
+   "dur": 4.615
+  }
+ },
+ "tunnel": {
+  "coin": {
+   "peak": -20.6,
+   "rms": -30.4,
+   "lufsM": -34.1,
+   "lufsI": -34.1,
+   "hf": 0.005,
+   "hfMax": 0.0075,
+   "hfAt": 0,
+   "dur": 0.122
+  },
+  "insertCoin": {
+   "peak": -15.9,
+   "rms": -26,
+   "lufsM": -24.6,
+   "lufsI": -26.9,
+   "hf": 0.0018,
+   "hfMax": 0.0022,
+   "hfAt": 0,
+   "dur": 0.948
+  },
+  "start": {
+   "peak": -14.5,
+   "rms": -24.7,
+   "lufsM": -24.1,
+   "lufsI": -25.9,
+   "hf": 0.0031,
+   "hfMax": 0.0038,
+   "hfAt": 0.26,
+   "dur": 0.552
+  },
+  "lifeLost": {
+   "peak": -13.3,
+   "rms": -20.8,
+   "lufsM": -22.4,
+   "lufsI": -24.2,
+   "hf": 0.0004,
+   "hfMax": 0.0014,
+   "hfAt": 0,
+   "dur": 0.488
+  },
+  "die": {
+   "peak": -11.1,
+   "rms": -20.5,
+   "lufsM": -21.1,
+   "lufsI": -22.6,
+   "hf": 0.0003,
+   "hfMax": 0.0015,
+   "hfAt": 0.09,
+   "dur": 1.292
+  },
+  "ward": {
+   "peak": -20.6,
+   "rms": -33,
+   "lufsM": -30.3,
+   "lufsI": -34.2,
+   "hf": 0.0017,
+   "hfMax": 0.0019,
+   "hfAt": 0.09,
+   "dur": 0.885
+  },
+  "rim": {
+   "peak": -25.7,
+   "rms": -39.1,
+   "lufsM": -50.9,
+   "lufsI": null,
+   "hf": 0.002,
+   "hfMax": 0.002,
+   "hfAt": 0,
+   "dur": 0.03
+  },
+  "fire": {
+   "peak": -24.4,
+   "rms": -39.4,
+   "lufsM": -46.3,
+   "lufsI": -46.3,
+   "hf": 0.0025,
+   "hfMax": 0.0025,
+   "hfAt": 0,
+   "dur": 0.078
+  },
+  "echoEmber": {
+   "peak": -20.6,
+   "rms": -35.5,
+   "lufsM": -42,
+   "lufsI": -42,
+   "hf": 0.0048,
+   "hfMax": 0.0047,
+   "hfAt": 0,
+   "dur": 0.079
+  },
+  "echoStar": {
+   "peak": -25.2,
+   "rms": -38.5,
+   "lufsM": -41.4,
+   "lufsI": -43.2,
+   "hf": 0.0096,
+   "hfMax": 0.0348,
+   "hfAt": 0.09,
+   "dur": 0.187
+  },
+  "echoShard": {
+   "peak": -18.6,
+   "rms": -32.2,
+   "lufsM": -37.5,
+   "lufsI": -39.7,
+   "hf": 0.0024,
+   "hfMax": 0.0042,
+   "hfAt": 0,
+   "dur": 0.129
+  },
+  "echoHunter": {
+   "peak": -25.5,
+   "rms": -37.7,
+   "lufsM": -43.1,
+   "lufsI": -43.1,
+   "hf": 0.0006,
+   "hfMax": 0.0005,
+   "hfAt": 0,
+   "dur": 0.124
+  },
+  "echoKite": {
+   "peak": -22.3,
+   "rms": -33.6,
+   "lufsM": -34.4,
+   "lufsI": -36.2,
+   "hf": 0.0005,
+   "hfMax": 0.0005,
+   "hfAt": 0,
+   "dur": 0.383
+  },
+  "kiteSplit": {
+   "peak": -20.5,
+   "rms": -38.7,
+   "lufsM": -43.8,
+   "lufsI": -43.8,
+   "hf": 0,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.151
+  },
+  "echoCrystal": {
+   "peak": -22.5,
+   "rms": -39.9,
+   "lufsM": -43.8,
+   "lufsI": -43.8,
+   "hf": 0.026,
+   "hfMax": 0.0265,
+   "hfAt": 0,
+   "dur": 0.142
+  },
+  "crack": {
+   "peak": -28.5,
+   "rms": -41.9,
+   "lufsM": -51.8,
+   "lufsI": null,
+   "hf": 0.042,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.045
+  },
+  "hop": {
+   "peak": -39.7,
+   "rms": -50.2,
+   "lufsM": -64.7,
+   "lufsI": null,
+   "hf": 0.0019,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.018
+  },
+  "rimArrive": {
+   "peak": -28.1,
+   "rms": -39.6,
+   "lufsM": -45.5,
+   "lufsI": -45.5,
+   "hf": 0,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.13
+  },
+  "crawl": {
+   "peak": -35.6,
+   "rms": -47,
+   "lufsM": -60.6,
+   "lufsI": null,
+   "hf": 0.0002,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.024
+  },
+  "flip": {
+   "peak": -40.4,
+   "rms": -55.2,
+   "lufsM": -65.7,
+   "lufsI": null,
+   "hf": 0.0354,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.022
+  },
+  "sink": {
+   "peak": -28.5,
+   "rms": -39.5,
+   "lufsM": -39.3,
+   "lufsI": -41.8,
+   "hf": 0.0012,
+   "hfMax": 0.0018,
+   "hfAt": 0.17,
+   "dur": 0.513
+  },
+  "waveCall": {
+   "peak": -21.9,
+   "rms": -31.5,
+   "lufsM": -31.3,
+   "lufsI": -32.7,
+   "hf": 0.0026,
+   "hfMax": 0.0033,
+   "hfAt": 0.17,
+   "dur": 0.431
+  },
+  "waveClear": {
+   "peak": -31.8,
+   "rms": -45.3,
+   "lufsM": -45.3,
+   "lufsI": -48,
+   "hf": 0.0093,
+   "hfMax": 0.0117,
+   "hfAt": 0.09,
+   "dur": 0.276
+  },
+  "arrive": {
+   "peak": -27.8,
+   "rms": -38.5,
+   "lufsM": -39.5,
+   "lufsI": -42.5,
+   "hf": 0.0019,
+   "hfMax": 0.002,
+   "hfAt": 0.09,
+   "dur": 0.415
+  },
+  "heart": {
+   "peak": -24.9,
+   "rms": -35.4,
+   "lufsM": -34.3,
+   "lufsI": -37.3,
+   "hf": 0.0001,
+   "hfMax": 0.0003,
+   "hfAt": 7.72,
+   "dur": 8.05
+  },
+  "letgoTone": {
+   "peak": -20.2,
+   "rms": -33,
+   "lufsM": -28.6,
+   "lufsI": -33.1,
+   "hf": 0.0009,
+   "hfMax": 0.0012,
+   "hfAt": 1.25,
+   "dur": 9.187
+  },
+  "hint": {
+   "peak": -25.8,
+   "rms": -38.1,
+   "lufsM": -34.4,
+   "lufsI": -38.1,
+   "hf": 0.0004,
+   "hfMax": 0.0005,
+   "hfAt": 0.43,
+   "dur": 1.221
+  },
+  "dissolve": {
+   "peak": -40.1,
+   "rms": -49,
+   "lufsM": -51.2,
+   "lufsI": -53.1,
+   "hf": 0.0048,
+   "hfMax": 0,
+   "hfAt": 0,
+   "dur": 0.199
+  },
+  "fall": {
+   "peak": -20.9,
+   "rms": -32.3,
+   "lufsM": -30.6,
+   "lufsI": -32.7,
+   "hf": 0.0008,
+   "hfMax": 0.0015,
+   "hfAt": 5.72,
+   "dur": 11.337
+  },
+  "fallNote": {
+   "peak": -29.5,
+   "rms": -40.5,
+   "lufsM": -39.6,
+   "lufsI": -43,
+   "hf": 0.001,
+   "hfMax": 0.001,
+   "hfAt": 0.17,
+   "dur": 0.581
+  },
+  "passage": {
+   "peak": -16.6,
+   "rms": -28.3,
+   "lufsM": -26,
+   "lufsI": -27.8,
+   "hf": 0.0017,
+   "hfMax": 0.0018,
+   "hfAt": 2.14,
+   "dur": 7.262
+  }
+ }
+}
