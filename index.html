@@ -230,7 +230,7 @@
   .support .card-row { margin-top: 16px; }
   .support .card-row .sub { display: block; margin-top: 6px; font-size: 14px; color: var(--ink-dim); }
   .support .crypto-h { margin: 22px 0 10px; font-family: var(--title); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
-  .support .coins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: left; }
+  .support .coins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: left; }
   .support .coin { border: 1px solid var(--s-line); background: rgba(10, 8, 12, 0.55); }
   .support .coin[open] { grid-column: 1 / -1; border-color: rgba(242, 184, 106, 0.6); }
   .support .coin summary { list-style: none; cursor: pointer; display: grid; gap: 2px; padding: 12px 14px; }
@@ -528,6 +528,7 @@
           <details class="coin" data-coin="btc"><summary><span class="c-name">Bitcoin</span><span class="c-net">BTC &middot; Bitcoin network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
           <details class="coin" data-coin="sol"><summary><span class="c-name">Solana</span><span class="c-net">SOL &middot; Solana network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
           <details class="coin" data-coin="usdc_sol"><summary><span class="c-name">USDC</span><span class="c-net">USDC &middot; Solana network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
+          <details class="coin" data-coin="eth"><summary><span class="c-name">Ethereum</span><span class="c-net">ETH &middot; Ethereum mainnet</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
           <details class="coin" data-coin="near"><summary><span class="c-name">NEAR</span><span class="c-net">NEAR &middot; NEAR Protocol</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
         </div>
         <p class="fine">Tips are voluntary support for an independent developer, not tax-deductible charitable donations. The goal counts money actually received (tips and paid client work) before fees and taxes, less refunds. Crypto counts at its US dollar value on the day it arrives. Times are Pacific.</p>
@@ -586,6 +587,7 @@
       btc: { warn: 'Send Bitcoin on the Bitcoin network only.', uri: (a) => 'bitcoin:' + a, ok: (a) => /^(bc1[02-9ac-hj-np-z]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/i.test(a) },
       sol: { warn: 'Send SOL on the Solana network only.', uri: (a) => 'solana:' + a, ok: (a) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) },
       usdc_sol: { warn: 'Send USDC on the Solana network only (not Ethereum).', uri: (a) => 'solana:' + a + '?spl-token=' + USDC_MINT, ok: (a) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) },
+      eth: { warn: 'Send ETH on Ethereum mainnet only (not other networks).', uri: (a) => 'ethereum:' + a, ok: (a) => /^0x[0-9a-fA-F]{40}$/.test(a) },
       near: { warn: 'Send NEAR on NEAR Protocol only.', uri: (a) => a, ok: (a) => /^([a-z0-9_-]+\.)*[a-z0-9_-]+(\.near)?$|^[0-9a-f]{64}$/.test(a) && a.length >= 2 && a.length <= 64 },
     };
 

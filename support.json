@@ -10,9 +10,10 @@
   "received_week": 0,
   "pay": {
     "card": "https://ko-fi.com/daryllbuilds",
-    "btc": "",
-    "sol": "",
-    "usdc_sol": "",
+    "btc": "bc1q6g9r3am4fcxh9nccduewfnx0r9cvsf7d2se2zn",
+    "sol": "5pdPcZHmEExDW1zyDsiGGNMDjbwzj5rVbT2ypiJun5FJ",
+    "usdc_sol": "5pdPcZHmEExDW1zyDsiGGNMDjbwzj5rVbT2ypiJun5FJ",
+    "eth": "0x520c4784260d40f4b0421d2e9af4ccc70558e9a7",
     "near": ""
   }
 }
