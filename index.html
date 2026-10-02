@@ -665,11 +665,18 @@
       dlg.querySelectorAll('.stop').forEach((st) => { const p = +st.dataset.pct; $('.d', st).textContent = money((gM * p) / 100); st.classList.toggle('hit', pct >= p); });
       $('.track .fill').style.width = (pct >= 25 ? Math.min(75, ((pct - 25) / 75) * 75) : 0) + '%';
     }
+    // Payment addresses come from support.json (this site); the live totals from the income ledger, published once a
+    // day through Pulse. If Pulse can't be reached, support.json's own dated totals are shown instead.
+    const LIVE = 'https://pulse.bigpicsolutions.com/v1/support';
+    const TOTALS = ['updated', 'month', 'month_number', 'week_start', 'goal_month', 'goal_week', 'received_month', 'received_week'];
+    const getJSON = (url, opts) => fetch(url, opts).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then((j) => (j && typeof j === 'object' ? j : null), () => null);
     function load() {
       loadedAt = Date.now();
-      fetch('support.json', { cache: 'no-store' })
-        .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then((j) => { data = j && typeof j === 'object' ? j : {}; }, () => { data = {}; })
+      Promise.all([getJSON('support.json', { cache: 'no-store' }), getJSON(LIVE, { mode: 'cors', credentials: 'omit' })])
+        .then(([local, live]) => {
+          data = local || {};
+          if (live && TOTALS.every((k) => k in live) && ymd(live.month) && num(live.goal_month) > 0) TOTALS.forEach((k) => (data[k] = live[k]));
+        })
         .then(() => { if (dlg.open) replay(); else render(); });
     }
     function replay() {
