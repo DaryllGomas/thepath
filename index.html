@@ -113,6 +113,8 @@
   .play:hover, .play:focus-visible { background: linear-gradient(to bottom, #7e1414, #4a0909 60%, #5c0b0b); transform: translateY(-1px);
     box-shadow: 0 0 8px rgba(255, 80, 60, 1), 0 0 30px rgba(255, 50, 40, 0.75), 0 0 80px rgba(255, 40, 30, 0.38), inset 0 0 18px rgba(255, 80, 60, 0.65), inset 0 0 40px rgba(255, 40, 30, 0.22); }
   .play:focus-visible { outline: 2px solid #ffd2c4; outline-offset: 4px; }
+  .blurb .new { font-family: var(--title); font-size: 0.78em; letter-spacing: 0.2em; color: var(--neon-hot); text-decoration: none; }
+  .blurb .new:hover { text-decoration: underline; }
   .blurb { margin: 14px auto 0; max-width: 900px; text-wrap: balance; font-size: clamp(16px, 1.25vw, 18.5px); color: var(--ink-soft); }
 
   /* ---------- rules with a star ---------- */
@@ -134,6 +136,29 @@
   .shot .t { display: grid; gap: 2px; }
   .shot .name { font-family: var(--title); font-size: 15px; letter-spacing: 0.2em; line-height: 1.2; }
   .shot .sub { font-family: var(--title); font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.3; }
+
+  /* ---------- what's new (the changelog) ---------- */
+  .news { max-width: 720px; margin: 0 auto; scroll-margin-top: 24px; }
+  .news > h2 { margin: 0 0 10px; text-align: center; font-family: var(--title); font-weight: 500; font-size: 14px; letter-spacing: 0.34em; padding-left: 0.34em; color: var(--ink-soft); }
+  .news .ver { margin: 0; text-align: center; font-family: var(--title); font-weight: 500; font-size: clamp(19px, 1.8vw, 24px); letter-spacing: 0.12em; color: var(--ink); }
+  .news .date { margin: 4px 0 16px; text-align: center; font-family: var(--title); font-size: 11.5px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-dim); }
+  .news .lede { margin: 0 auto 8px; text-align: center; text-wrap: balance; color: var(--ink); }
+  .news h3 { margin: 26px 0 8px; font-family: var(--title); font-weight: 500; font-size: 12.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft);
+    padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+  .news ul { margin: 0; padding-left: 1.1em; }
+  .news li { margin: 6px 0; font-size: 16.5px; line-height: 1.55; color: var(--ink-soft); }
+  .news li::marker { color: var(--neon); }
+  .news li b { color: var(--ink); font-weight: 600; }
+  .news kbd { font-family: var(--title); font-size: 0.85em; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink); }
+  .news details { margin-top: 26px; }
+  .news summary { cursor: pointer; font-family: var(--title); font-weight: 500; font-size: 12.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft);
+    padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+  .news summary:hover { color: var(--ink); }
+  .news summary:focus-visible { outline: 1px dashed var(--ink-soft); outline-offset: 3px; }
+  .news details ul { margin-top: 8px; }
+  .news .older { margin: 26px 0 0; font-size: 15px; color: var(--ink-dim); text-align: center; text-wrap: balance; }
+  .news .older b { font-family: var(--title); font-weight: 500; letter-spacing: 0.08em; color: var(--ink-soft); }
+  @media (max-width: 640px) { .news li { font-size: 15.5px; } }
 
   /* ---------- about + footer ---------- */
   .about { text-align: center; max-width: 640px; margin: 0 auto; scroll-margin-top: 24px; }
@@ -217,6 +242,7 @@
       <ul class="links">
         <li><a href="#home" aria-current="true">HOME</a></li>
         <li><a href="#screenshots">SCREENSHOTS</a></li>
+        <li><a href="#news">WHAT&rsquo;S NEW</a></li>
         <li><a href="#about">ABOUT</a></li>
       </ul>
       <div class="tagline-dev in-menu">EARLY BETA &middot; A GAME IN DEVELOPMENT</div>
@@ -255,7 +281,7 @@
 
     <div class="cta">
       <a class="play" href="play/"><span class="label"><span>PLAY &mdash; FIRST CHAPTER</span> <span>EARLY BETA</span></span><span class="arrow" aria-hidden="true">&rarr;</span></a>
-      <p class="blurb">Free browser chapter: 1982, the ride downtown, THE JUNCTION arcade, and the cabinet with no name.</p>
+      <p class="blurb"><a class="new" href="#news">NEW &middot; v0.2 THE ARCADE ANSWERS</a><br>Free browser chapter: 1982, the ride downtown, THE JUNCTION arcade, and the cabinet with no name.</p>
     </div>
   </section>
 
@@ -279,6 +305,64 @@
         </picture>
         <figcaption><span class="num">02</span><span class="dash"></span><span class="t"><span class="name">THE ARCADE FLOOR</span><span class="sub">Some games feel different here.</span></span></figcaption>
       </figure>
+    </section>
+
+    <div class="rule" aria-hidden="true"><svg class="star" viewBox="0 0 24 24"><path fill="#ffe2b0" d="M12 0c.6 6.6 5.4 11.4 12 12-6.6.6-11.4 5.4-12 12-.6-6.6-5.4-11.4-12-12C6.6 11.4 11.4 6.6 12 0z"/></svg></div>
+
+    <section class="news" id="news" aria-labelledby="news-h">
+      <h2 id="news-h">WHAT&rsquo;S NEW</h2>
+      <p class="ver">v0.2 &middot; THE ARCADE ANSWERS</p>
+      <p class="date">October 1, 2026</p>
+      <p class="lede">A big update to the first chapter: the arcade has a heart now, the basement has secrets, and the machine at the back of the Junction is a whole new experience.</p>
+
+      <h3>Starvector, rebuilt from the ground up</h3>
+      <ul>
+        <li>The machine nobody has ever topped is now a full into-the-screen sprite shooter, in the spirit of the great super-scaler arcade games.</li>
+        <li><b>Three acts, three worlds:</b> a nebula field of tumbling rocks, a canyon of fire on a dead moon, and a plain of enormous carved stones under an aurora.</li>
+        <li><b>A boss at the end of every act,</b> each with three phases, telegraphed attacks and a health bar.</li>
+        <li><b>A recharging shield.</b> It takes one hit and refills if you stay clean.</li>
+        <li><b>Combos and bonuses:</b> chain kills for a multiplier, clear whole formations for a bonus, fly close for near-miss points.</li>
+        <li><b>Feel and sound:</b> a barrel roll to dodge, hit-stop and big explosions, and an original chip-music soundtrack for each act plus a boss theme.</li>
+        <li><b>Fairness:</b> it&rsquo;s hard, but every quarter you lose makes the next run a little gentler. You still have to earn the win.</li>
+        <li>Beat it, and enter your initials. Then see what happens.</li>
+      </ul>
+
+      <h3>The Junction</h3>
+      <ul>
+        <li><b>Every top score in the arcade is taken&hellip; except one.</b> Keep an eye on the high-score tables.</li>
+        <li><b>The arcade is more alive while you play.</b> Things in the room react. Pay attention.</li>
+        <li><b>Music and a jukebox.</b> A song starts the moment you walk in, from a jukebox by the arch at the back. Press <kbd>E</kbd> at it to pick the next one.</li>
+        <li>A wall clock, the office upstairs and more of the room&rsquo;s details.</li>
+      </ul>
+
+      <h3>The basement</h3>
+      <ul>
+        <li><b>Things to look at.</b> Walk up to the D&amp;D table, the posters, the corkboard, the clock and the console and see what you notice.</li>
+        <li><b>Your walkie-talkie works.</b> It calls from the yard until you go out. Once you&rsquo;re on your bike, hold <kbd>T</kbd> to talk back.</li>
+        <li><b>New posts on the BBS.</b> Sit at the computer and read the board (<kbd>E</kbd> for the next post).</li>
+      </ul>
+
+      <h3>The cabinet at the back</h3>
+      <ul>
+        <li>What waits in the back of the arcade has been rebuilt: seven games in one machine, with retro 8-bit sound, a new start screen, and a new ending. We won&rsquo;t say more.</li>
+      </ul>
+
+      <details>
+        <summary>Fixes and polish</summary>
+        <ul>
+          <li><b>The arcade runs smoothly.</b> Only the machines you&rsquo;re facing run at full speed; the rest idle until you look their way.</li>
+          <li><b>Every arcade game fills your screen.</b> Step up to any machine and the view glides in until the game fills the window. Walk away and it glides back.</li>
+          <li><b>The mouse stays in the game.</b> Click once and your view is back, even after pressing Esc, closing a cabinet or going out the door.</li>
+          <li><b>A gentler opening.</b> You work it out yourself; if you&rsquo;re stuck for a while a quiet hint shows up. Press <kbd>Esc</kbd> to skip it.</li>
+          <li><b>A calmer walkie.</b> It chirps twice when you wake, then only now and then, quietly. On the bike its squeal and static are half as loud.</li>
+          <li><b>Smoother on every machine.</b> Big and high-DPI windows draw at a lower internal resolution, and a slow machine steps it down on its own. Press <kbd>F3</kbd> for a small frame-time counter.</li>
+          <li><b>A sharper Starvector</b> when you step up to the machine and the glass fills your screen.</li>
+          <li>Clearer visuals while flying: enemy shots are always bright pink-and-white, objects cast shadows on the ground, and backgrounds stay out of the way.</li>
+          <li>Sound now starts on your first key press or click (the browser&rsquo;s rule).</li>
+        </ul>
+      </details>
+
+      <p class="older"><b>v0.1 &middot; Early beta</b> (September 27, 2026): the first public build. The Handshake, waking in the basement in 1982, the ride downtown, THE JUNCTION arcade and its games, and the cabinet with no name.</p>
     </section>
 
     <div class="rule" aria-hidden="true"><svg class="star" viewBox="0 0 24 24"><path fill="#ffe2b0" d="M12 0c.6 6.6 5.4 11.4 12 12-6.6.6-11.4 5.4-12 12-.6-6.6-5.4-11.4-12-12C6.6 11.4 11.4 6.6 12 0z"/></svg></div>
@@ -320,9 +404,9 @@
     const mark = (id) => links.forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === '#' + id)));
     const spy = () => {
       const y = window.scrollY + window.innerHeight * 0.45;
-      const about = document.getElementById('about'), shots = document.getElementById('screenshots');
+      const about = document.getElementById('about'), news = document.getElementById('news'), shots = document.getElementById('screenshots');
       const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      mark(atEnd || y >= about.offsetTop ? 'about' : y >= shots.offsetTop ? 'screenshots' : 'home');
+      mark(atEnd || y >= about.offsetTop ? 'about' : y >= news.offsetTop ? 'news' : y >= shots.offsetTop ? 'screenshots' : 'home');
     };
     let raf = 0;
     window.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; spy(); }); }, { passive: true });

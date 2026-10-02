@@ -6,11 +6,14 @@
 //
 // "AVR" is never invented: those initials belong to the cabinet at the back of Flynn's, where the
 // blank top row fills in A-V-R on the win (WORLD_1 §6.5). Nothing else may show them first.
+// A BLANK TOP (holdTop): THE JUNCTION's Starvector keeps its #1 row empty ("always has been"); no score
+// takes a blank row (insert skips it) until fillTop() writes the one that does (js/starvector_answer.js,
+// js/answer.js).
 // Session only: nothing is saved.
 import { SystemRandom } from './rng.js';
 
 export class HighScoreEntry {
-    constructor(initials, score, player = false) { this.initials = initials; this.score = score; this.player = player; }
+    constructor(initials, score, player = false) { this.initials = initials; this.score = score; this.player = player; this.blank = false; }
 }
 
 export class HighScoreTable {
@@ -27,7 +30,26 @@ export class HighScoreTable {
     }
 
     get entries() { return this._rows; }
-    get top() { return this._rows.length > 0 ? this._rows[0].score : 0; }
+    get top() { const r = this._rows.find((e) => !e.blank); return r ? r.score : 0; }
+    get topBlank() { return this._rows.length > 0 && this._rows[0].blank; }
+
+    // the top row held EMPTY: the invented rows move down one (the last falls off); no score can take it
+    holdTop() {
+        if (this.topBlank) return this;
+        const e = new HighScoreEntry('', 0); e.blank = true;
+        this._rows.unshift(e);
+        while (this._rows.length > HighScoreTable.Rows) this._rows.pop();
+        return this;
+    }
+
+    // the one score that takes the empty top row; false if the top is not blank
+    fillTop(initials, score) {
+        const e = this._rows[0];
+        if (!e || !e.blank) return false;
+        e.initials = (initials || 'YOU').toUpperCase().substring(0, 3); e.score = score; e.player = true; e.blank = false;
+        this.lastRank = 0;
+        return true;
+    }
 
     // returns the rank 0..4 the score took, or -1 if it did not make the table
     insert(score, initials) {
@@ -35,7 +57,7 @@ export class HighScoreTable {
         initials = initials.toUpperCase();
         if (initials.length > 3) initials = initials.substring(0, 3);
         let at = -1;
-        for (let i = 0; i < this._rows.length; i++) if (score > this._rows[i].score) { at = i; break; }
+        for (let i = 0; i < this._rows.length; i++) if (!this._rows[i].blank && score > this._rows[i].score) { at = i; break; }
         this.lastRank = at;
         if (at < 0) return -1;
         this._rows.splice(at, 0, new HighScoreEntry(initials, score, true));

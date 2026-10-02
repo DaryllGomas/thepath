@@ -103,6 +103,7 @@ export class Pipeline {
   pass(mat, target) { this.quad.material = mat; this.r.setRenderTarget(target); this.r.render(this.qscene, this.cam); }
   render(scene, camera, time) {
     this.r.setRenderTarget(this.rtScene); this.r.render(scene, camera);
+    const ri = this.r.info.render; this.stats = { calls: ri.calls, tris: ri.triangles };      // the scene's own draw (the F3 counter reads it)
     this.mBright.uniforms.tSrc.value = this.rtScene.texture; this.pass(this.mBright, this.rtA);
     for (let i = 0; i < 2; i++) {
       this.mBlur.uniforms.tSrc.value = this.rtA.texture; this.mBlur.uniforms.dir.value.set(1 / this.rtA.width, 0); this.pass(this.mBlur, this.rtB);

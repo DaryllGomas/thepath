@@ -32,6 +32,7 @@ import { Route9Cartridge } from './games/route9/cartridge.js';
 import { SunsetDriveCartridge } from './games/sunsetdrive/cartridge.js';
 import { WarlordsRoadCartridge } from './games/warlordsroad/cartridge.js';
 import { DeepKeepCartridge } from './games/deepkeep/cartridge.js';
+// import { NamelessCartridge } from './games/nameless/cartridge.js';   // RETIRED 9/27 ring puzzle: archived, off the arcade (9/29)
 
 const CARTRIDGES = [
     GridCyclesCartridge,
@@ -60,6 +61,12 @@ const CARTRIDGES = [
     SunsetDriveCartridge,
     WarlordsRoadCartridge,
     DeepKeepCartridge,
+    // NamelessCartridge: RETIRED (the cabinet with no name now runs the seven, js/cabinet/seven/). Its code stays in
+    // games/nameless/ (the Lab still finds it by its folder: node lab/lab.mjs all nameless).
+    // THE SEVEN (hearth ... tunnel) are NOT registered here, on purpose (9/29): the arcade's cabinet makes them itself
+    // (js/cabinet/seven/games.js), and under this registry's canvas runner (host.js CabinetRunner, the SDK's InputFrame)
+    // the Constellation can't be played (its aim px/py and silo buttons l/m/r don't survive the SDK's input frame: its good
+    // bot fires no shot and loses). The Lab finds each by its folder (node lab/lab.mjs all hearth).
     // next: stackattack, lancerider, ... (one line each)
 ];
 
