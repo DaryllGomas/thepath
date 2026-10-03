@@ -12,8 +12,8 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="THE PATH">
 <meta property="og:description" content="Something is waiting downtown. A first-person story game in early beta; the first chapter is free to play in your browser.">
-<meta property="og:url" content="https://namkuzu-da-os.github.io/thepath/">
-<meta property="og:image" content="https://namkuzu-da-os.github.io/thepath/assets/og.jpg">
+<meta property="og:url" content="https://thepath.bigpicsolutions.com/">
+<meta property="og:image" content="https://thepath.bigpicsolutions.com/assets/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -166,99 +166,6 @@
   .news .older b { font-family: var(--title); font-weight: 500; letter-spacing: 0.08em; color: var(--ink-soft); }
   @media (max-width: 640px) { .news li { font-size: 15.5px; } }
 
-  /* ---------- SUPPORT THE DEV: the monthly-goal pop-up. Self-contained: this CSS, the <dialog id="support">, the script at the end.
-     Numbers + payment addresses come from support.json. Everything is scoped under .support so it can move to another site. ---------- */
-  html.modal-open { overflow: hidden; }
-  .support { --s-line: var(--line, rgba(241, 228, 210, 0.26)); --s-soft: var(--line-soft, rgba(241, 228, 210, 0.13));
-    width: min(900px, calc(100% - 32px)); max-height: calc(100svh - 40px); margin: auto; padding: 0; overflow: auto; overscroll-behavior: contain;
-    color: var(--ink); text-align: center; background: linear-gradient(#0e0b12, #08070b); border: 1px solid var(--s-line);
-    box-shadow: 0 0 0 1px rgba(255, 61, 52, 0.18), 0 30px 90px rgba(0, 0, 0, 0.85), 0 0 60px -20px rgba(255, 61, 52, 0.45); }
-  .support:focus, .support:focus-visible { outline: none; }
-  .support::backdrop { background: rgba(4, 3, 6, 0.78); backdrop-filter: blur(3px); }
-  .support[open] { animation: s-pop 0.28s ease-out; }
-  @keyframes s-pop { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
-  .support .sheet { padding: clamp(26px, 4vw, 44px) clamp(16px, 3.4vw, 40px) clamp(20px, 3vw, 32px); }
-  .support .x-form { position: sticky; top: 0; height: 0; z-index: 2; text-align: right; }
-  .support .x { all: unset; cursor: pointer; margin: 10px 12px 0 0; width: 38px; height: 38px; display: inline-grid; place-items: center; font-size: 28px; line-height: 1;
-    color: var(--ink-soft); border-radius: 50%; background: rgba(14, 11, 18, 0.8); }
-  .support .x:hover { color: var(--ink); background: rgba(60, 14, 14, 0.8); }
-  .support .x:focus-visible { outline: 2px solid var(--neon-hot); outline-offset: 2px; }
-  .support h2 { margin: 0 0 10px; font-family: var(--title); font-weight: 500; font-size: 14px; letter-spacing: 0.34em; padding-left: 0.34em; color: var(--ink-soft); }
-  .support .goal { margin: 0; font-family: var(--title); font-weight: 500; font-size: clamp(22px, 2.4vw, 32px); letter-spacing: 0.1em; color: var(--ink); }
-  .support .goal b { color: var(--gold); font-weight: 600; }
-  .support .badge { display: inline-block; margin: 10px 0 0; padding: 3px 12px; font-family: var(--title); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
-    color: var(--ink-soft); border: 1px solid var(--s-line); border-radius: 999px; }
-  .support .why { margin: 16px auto 0; max-width: 60ch; text-wrap: balance; color: var(--ink-soft); }
-  .support .note { margin: 10px 0 0; font-style: italic; font-size: 18px; color: var(--gold); opacity: 0.9; }
-  .support .status { margin: 14px 0 0; font-size: 14.5px; color: var(--ink-dim); }
-  .support .status.bad { color: var(--neon-hot); }
-  .support .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; text-align: left; }
-  .support .meter { padding: 18px 20px 16px; border: 1px solid var(--s-line); background: rgba(20, 16, 22, 0.6); }
-  .support .meter .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  .support .meter .name { font-family: var(--title); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
-  .support .meter .pct { font-family: var(--title); font-size: 13px; letter-spacing: 0.08em; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .support .meter .target { margin: 2px 0 10px; font-size: 15px; color: var(--ink-dim); }
-  .support .meter .raised { margin: 0 0 10px; font-size: 17px; color: var(--ink-soft); }
-  .support .meter .raised b { font-family: var(--title); font-weight: 500; font-size: 28px; color: var(--ink); font-variant-numeric: tabular-nums; margin-right: 4px; }
-  .support .meter-bar { height: 10px; border-radius: 999px; background: rgba(241, 228, 210, 0.09); overflow: hidden; }
-  .support .meter-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #a3201a, var(--neon) 70%, var(--neon-hot));
-    box-shadow: 0 0 12px rgba(255, 61, 52, 0.7); transition: width 1.2s ease; }
-  .support .meter.month .meter-bar i { background: linear-gradient(90deg, #9a6a2a, var(--gold)); box-shadow: 0 0 12px rgba(242, 184, 106, 0.6); }
-  .support .meter .foot2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 14.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-  .support .miles { margin-top: 16px; padding: 18px 20px 14px; border: 1px solid var(--s-line); background: rgba(20, 16, 22, 0.6); }
-  .support .miles .name { font-family: var(--title); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); text-align: left; }
-  .support .track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 14px; }
-  .support .track::before { content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 13px; height: 2px; background: var(--s-soft); }
-  .support .track .fill { position: absolute; left: 12.5%; top: 13px; height: 2px; width: 0; background: var(--gold); box-shadow: 0 0 8px rgba(242, 184, 106, 0.7); transition: width 1.2s ease; }
-  .support .stop { position: relative; display: grid; justify-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
-  .support .stop .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--s-line); background: var(--page); color: var(--ink-dim); }
-  .support .stop .dot svg { width: 14px; height: 14px; }
-  .support .stop .dot .ck, .support .stop.hit .dot .st { display: none; }
-  .support .stop.hit .dot .ck { display: block; }
-  .support .stop.hit .dot { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 12px rgba(242, 184, 106, 0.55); }
-  .support .stop .p { font-family: var(--title); font-size: 13px; color: var(--ink); }
-  .support .stop .d { font-size: 14px; color: var(--ink-dim); }
-  .support .give { margin-top: 16px; padding: 22px clamp(14px, 2.4vw, 22px); border: 1px solid rgba(255, 61, 52, 0.45); background: linear-gradient(rgba(60, 10, 10, 0.35), rgba(20, 16, 22, 0.6)); }
-  .support .ask { margin: 0; font-size: clamp(18px, 1.6vw, 21px); color: var(--ink); text-wrap: balance; }
-  .support .ask b { color: var(--neon-hot); font-weight: 500; }
-  .support .btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-block; padding: 11px 22px; font-family: var(--title); font-weight: 600; font-size: 13px;
-    letter-spacing: 0.18em; text-align: center; color: #fff1ea; background: linear-gradient(to bottom, #6a1010, #3d0707 60%, #4e0909); border: 2px solid var(--neon);
-    border-radius: 3px; box-shadow: 0 0 16px -4px rgba(255, 61, 52, 0.8); }
-  .support .btn:hover { box-shadow: 0 0 24px -2px rgba(255, 61, 52, 0.95); }
-  .support .btn:focus-visible, .support .coin summary:focus-visible { outline: 2px solid var(--neon-hot); outline-offset: 3px; }
-  .support .btn.off { cursor: default; opacity: 0.5; box-shadow: none; }
-  .support .card-row { margin-top: 16px; }
-  .support .card-row .sub { display: block; margin-top: 6px; font-size: 14px; color: var(--ink-dim); }
-  .support .crypto-h { margin: 22px 0 10px; font-family: var(--title); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
-  .support .coins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: left; }
-  .support .coin { border: 1px solid var(--s-line); background: rgba(10, 8, 12, 0.55); }
-  .support .coin[open] { grid-column: 1 / -1; border-color: rgba(242, 184, 106, 0.6); }
-  .support .coin summary { list-style: none; cursor: pointer; display: grid; gap: 2px; padding: 12px 14px; }
-  .support .coin summary::-webkit-details-marker { display: none; }
-  .support .coin .c-name { font-family: var(--title); font-size: 14px; letter-spacing: 0.12em; color: var(--ink); }
-  .support .coin .c-net { font-size: 14px; color: var(--ink-dim); }
-  .support .coin .c-go { font-family: var(--title); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--neon-hot); margin-top: 4px; }
-  .support .coin.off summary { cursor: default; }
-  .support .coin.off .c-go { color: var(--ink-dim); }
-  .support .coin .c-body { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; padding: 4px 14px 16px; }
-  .support .coin .qr { width: 148px; height: 148px; padding: 8px; background: #fff; border-radius: 4px; display: grid; place-items: center; }
-  .support .coin .qr img, .support .coin .qr canvas { width: 132px !important; height: 132px !important; }
-  .support .coin .c-warn { margin: 0 0 8px; font-size: 14.5px; color: var(--gold); }
-  .support .coin .addr { display: block; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 9px 10px; font: 13px/1.4 ui-monospace, Consolas, monospace; color: var(--ink);
-    background: rgba(0, 0, 0, 0.45); border: 1px solid var(--s-soft); border-radius: 3px; overflow-wrap: anywhere; user-select: all; }
-  .support .coin .copied { margin-left: 10px; font-size: 14px; color: var(--ink-soft); }
-  .support .fine { margin: 18px auto 0; max-width: 64ch; font-size: 14px; line-height: 1.5; color: var(--ink-dim); text-wrap: balance; }
-  @media (max-width: 760px) { .support .coins { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 640px) {
-    .support .meters { grid-template-columns: 1fr; }
-    .support .stop .d { font-size: 13px; }
-    .support .coin .c-body { grid-template-columns: 1fr; justify-items: center; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .support[open] { animation: none; }
-    .support .meter-bar i, .support .track .fill { transition: none; }
-  }
-
   /* ---------- about + footer ---------- */
   .about { text-align: center; max-width: 640px; margin: 0 auto; scroll-margin-top: 24px; }
   .about h2 { margin: 0 0 10px; font-family: var(--title); font-weight: 500; font-size: 14px; letter-spacing: 0.34em; padding-left: 0.34em; color: var(--ink-soft); }
@@ -338,14 +245,14 @@
     <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><span></span><span></span><span></span></button>
     <nav id="nav" aria-label="Page">
       <ul class="links">
-        <li><a href="#home" aria-current="true">HOME</a></li>
+        <li><a href="https://studio.bigpicsolutions.com/" aria-current="true" data-home>HOME</a></li>
         <li><a href="#screenshots">SCREENSHOTS</a></li>
         <li><a href="#news">WHAT&rsquo;S NEW</a></li>
         <li><a href="#about">ABOUT</a></li>
       </ul>
-      <a class="support-pill in-menu" href="#support"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.8 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.2 0 5.4 3.1 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg><span>SUPPORT THE DEV</span></a>
+      <a class="support-pill in-menu" href="#support" data-support-open><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.8 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.2 0 5.4 3.1 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg><span>SUPPORT THE DEV</span></a>
     </nav>
-    <a class="support-pill" href="#support"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.8 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.2 0 5.4 3.1 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg><span>SUPPORT THE DEV</span></a>
+    <a class="support-pill" href="#support" data-support-open><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.8 4.5 7 4.5c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.2 0 5.4 3.1 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg><span>SUPPORT THE DEV</span></a>
   </div>
 </header>
 
@@ -479,62 +386,7 @@
   </div>
 </footer>
 
-<!-- ==== SUPPORT THE DEV: the monthly-goal pop-up (self-contained: this dialog, the ".support" CSS block, the script at the end; numbers from support.json) ==== -->
-<dialog class="support" id="support" aria-labelledby="support-h">
-  <form method="dialog" class="x-form"><button class="x" aria-label="Close">&times;</button></form>
-  <div class="sheet">
-      <h2 id="support-h">SUPPORT THE DEV</h2>
-      <p class="goal">MONTHLY INCOME GOAL &middot; <b id="sGoal">$3,000</b></p>
-      <span class="badge" id="sBadge">&nbsp;</span>
-      <p class="why">THE PATH is free to play. I&rsquo;m an independent developer building it one chapter at a time, and I&rsquo;m open about it: every dollar I earn this month counts toward this goal, from tips like yours to my tech work for clients.</p>
-      <p class="note">Same creative journey. Brighter tomorrow.</p>
-      <p class="status" id="sStatus" role="status">Loading the latest numbers&hellip;</p>
-
-      <div class="meters">
-        <div class="meter week">
-          <div class="row"><span class="name">This week</span><span class="pct" data-k="pct">&nbsp;</span></div>
-          <p class="target"><span data-k="range">&nbsp;</span> &middot; target <span data-k="goal">&nbsp;</span></p>
-          <p class="raised"><b data-k="got">&nbsp;</b> received</p>
-          <div class="meter-bar" role="progressbar" aria-label="This week" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
-          <div class="foot2"><span><span data-k="goal">&nbsp;</span> goal</span><span data-k="left">&nbsp;</span></div>
-        </div>
-        <div class="meter month">
-          <div class="row"><span class="name">This month</span><span class="pct" data-k="pct">&nbsp;</span></div>
-          <p class="target"><span data-k="range">&nbsp;</span> &middot; target <span data-k="goal">&nbsp;</span></p>
-          <p class="raised"><b data-k="got">&nbsp;</b> received</p>
-          <div class="meter-bar" role="progressbar" aria-label="This month" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
-          <div class="foot2"><span><span data-k="goal">&nbsp;</span> goal</span><span data-k="left">&nbsp;</span></div>
-        </div>
-      </div>
-
-      <div class="miles">
-        <div class="name">Monthly milestones</div>
-        <div class="track"><span class="fill"></span>
-          <div class="stop" data-pct="25"><span class="dot"><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/></svg></span><span class="p">25%</span><span class="d">&nbsp;</span></div>
-          <div class="stop" data-pct="50"><span class="dot"><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/></svg></span><span class="p">50%</span><span class="d">&nbsp;</span></div>
-          <div class="stop" data-pct="75"><span class="dot"><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/></svg></span><span class="p">75%</span><span class="d">&nbsp;</span></div>
-          <div class="stop" data-pct="100"><span class="dot"><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/></svg></span><span class="p">100%</span><span class="d">&nbsp;</span></div>
-        </div>
-      </div>
-
-      <div class="give">
-        <p class="ask">If you want to help, <b>tips move the bar.</b> A dollar, ten, twenty: whatever you think it&rsquo;s worth.</p>
-        <div class="card-row">
-          <a class="btn off" id="sCard" aria-disabled="true">TIP BY CARD OR PAYPAL</a>
-          <span class="sub" id="sCardSub">Card tips are coming soon.</span>
-        </div>
-        <p class="crypto-h">Or tip in crypto</p>
-        <div class="coins">
-          <details class="coin" data-coin="btc"><summary><span class="c-name">Bitcoin</span><span class="c-net">BTC &middot; Bitcoin network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
-          <details class="coin" data-coin="sol"><summary><span class="c-name">Solana</span><span class="c-net">SOL &middot; Solana network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
-          <details class="coin" data-coin="usdc_sol"><summary><span class="c-name">USDC</span><span class="c-net">USDC &middot; Solana network</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
-          <details class="coin" data-coin="eth"><summary><span class="c-name">Ethereum</span><span class="c-net">ETH &middot; Ethereum mainnet</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
-          <details class="coin" data-coin="near"><summary><span class="c-name">NEAR</span><span class="c-net">NEAR &middot; NEAR Protocol</span><span class="c-go">Coming soon</span></summary><div class="c-body"></div></details>
-        </div>
-        <p class="fine">Tips are voluntary support for an independent developer, not tax-deductible charitable donations. The goal counts money actually received (tips and paid client work) before fees and taxes, less refunds. Crypto counts at its US dollar value on the day it arrives. Times are Pacific.</p>
-      </div>
-  </div>
-</dialog>
+<script src="https://bigpicsolutions.com/support/support.js" defer></script>
 
 <script>
   (() => {
@@ -556,7 +408,7 @@
 
     const links = [...document.querySelectorAll('.links a')];
     links.forEach((a) => a.addEventListener('click', () => setOpen(false)));
-    const mark = (id) => links.forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === '#' + id)));
+    const mark = (id) => links.forEach((a) => a.setAttribute('aria-current', String(a.hasAttribute('data-home') ? id === 'home' : a.getAttribute('href') === '#' + id)));
     const spy = () => {
       const y = window.scrollY + window.innerHeight * 0.45;
       const about = document.getElementById('about'), news = document.getElementById('news'), shots = document.getElementById('screenshots');
@@ -567,147 +419,8 @@
     window.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; spy(); }); }, { passive: true });
     spy();
   })();
-
-  // SUPPORT THE DEV. support.json holds the period, the targets, the totals received and the payment addresses; it's
-  // edited by hand for now (later a feed from the income ledger). Real numbers only: a failed load says so, never "$0".
-  (() => {
-    const dlg = document.getElementById('support');
-    if (!dlg) return;
-    const $ = (sel, el = dlg) => el.querySelector(sel);
-    const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const SHORT = MON.map((m) => m.slice(0, 3));
-    const money = (n) => '$' + (Math.round(n * 100) % 100 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.round(n).toLocaleString('en-US'));
-    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
-    const ymd = (v) => { const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(String(v || '')); if (!m) return null; const y = +m[1], mo = +m[2], d = m[3] ? +m[3] : 1;
-      return mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? { y, mo, d } : null; };
-    const day = (o) => SHORT[o.mo - 1] + ' ' + o.d;
-    // the coins: what the QR code carries (USDC rides Solana Pay with the official USDC mint so wallets pick the right token)
-    const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-    const COINS = {
-      btc: { warn: 'Send Bitcoin on the Bitcoin network only.', uri: (a) => 'bitcoin:' + a, ok: (a) => /^(bc1[02-9ac-hj-np-z]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/i.test(a) },
-      sol: { warn: 'Send SOL on the Solana network only.', uri: (a) => 'solana:' + a, ok: (a) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) },
-      usdc_sol: { warn: 'Send USDC on the Solana network only (not Ethereum).', uri: (a) => 'solana:' + a + '?spl-token=' + USDC_MINT, ok: (a) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) },
-      eth: { warn: 'Send ETH on Ethereum mainnet only (not other networks).', uri: (a) => 'ethereum:' + a, ok: (a) => /^0x[0-9a-fA-F]{40}$/.test(a) },
-      near: { warn: 'Send NEAR on NEAR Protocol only.', uri: (a) => a, ok: (a) => /^([a-z0-9_-]+\.)*[a-z0-9_-]+(\.near)?$|^[0-9a-f]{64}$/.test(a) && a.length >= 2 && a.length <= 64 },
-    };
-
-    function meter(el, got, goal, range) {
-      const pct = goal > 0 ? (got / goal) * 100 : 0, vis = Math.max(0, Math.min(100, pct));
-      el.querySelectorAll('[data-k="goal"]').forEach((n) => (n.textContent = money(goal)));
-      $('[data-k="range"]', el).textContent = range;
-      $('[data-k="got"]', el).textContent = money(got);
-      $('[data-k="left"]', el).textContent = got >= goal ? money(got - goal) + ' over goal' : money(goal - got) + ' to go';
-      $('[data-k="pct"]', el).textContent = Math.floor(pct) + '%';
-      $('.meter-bar', el).setAttribute('aria-valuenow', String(Math.floor(vis)));
-      $('.meter-bar i', el).style.width = vis + '%';
-    }
-
-    function payments(pay) {
-      const card = $('#sCard'), sub = $('#sCardSub');
-      if (typeof pay.card === 'string' && /^https:\/\/ko-fi\.com\/[A-Za-z0-9_]+\/?$/.test(pay.card)) {
-        card.href = pay.card; card.target = '_blank'; card.rel = 'noopener'; card.classList.remove('off'); card.removeAttribute('aria-disabled');
-        sub.textContent = 'Opens my Ko-fi page (card or PayPal). You choose the amount, from $5.';
-      } else { card.removeAttribute('href'); card.classList.add('off'); card.setAttribute('aria-disabled', 'true'); sub.textContent = 'Card tips are coming soon.'; }
-      dlg.querySelectorAll('.coin').forEach((c) => {
-        const key = c.dataset.coin, spec = COINS[key], a = typeof pay[key] === 'string' ? pay[key].trim() : '';
-        const live = !!a && spec.ok(a);
-        if (c.dataset.addr === (live ? a : '')) return;                      // unchanged: keep it as it is (open or closed)
-        c.dataset.addr = live ? a : ''; c.open = false; c.classList.toggle('off', !live);
-        $('.c-go', c).textContent = live ? 'Show address' : 'Coming soon';
-        const body = $('.c-body', c); body.textContent = '';
-        if (!live) return;
-        const qr = document.createElement('div'); qr.className = 'qr'; qr.setAttribute('aria-hidden', 'true');
-        const side = document.createElement('div');
-        const w = document.createElement('p'); w.className = 'c-warn'; w.textContent = spec.warn;
-        const addr = document.createElement('code'); addr.className = 'addr'; addr.textContent = a;
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'COPY ADDRESS';
-        const said = document.createElement('span'); said.className = 'copied'; said.setAttribute('aria-live', 'polite');
-        b.addEventListener('click', () => {
-          const done = (t) => { said.textContent = t; clearTimeout(b._t); b._t = setTimeout(() => (said.textContent = ''), 2500); };
-          if (navigator.clipboard) navigator.clipboard.writeText(a).then(() => done('Copied.'), () => done('Copy failed: select the address above.'));
-          else done('Select the address above to copy it.');
-        });
-        side.append(w, addr, b, said); body.append(qr, side);
-        c._uri = spec.uri(a);
-      });
-    }
-    // QR codes: the small library loads only when someone opens a coin
-    let qrLib = null;
-    const loadQR = () => qrLib || (qrLib = new Promise((ok, no) => { const sc = document.createElement('script');
-      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'; sc.onload = () => ok(window.QRCode); sc.onerror = no; document.head.appendChild(sc); }));
-    dlg.querySelectorAll('.coin').forEach((c) => c.addEventListener('toggle', () => {
-      if (!c.classList.contains('off')) $('.c-go', c).textContent = c.open ? 'Hide address' : 'Show address';
-      if (!c.open) return;
-      if (c.classList.contains('off')) { c.open = false; return; }
-      dlg.querySelectorAll('.coin[open]').forEach((o) => { if (o !== c) o.open = false; });
-      const box = $('.qr', c);
-      if (box && !box.childElementCount) loadQR().then((QR) => { if (!box.childElementCount) new QR(box, { text: c._uri, width: 132, height: 132, correctLevel: QR.CorrectLevel.M }); }, () => box.remove());
-    }));
-
-    let data = null, loadedAt = 0;
-    function render() {
-      const status = $('#sStatus');
-      const d = data || {}, period = ymd(d.month), wk = ymd(d.week_start), upd = ymd(d.updated);
-      const gM = num(d.goal_month), gW = num(d.goal_week), rM = num(d.received_month), rW = num(d.received_week);
-      payments(d.pay && typeof d.pay === 'object' ? d.pay : {});
-      const ok = period && wk && upd && gM > 0 && gW > 0 && rM !== null && rW !== null;
-      if (!ok) {
-        status.textContent = data === null ? 'Loading the latest numbers\u2026' : 'The latest numbers couldn\u2019t be loaded right now. Please try again later.';
-        status.classList.toggle('bad', data !== null);
-        return;
-      }
-      status.classList.remove('bad');
-      status.textContent = 'Updated ' + MON[upd.mo - 1] + ' ' + upd.d + ', ' + upd.y + '.';
-      $('#sGoal').textContent = money(gM);
-      $('#sBadge').textContent = MON[period.mo - 1] + ' ' + period.y + (num(d.month_number) ? ' \u00b7 Month ' + d.month_number : '');
-      const end = new Date(Date.UTC(wk.y, wk.mo - 1, wk.d + 6)), we = { mo: end.getUTCMonth() + 1, d: end.getUTCDate() };
-      meter($('.meter.week'), rW, gW, day(wk) + ' \u2013 ' + day(we));
-      meter($('.meter.month'), rM, gM, MON[period.mo - 1]);
-      const pct = (rM / gM) * 100;
-      dlg.querySelectorAll('.stop').forEach((st) => { const p = +st.dataset.pct; $('.d', st).textContent = money((gM * p) / 100); st.classList.toggle('hit', pct >= p); });
-      $('.track .fill').style.width = (pct >= 25 ? Math.min(75, ((pct - 25) / 75) * 75) : 0) + '%';
-    }
-    // Payment addresses come from support.json (this site); the live totals from the income ledger, published once a
-    // day through Pulse. If Pulse can't be reached, support.json's own dated totals are shown instead.
-    const LIVE = 'https://pulse.bigpicsolutions.com/v1/support';
-    const TOTALS = ['updated', 'month', 'month_number', 'week_start', 'goal_month', 'goal_week', 'received_month', 'received_week'];
-    const getJSON = (url, opts) => fetch(url, opts).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then((j) => (j && typeof j === 'object' ? j : null), () => null);
-    function load() {
-      loadedAt = Date.now();
-      Promise.all([getJSON('support.json', { cache: 'no-store' }), getJSON(LIVE, { mode: 'cors', credentials: 'omit' })])
-        .then(([local, live]) => {
-          data = local || {};
-          if (live && TOTALS.every((k) => k in live) && ymd(live.month) && num(live.goal_month) > 0) TOTALS.forEach((k) => (data[k] = live[k]));
-        })
-        .then(() => { if (dlg.open) replay(); else render(); });
-    }
-    function replay() {
-      dlg.querySelectorAll('.meter-bar i, .track .fill').forEach((e) => { e.style.transition = 'none'; e.style.width = '0'; void e.offsetWidth; e.style.transition = ''; });
-      requestAnimationFrame(render);
-    }
-    function open() {
-      if (dlg.open) return;
-      const btn = document.querySelector('.menu-btn'), nav = document.getElementById('nav');
-      if (btn) btn.setAttribute('aria-expanded', 'false'); if (nav) nav.classList.remove('open');
-      document.documentElement.classList.add('modal-open');
-      dlg.showModal(); replay();
-      if (Date.now() - loadedAt > 60000) load();                          // fresh numbers if the page has been open a while
-      if (location.hash !== '#support') history.replaceState(null, '', '#support');
-    }
-    dlg.addEventListener('close', () => {
-      document.documentElement.classList.remove('modal-open');
-      if (location.hash === '#support') history.replaceState(null, '', location.pathname + location.search);
-    });
-    dlg.addEventListener('click', (e) => {                                  // only a click outside the box closes it
-      if (e.target !== dlg) return;
-      const r = dlg.getBoundingClientRect();
-      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
-    });
-    document.querySelectorAll('a[href="#support"]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); open(); }));
-    render(); load();
-    if (location.hash === '#support') open();
-    window.addEventListener('hashchange', () => { if (location.hash === '#support') open(); });
-  })();
+  // SUPPORT THE DEV is the shared widget (bigpicsolutions.com/support/support.js); this just tidies the mobile menu when it opens.
+  document.addEventListener('support:open', () => { const b = document.querySelector('.menu-btn'), n = document.getElementById('nav'); if (b) b.setAttribute('aria-expanded', 'false'); if (n) n.classList.remove('open'); });
 </script>
 </body>
 </html>
