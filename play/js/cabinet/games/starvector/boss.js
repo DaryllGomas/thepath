@@ -42,9 +42,10 @@ export function spawn(sim, quick) {
         P('head', 'head', 0, 0, 2.4, 560, { main: true });
         for (let i = 1; i <= 7; i++) b.segs.push({ i, x: 0, y: 0, z: b.tz, r: 1.4 - i * 0.07 });
     } else {
-        P('r1', 'rune', -5.4, 1.5, 0.95, 105, { guard: true }); P('r2', 'rune', 5.4, 1.5, 0.95, 105, { guard: true });
-        P('r3', 'rune', -1.5, 2.2, 0.9, 95, { guard: true }); P('r4', 'rune', 1.5, 2.2, 0.9, 95, { guard: true });
-        P('heart', 'heart', 0, -0.8, 1.15, 460, { armored: true, main: true });
+        // eased 10/2 (Daryll: the Waking Stone should die a little easier): about 30% less health than before (860 -> 600)
+        P('r1', 'rune', -5.4, 1.5, 0.95, 75, { guard: true }); P('r2', 'rune', 5.4, 1.5, 0.95, 75, { guard: true });
+        P('r3', 'rune', -1.5, 2.2, 0.9, 65, { guard: true }); P('r4', 'rune', 1.5, 2.2, 0.9, 65, { guard: true });
+        P('heart', 'heart', 0, -0.8, 1.15, 320, { armored: true, main: true });
     }
     b.hpMax = b.parts.reduce((a, p) => a + p.max, 0);
     sim.boss = b; sim.objs.push(b);
