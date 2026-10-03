@@ -159,6 +159,13 @@ function svSoundFrame(dt) {
   if (on) { svSnd.update(camera, 1); if (c.runner.sim) c.runner.sim.recordEvents = true; svSnd.game(svAdapter, 'starvector', dt); svSndOn = true; }
   else if (svSndOn) { svSnd.leave(); if (c && c.runner && c.runner.sim) c.runner.sim.recordEvents = false; svSndOn = false; }
 }
+/** the room's music fades out while a Starvector game is being played (its own soundtrack plays), and back in when it ends */
+function jukeboxDuckFrame(dt) {
+  if (!jukebox) return;
+  const c = cabs.fcab_starvector, playing = !!c && c === activeCab && !!c.runner && c.runner.phase === 'playing';
+  const want = playing ? 0 : jukebox.volume, a = jukebox.audio, v = a.getVolume();
+  if (Math.abs(v - want) > 0.001) a.setVolume(v + (want - v) * Math.min(1, dt * 3));
+}
 async function initSevenSound() {
   if (sevenSnd || sevenSndMaking || !audioOn || !seven || !polyScreen) return;
   sevenSndMaking = true;
@@ -1194,6 +1201,7 @@ function frame(now) {
       else c.update(dt, null);
     }
     if (svSnd) svSoundFrame(dt);
+    jukeboxDuckFrame(dt);
     if (svTrigger) svTrigger.update(dt, { inside: region === 'out' && !!S.inFlynns });    // (on the floor, at a cabinet or not)
     if (answer) answer.update(dt);
     sevenCursor();
