@@ -68,7 +68,7 @@ export const hpFrac = (b) => clamp(hpNow(b) / b.hpMax, 0, 1);
 /** can a shot hurt this part right now? */
 export function exposed(b, p) {
     if (b.state !== 'fight' || p.dead) return false;
-    return !p.armored || b.open;
+    return !p.armored || b.open || (p.main && b.dazed > 0);      // (threading the slam's doorway dazes the stone: its heart is open for a moment)
 }
 
 // ---------------------------------------------------------------- the step
@@ -97,6 +97,7 @@ export function step(sim, dt) {
             sim.flash = Math.max(sim.flash, 0.4); sim.shake = Math.max(sim.shake, 1.0); sim.hitStop = Math.max(sim.hitStop, 0.06); sim._emit('bossPhase', { phase: ph });
             sim._pop(ph === 3 ? 'ENRAGED' : 'PHASE ' + ph, b.x, b.y + 2.4, b.z - 2, 2);
         }
+        if (b.dazed > 0) b.dazed -= dt;
         if (b.stagger > 0) b.stagger -= dt;
         else if (b.atk) {
             const a = b.atk; a.t += dt; a.k = clamp(a.t / a.tele, 0, 1);
@@ -334,5 +335,6 @@ function runAttack(sim, b, a) {
 }
 
 function wave(sim, b, gx, hgt) {
-    sim._add({ k: 'wave', x: 0, y: -SV.GY, z: b.z - 1.5, top: -SV.GY + hgt, hgt, gx, gw: 1.35, cs: 26, dz: 0.8 });
+    // a curtain from the ground to the sky (no flying over it) with ONE doorway at the floor: the lit lane
+    sim._add({ k: 'wave', x: 0, y: -SV.GY, z: b.z - 1.5, ridge: -SV.GY + hgt, top: SV.YMAX + 1.4, door: -SV.GY + 2.1, hgt, gx, gw: 1.35, cs: 26, dz: 0.8 });
 }

@@ -343,9 +343,9 @@ export class StarvectorRenderer {
                     const a = 0.5 + (nt(wx * 1.0 + 40, z1) - 0.5) * c1, b = 0.5 + (nt(wx * 3.1 + 7, z2) - 0.5) * c2;
                     const v = clamp((a * 0.64 + b * 0.36 - 0.22) * 1.7, 0, 1) * (0.78 + 0.22 * pulse);
                     let c = G.ramp(NEB, v * 0.78 + hg * 0.28, ci, yd), r = c & 255, g = (c >>> 8) & 255, bl = (c >>> 16) & 255;
-                    const mg = (b - 0.56) * 3.2 * c2; if (mg > 0) { r += 85 * mg; g -= 22 * mg; bl += 20 * mg; }       // magenta veins in the gas
+                    const mg = (b - 0.56) * 3.2 * c2; if (mg > 0) { r += 55 * mg; g -= 14 * mg; bl += 13 * mg; }       // magenta veins in the gas
                     const st = 0.5 + (nt(wx * 4.2 + 5, zst) - 0.5) * cs;
-                    if (st > 0.7) { const q = (st - 0.7) * 3.4, w = st > 0.84 ? 1 : 0; r += (60 + 140 * w) * q; g += (140 - 70 * w) * q; bl += 235 * q; }
+                    if (st > 0.76) { const q = (st - 0.76) * 2.4, w = st > 0.86 ? 1 : 0; r += (60 + 140 * w) * q; g += (140 - 70 * w) * q; bl += 235 * q; }
                     { const l_ = 0.3 * r + 0.59 * g + 0.11 * bl; r = (r + (l_ - r) * 0.3) * CK; g = (g + (l_ - g) * 0.3) * CK; bl = (bl + (l_ - bl) * 0.3) * CK; } const q = fq[ci & 3];
                     c = pack(r + (fr - r) * q, g + (fg - g) * q, bl + (fb - bl) * q); for (let j = 0; j < XS; j++) u[o + x + j] = c;
                 }
@@ -543,11 +543,11 @@ export class StarvectorRenderer {
         for (const [dx, dy, w, h] of [[-r - l, 0, l, th], [r, 0, l, th], [0, -r - l, th, l], [0, r, th, l]]) this.rect(x + dx - (w === th ? 1 : 0), y + dy - (h === th ? 1 : 0), x + dx - (w === th ? 1 : 0) + w, y + dy - (h === th ? 1 : 0) + h, c);
     }
     _light(L, sim) {
-        const z = L.z + ZS * 0 + 0.0, zz = Math.max(2.5, L.z); const x = this.sx(L.x, zz), y = this.sy(L.y + 0.9 + 0.3 * Math.sin(L.ph * 2.2), zz), s = F / zz;
-        const r = clamp(1.05 * s, 4 * K, 46 * K), p = 0.85 + 0.15 * Math.sin(L.ph * 3);
-        this.glow(x, y, r * 4.2 * p, 255, 200, 110, 0.7); this.glow(x, y, r * 2.2, 255, 232, 170, 0.9); this.glow(x, y, r * 1.1, 255, 255, 235, 1);
-        this.disc(x, y, r * 0.5, pack(255, 252, 235));
-        const gy = this.sy(-GY, zz); this.glow(x, gy, r * 5.5, 255, 215, 120, 0.4); this.glow(x, gy, r * 2.8, 120, 255, 225, 0.32);         // a pool of light on the ground under it
+        const z = L.z + ZS * 0 + 0.0, zz = Math.max(2.5, L.z); const x = this.sx(L.x, zz), y = this.sy(L.y + 2.6 + 0.3 * Math.sin(L.ph * 2.2), zz), s = F / zz;
+        const r = clamp(0.5 * s, 2.5 * K, 13 * K), p = 0.85 + 0.15 * Math.sin(L.ph * 3);      // (Daryll 2026-10-10: it was so big it hid the stones)
+        this.glow(x, y, r * 3 * p, 255, 200, 110, 0.35); this.glow(x, y, r * 1.8, 255, 232, 170, 0.5); this.glow(x, y, r * 1.0, 255, 255, 235, 0.8);
+        this.disc(x, y, r * 0.45, pack(255, 252, 235));
+        const gy = this.sy(-GY, zz); this.glow(x, gy, r * 4, 255, 215, 120, 0.16); this.glow(x, gy, r * 2.2, 120, 255, 225, 0.14);         // a pool of light on the ground under it
     }
 
     // ---------------------------------------------------------------- shots, particles

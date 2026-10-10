@@ -149,7 +149,7 @@ export class StarvectorRound {
 
     _deco() {
         // scenery you fly past: big and near, never in the way (outside the playfield), the field is never empty
-        const r = this.rng, side = r.nextDouble() < 0.5 ? -1 : 1, x = side * (7.8 + r.nextDouble() * 17), y = -2.5 + r.nextDouble() * 11;
+        const r = this.rng, side = r.nextDouble() < 0.5 ? -1 : 1, x = side * (10.5 + r.nextDouble() * 16), y = -2.5 + r.nextDouble() * 11;
         const o = this._rock(x, y, ZSP + r.next(20), 1.6 + r.nextDouble() * 3.4); o.deco = true; o.hp = 999; return o;
     }
 
@@ -186,9 +186,9 @@ export class StarvectorRound {
         let s = 0; for (const p of pool) s += p[1]; let q = r.nextDouble() * s, pick = pool[0][0];
         for (const p of pool) { if ((q -= p[1]) < 0) { pick = p[0]; break; } }
         this._lastForm = pick;
-        const cnt = 4 + Math.floor(u * 2.6) + (n > 6 ? 1 : 0);
+        const cnt = (A === 1 ? 3 + Math.floor(u * 2.4) : 4 + Math.floor(u * 2.6)) + (n > 6 ? 1 : 0);     // (act I starts with smaller squads)
         switch (pick) {
-            case 'scatter': { const c = 3 + r.next(3 + (u > 0.5 ? 2 : 0)); for (let i = 0; i < c; i++) this._rock(this._rx(), this._ry(), Z + r.next(26), 1.0 + r.nextDouble() * 1.3); break; }
+            case 'scatter': { const c = 2 + r.next(3 + (u > 0.5 ? 2 : 0)); for (let i = 0; i < c; i++) this._rock(this._rx(), this._ry(), Z + r.next(26), 1.0 + r.nextDouble() * 1.3); break; }
             case 'bigrock': this._rock(this._rx(0.8), this._ry(), Z, 3.0); for (let i = 0; i < 2; i++) this._rock(this._rx(), this._ry(), Z + 10 + r.next(20), 0.9 + r.nextDouble() * 0.8); break;
             case 'V': this._squad('v', cnt); break;
             case 'snake': this._squad('snake', cnt + 1); break;
@@ -254,10 +254,10 @@ export class StarvectorRound {
             const lastBeat = SV.ACT_LEN - 6, r0 = this.rng; if (this._nextDeco === undefined) this._nextDeco = 0;
             if (this.actT >= this.nextBeat && this.actT < lastBeat && !this.gateSpawned && !this.bossStarted && this.cardT < SV.CARD - 0.3) {
                 this._beat();
-                const base = [0, 1.7, 1.75, 1.85][this.act], u = this.actT / SV.ACT_LEN;
+                const base = [0, 2.2, 1.75, 1.85][this.act], u = this.actT / SV.ACT_LEN;
                 this.nextBeat = this.actT + (base * (1.15 - 0.4 * u)) / this.kn.density;
             }
-            if (this.act === 1 && this.actT >= this._nextDeco) { this._nextDeco = this.actT + 0.32 + r0.nextDouble() * 0.3; this._deco(); }
+            if (this.act === 1 && this.actT >= this._nextDeco) { this._nextDeco = this.actT + 0.65 + r0.nextDouble() * 0.5; this._deco(); }      // (half the scenery it had: act I read as clutter)
             if (!this.bossStarted && !this.gateSpawned && this.actT >= SV.ACT_LEN && this.cardT <= 0) this._startBoss(false);
         }
         if (this.act === 3 && (this.stage === 'play' || this.stage === 'boss')) this._corridor();
@@ -318,9 +318,14 @@ export class StarvectorRound {
         // the shield: down after it absorbs a hit, back after its recharge with no hit
         if (!S.shieldOn) { S.shieldT -= dt; if (S.shieldT <= 0) { S.shieldOn = true; S.shieldUpFlash = 1; this.shieldUps++; this._emit('shieldUp'); } }
         const ix = clamp(input.x, -1, 1), iy = clamp(input.y, -1, 1);
-        // barrel roll: a quick lateral dodge and a spin (the invulnerable moment)
-        if (input.pressed(5) && S.rollCool <= 0 && S.rollT <= 0) {
-            S.rollT = kn.rollSeconds; S.rollTotal = kn.rollSeconds; S.rollDir = ix !== 0 ? Math.sign(ix) : Math.abs(S.vx) > 0.4 ? Math.sign(S.vx) : Math.abs(S.bank) > 0.1 ? Math.sign(S.bank) : (S.lastDir || 1); S.rollCool = kn.rollCooldown + kn.rollSeconds; this.rolls++;
+        // barrel roll: a quick lateral dodge and a spin (the invulnerable moment). Double-tap left or right rolls that way
+        // (Daryll, 2026-10-10: more natural than a button); B still rolls, for pads and the bots
+        let tap = 0;
+        for (const [pad, d] of [[2, -1], [3, 1]]) if (input.pressed(pad)) {
+            if (S.tapDir === d && this.time - S.tapT < 0.3) { tap = d; S.tapT = -9; } else { S.tapDir = d; S.tapT = this.time; }
+        }
+        if ((input.pressed(5) || tap) && S.rollCool <= 0 && S.rollT <= 0) {
+            S.rollT = kn.rollSeconds; S.rollTotal = kn.rollSeconds; S.rollDir = tap ? tap : ix !== 0 ? Math.sign(ix) : Math.abs(S.vx) > 0.4 ? Math.sign(S.vx) : Math.abs(S.bank) > 0.1 ? Math.sign(S.bank) : (S.lastDir || 1); S.rollCool = kn.rollCooldown + kn.rollSeconds; this.rolls++;
             S.boost = Math.max(S.boost, 0.8);
             this._emit('roll');
         }
@@ -382,7 +387,7 @@ export class StarvectorRound {
             case 'stone': return Math.abs(ox - sx) < o.w + w || (Math.abs(ox - sx) < o.cw + w && sy + h > o.top - 2.2);
             case 'arch': return Math.abs(sx - ox) > o.half - w * 0.6 || sy + h > o.yl;
             case 'lava': return Math.abs(ox - sx) < o.r + w * 0.7 && sy - h < -GY + o.hmax;
-            case 'wave': return sy - h < o.top && Math.abs(sx - o.gx) > o.gw - w * 0.3;
+            case 'wave': return !(Math.abs(sx - o.gx) < o.gw - w * 0.3 && sy + h < o.door);      // only the doorway at the floor is safe
             default: return false;
         }
     }
@@ -416,6 +421,10 @@ export class StarvectorRound {
             } else if (crossing && S.alive && S.invuln <= 0) {
                 if (this.hurts(o, S.x, S.y, o.x, o.y)) { this._hurtShip(o); }
                 else if (!o.near && o.k !== 'wave' && this.hurts(o, S.x, S.y, o.x, o.y, 1.9)) this._nearMiss(o.x, o.y, o.z, 20, o);
+                else if (!o.near && o.k === 'wave') {      // through the doorway: a bonus, and the stone staggers, its heart open for a moment
+                    this._nearMiss(S.x, S.y, ZS + 3, 50, o);
+                    const b = this.boss; if (b && b.state === 'fight' && b.type === 'guardian') { b.dazed = 2.4; b.hit = 0.25; this.flash = Math.max(this.flash, 0.25); this.shake = Math.max(this.shake, 0.6); }
+                }
             } else if (crossing && o.k !== 'rock' && o.k !== 'fighter' && o.k !== 'drone' && S.alive && S.invuln > 0 && S.rollT > 0 && this.hurts(o, S.x, S.y, o.x, o.y)) {
                 if (!o.near) { o.near = true; this.score += 10; this._emit('near'); }
             }
@@ -426,7 +435,7 @@ export class StarvectorRound {
     _nearMiss(x, y, z, pts, o) {
         if (o) o.near = true;
         const v = pts * this.mult; this.score += v; this.nears++; this.nearFlash = 1; this.comboT = Math.max(this.comboT, 1.2);
-        this._pop('NEAR +' + v, this.ship.x, this.ship.y + 1.0, ZS + 3, 3);
+        this._pop('+' + v, this.ship.x, this.ship.y + 1.0, ZS + 3, 3);
         this._emit('near', { big: true });
     }
 
@@ -575,7 +584,7 @@ export class StarvectorRound {
                 const f = this.forms.get(o.fid);
                 if (f) { f.kills++; if (f.kills >= f.n && !f.esc) {
                     const bonus = 40 * f.n * this.mult; this.score += bonus; this.formBonuses++; this.forms.delete(o.fid);
-                    this._pop('FORMATION +' + bonus, o.x, o.y + 1.6, Math.max(o.z, ZS + 6), 2); this.hitStop = Math.max(this.hitStop, 0.05); this.flash = Math.max(this.flash, 0.18); this.shake = Math.max(this.shake, 0.4); this._emit('formation', { n: f.n });
+                    this._pop('+' + bonus, o.x, o.y + 1.6, Math.max(o.z, ZS + 6), 2); this.hitStop = Math.max(this.hitStop, 0.05); this.flash = Math.max(this.flash, 0.18); this.shake = Math.max(this.shake, 0.4); this._emit('formation', { n: f.n });
                 } }
             }
         } else if (o.fid) { const f = this.forms.get(o.fid); if (f) f.esc = true; }

@@ -20,7 +20,7 @@ export const BPM = 108;
 export const BAR_SECONDS = 4 * 60 / BPM;                 // 2.222 s
 export const LOOP_BARS = 16;                             // each stem is 16 bars: 35.56 s
 
-// where the recordings go (web/thenode/assets/audio/nameless/). Empty until sourced: see STEMS.md
+// where the recordings go (browser/assets/audio/nameless/). Empty until sourced: see STEMS.md
 export const STEM_FILES = Object.freeze(STEM_NAMES.map((n, i) => 'assets/audio/nameless/stem_' + (i + 1) + '_' + n + '.wav'));
 
 // what full level means per stem (the mix; the files come in un-normalised, peaks -12..-6 dBFS)

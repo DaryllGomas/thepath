@@ -41,7 +41,7 @@ export const StarvectorSpec = (function buildSpec() {
         year: 1982,
         palette: StarvectorPalette,
         tagline: 'THREE ACTS  ONE GATE',
-        controls: ['STICK FLY  A FIRE (HOLD)  B ROLL'],
+        controls: ['STICK FLY  A FIRE (HOLD)  TAP TWICE ROLL'],
         roundWonText: 'GATE OPENED',
         roundLostText: 'GAME OVER',
         highScoreSeed: [42500, 38100, 31600, 26200, 21800],

@@ -50,7 +50,7 @@ export class ArcadeAnswers {
     this.phase = 'idle'; this.t = 0; this.answered = false; this.clock = 0;
     this.knocks = {}; this.fx = [];
     this.initials = null; this.prep = null; this.shown = null; this.fromGlass = false;
-    this.music = null;                 // the Junction's jukebox (a THREE.Audio), when there is one
+    this.music = null;                 // the Junction's jukebox (js/jukebox.js's music adapter: isPlaying, pause(), play(), stutter(S); or a THREE.Audio)
     this.log = [];
     // a fresh room: the sign lit, the office dark (nobody home), the room's own light as baked
     if (O.signLight) O.signLight(1);
@@ -97,6 +97,9 @@ export class ArcadeAnswers {
   _stutter(delay = 0) {
     this.fx.push({ t: -delay, dur: 0.01, start: () => {
       const a = this.music;
+      if (a && a.isPlaying && a.stutter) {                       // a streamed song (js/jukebox.js): it seeks back and replays the slice itself
+        a.stutter(ANSWER.stutter); this.stutters = (this.stutters || 0) + 1; this._note('stutter'); return;
+      }
       if (!a || !a.isPlaying || !a.buffer) { this._note('stutter: no jukebox playing'); return; }
       const S = ANSWER.stutter, ctx = a.context, buf = a.buffer, now = ctx.currentTime;
       const pos = ((a._progress + Math.max(0, now - a._startedAt) * a.playbackRate) + (a.offset || 0)) % buf.duration;

@@ -10,7 +10,7 @@ import { loadOutside, OutdoorBody } from './outside.js';
 import { Delivery, loadDeliveryModels } from './delivery.js';
 import { FLOOR, dressCabinet, cabinetPose, addJunctionClock } from './arcade.js';
 import { ArcadeAnswers, ANSWER } from './answer.js';
-import { JunctionJukebox } from './jukebox.js';
+import { JunctionJukebox, SILENT } from './jukebox.js';
 import { StarvectorTrigger, SV_TRIGGER } from './starvector_answer.js';     // Starvector (the super-scaler) -> the room
 import { loadBasement, bakeReflections } from './world.js';
 import { Pipeline } from './post.js';
@@ -70,6 +70,7 @@ let bikeRig = null, bikeParked = null, baseFog = null, baseBg = null, outFog = n
 const fillers = [], flynnView = {};
 let delivery = null, seven = null, ending = null, SevenMod = null;   // seven: the cabinet with no name's tube (js/cabinet/seven/)
 let polyScreen = null;                                               // its screen ({ mesh, material, center, normal }): the glide, the mouse
+const jukeEl = new Audio();                                          // the jukebox's streaming element, made now so startAudio can unlock it inside the first gesture (iOS)
 let jukebox = null;                                                  // the Junction's jukebox (js/jukebox.js): its song is the room's music for js/answer.js
 let answer = null;                                                   // THE ARCADE ANSWERS, the room's side (js/answer.js): knocks, tables, the van
 let svTrigger = null;                                                // today's Starvector calling it (js/starvector_answer.js)
@@ -105,7 +106,7 @@ function cabHint(mode) {
   el.innerHTML = {
     bbs: '<span>' + k('E') + ' NEXT</span><span>' + k('&#9003;') + ' LOG OFF</span>',
     gridcycles: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' STEER</span>' + away,
-    starvector: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' FLY</span><span>' + k('SPACE') + ' FIRE</span><span>' + k('X') + ' BARREL ROLL</span>' + away,
+    starvector: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' FLY</span><span>' + k('SPACE') + ' FIRE</span><span>' + k('&larr;&larr;') + '/' + k('&rarr;&rarr;') + ' BARREL ROLL</span>' + away,
     relicquest: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' WALK</span><span>' + k('SPACE') + ' SWORD</span><span>' + k('X') + ' TORCH</span>' + away,
     sunsetdrive: '<span>' + k('&larr;') + k('&rarr;') + ' STEER</span><span>' + k('SPACE') + ' GAS</span><span>' + k('X') + ' BRAKE</span>' + away,
     afterglow: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' FLY</span><span>' + k('SPACE') + ' MISSILES</span><span>' + k('X') + ' BARREL ROLL</span>' + away,
@@ -163,7 +164,7 @@ function svSoundFrame(dt) {
 function jukeboxDuckFrame(dt) {
   if (!jukebox) return;
   const c = cabs.fcab_starvector, playing = !!c && c === activeCab && !!c.runner && c.runner.phase === 'playing';
-  const want = playing ? 0 : jukebox.volume, a = jukebox.audio, v = a.getVolume();
+  const want = playing ? 0 : jukebox.volume, a = jukebox.audio, v = a.getVolume();   // (a streamed element behind a PositionalAudio: its gain ducks it all the same)
   if (Math.abs(v - want) > 0.001) a.setVolume(v + (want - v) * Math.min(1, dt * 3));
 }
 async function initSevenSound() {
@@ -178,10 +179,26 @@ async function initSevenSound() {
   } catch (e) { console.error('[seven] its sound could not start', e); }
   sevenSndMaking = false;
 }
+/** phones only let a media element play later if it was played once inside a user gesture: play a silent clip now, then pause */
+function primeJukeEl() {
+  if (jukeEl.dataset.primed || jukeEl.src) return;
+  jukeEl.dataset.primed = '1'; jukeEl.src = SILENT; jukeEl.muted = true;
+  const p = jukeEl.play();
+  const done = () => { if (jukeEl.src === SILENT || jukeEl.src.startsWith('data:')) { jukeEl.pause(); } jukeEl.muted = false; };
+  if (p && p.then) p.then(done, () => { jukeEl.muted = false; jukeEl.removeAttribute('src'); delete jukeEl.dataset.primed; }); else done();
+}
+// a browser that blocked the sound (no gesture yet: the #junction shortcut, or a strict autoplay rule) gets it on the next click or key
+function audioGesture() {
+  if (!audioOn) return;
+  try { if (listener.context.state !== 'running') listener.context.resume(); } catch (e) { /* no audio */ }
+  if (jukebox && jukebox.blocked && jukebox.on) { jukebox.blocked = false; jukebox.music.play(); }
+}
+addEventListener('pointerdown', audioGesture, true); addEventListener('keydown', audioGesture, true);
 function startAudio() {
   audioOn = true; initSevenSound(); initSvSound();
   try { if (listener.context.state !== 'running') listener.context.resume(); } catch (e) { /* no audio */ }
   listener.setMasterVolume(settings.vol);
+  primeJukeEl();
   if (buffers['juke_06.mp3'] && !bed.isPlaying) { bed.setBuffer(buffers['juke_06.mp3']); bed.setLoop(true); bed.setVolume(0.35); bed.play(); }
 }
 
@@ -290,7 +307,7 @@ function use(i) {
     case 'bike': mountBike(); break;
     case 'flynns_door': openFlynnsDoors(i); break;
     case 'change': getChange(); break;
-    case 'junction_juke': if (jukebox) { jukebox.next(); line('The jukebox thunks. Next song.', 2.2); } break;
+    case 'junction_juke': if (jukebox) { const t = jukebox.next(); line('The jukebox thunks. Now playing: ' + t, 3); } break;
     case 'polybius':
       // the cabinet with no name takes a quarter like any other (the one you keep is never spent); a credit it already holds
       // (a game won, the next one waiting) plays without one
@@ -786,10 +803,11 @@ function attachOutside(O) {
     release: (pose) => answerRelease(pose),
     done: () => { S.vanDue = true; },
   } });
-  // the jukebox against the back wall (the basement's own, cloned from its kept meshes); its song is the room's music
+  // the jukebox against the right wall under the mezzanine, just short of the stairs (Daryll, 2026-10-10: it stood at the foot of
+  // the stairs); the basement's own, cloned from its kept meshes; its song is the room's music
   if (W.jukeParts && W.jukeParts.length) {
-    jukebox = new JunctionJukebox({ parts: W.jukeParts, listener, buffers, parent: O.group, at: [84.9, -37.0, 0], wallZ: -178.85, facing: [0, 1], volume: 0.55 });
-    O.extraBvh = jukebox.bvh; answer.music = jukebox.audio;
+    jukebox = new JunctionJukebox({ parts: W.jukeParts, listener, element: jukeEl, parent: O.group, at: [0, -37.0, -176.3], wallX: 90.0, facing: [-1, 0], volume: 0.55 });
+    O.extraBvh = jukebox.bvh; answer.music = jukebox.music;
     interactables.push({ id: 'junction_juke', region: 'out', enabled: true, p: jukebox.stand.clone(), radius: 1.3, maxRise: 0 });
   }
   svTrigger = new StarvectorTrigger({ cab: cabs.fcab_starvector, room: answer, hooks: { hint: (mode) => { if (answerFromGlass()) cabHint(mode); } } });
@@ -1356,7 +1374,9 @@ window.__node = {
   // numbers). Today's Starvector (js/starvector_answer.js): clearWave() bursts every rock on its glass, bot(on) its bot plays,
   // trigger (its numbers: trigger.wander is the gold glow's wait, in seconds)
   drs: DRS, toggleFps,
-  jukebox: { get state() { return jukebox ? jukebox.info() : null; }, next() { return jukebox ? jukebox.next() : null; }, get stand() { return jukebox ? jukebox.stand.toArray() : null; } },
+  jukebox: { get state() { return jukebox ? jukebox.info() : null; }, next() { return jukebox ? jukebox.next() : null; }, seek(s) { if (jukebox) jukebox.seek(s); }, setVol(v) { if (jukebox) jukebox.audio.setVolume(v); },
+    level(pre) { if (!jukebox) return null; const j = jukebox, k = pre ? '_an0' : '_an'; if (!j[k]) { j[k] = listener.context.createAnalyser(); j[k].fftSize = 1024; (pre ? j.env : j.audio.gain).connect(j[k]); } const d = new Float32Array(1024); j[k].getFloatTimeDomainData(d); let m = 0; for (const x of d) m = Math.max(m, Math.abs(x)); return m; },
+    pauseMusic() { return jukebox ? jukebox.music.pause() : null; }, playMusic() { return jukebox ? jukebox.music.play() : null; }, get volume() { return jukebox ? jukebox.audio.getVolume() : null; }, get stand() { return jukebox ? jukebox.stand.toArray() : null; } },
   answer: {
     get state() { return answer ? { ...answer.info(true), sv: svTrigger ? svTrigger.info() : null } : null; },
     cfg: ANSWER, trigger: SV_TRIGGER,

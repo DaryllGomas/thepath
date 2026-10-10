@@ -138,8 +138,18 @@ export function installFx(R, styles) {
     };
     P.fxWave = function (o) {
         // a shockwave racing along the ground: a ridge of glowing stone with a gap you can slip through
-        const z = Math.max(1.4, o.z), s = F / z, y0 = this.sy(-GY, z), y1 = this.sy(o.top, z), t = this.t;
+        const z = Math.max(1.4, o.z), s = F / z, y0 = this.sy(-GY, z), y1 = this.sy(o.ridge ?? o.top, z), t = this.t;
         const segs = [[-16, o.gx - o.gw], [o.gx + o.gw, 16]];
+        if (o.door !== undefined) {
+            // the curtain above the ridge, and above the doorway: thin bright lines you can see through (no flying over it)
+            const yT = this.sy(o.top, z), yD = this.sy(o.door, z), st = Math.max(2, Math.round(3 * K)), q = 0.75 + 0.25 * Math.sin(t * 18);
+            const curtain = (xa, xb, ya, yb) => { for (let y = Math.round(ya); y < yb; y += st) this.rect(xa, y, xb, y + 1, pack(255 * q, 120 * q, 50 * q)); };
+            for (const [a, b] of segs) if (b > a) curtain(this.sx(a, z), this.sx(b, z), yT, y1);
+            const xl = this.sx(o.gx - o.gw, z), xr = this.sx(o.gx + o.gw, z);
+            curtain(xl, xr, yT, yD);
+            this.rect(xl, yD - Math.max(1, s * 0.1), xr, yD + Math.max(1, s * 0.06), hex(0x80ffe0));          // the doorway's lintel
+            this.glow((xl + xr) / 2, (yD + y0) / 2, Math.max(8, (xr - xl) * 0.6), 80, 255, 200, 0.3 + 0.1 * Math.sin(t * 20));
+        }
         for (const [a, b] of segs) {
             if (b <= a) continue;
             const xa = this.sx(a, z), xb = this.sx(b, z);
@@ -149,7 +159,7 @@ export function installFx(R, styles) {
             this.glow((xa + xb) / 2, (y0 + y1) / 2, Math.min(150, (xb - xa) * 0.3 + 20), 255, 130, 40, 0.18);
         }
         // the lane: bright posts at the gap's edges
-        for (const e of [o.gx - o.gw, o.gx + o.gw]) { const px = this.sx(e, z); this.rect(px, y1 - s * 0.3, px + Math.max(1, s * 0.12), y0, hex(0x80ffe0)); }
+        for (const e of [o.gx - o.gw, o.gx + o.gw]) { const px = this.sx(e, z), yp = o.door !== undefined ? this.sy(o.door, z) : y1 - s * 0.3; this.rect(px, yp, px + Math.max(1, s * 0.12), y0, hex(0x80ffe0)); }
         this.glow(this.sx(o.gx, z), y0, s * 2.2, 80, 255, 200, 0.35 + 0.1 * Math.sin(t * 20));
     };
 
@@ -318,22 +328,24 @@ export function installFx(R, styles) {
         }
         // the slam telegraph: the lane (the safe gap) lit along the ground, from the stone to you
         if (a && (a.name === 'slam' || a.name === 'slam2')) {
-            const q = 0.5 + 0.5 * Math.sin(t * 14), k = a.k;
-            for (const gxw of a.name === 'slam2' ? [a.gx, a.gx2] : [a.gx]) {
-                const zn = ZS + 1.2, zfar = b.z - 1.5;
-                this.poly([[this.sx(gxw - 1.7, zfar), this.sy(-GY, zfar)], [this.sx(gxw + 1.7, zfar), this.sy(-GY, zfar)], [this.sx(gxw + 1.7, zn), this.sy(-GY, zn)], [this.sx(gxw - 1.7, zn), this.sy(-GY, zn)]], pack(60 * (0.4 + 0.6 * k), 255 * (0.4 + 0.6 * k * q), 190 * (0.4 + 0.6 * k)), pack(30, 160 * k + 40, 120 * k + 20));
-            }
+            const q = 0.5 + 0.5 * Math.sin(t * 14), k = a.k, zn = ZS + 1.2, zfar = b.z - 1.5;
+            const gxw = a.name === 'slam2' && a.fired ? a.gx2 : a.gx;          // the lane of the wave still to come
+            const quad = (x0, x1, fill, line) => this.poly([[this.sx(x0, zfar), this.sy(-GY, zfar)], [this.sx(x1, zfar), this.sy(-GY, zfar)], [this.sx(x1, zn), this.sy(-GY, zn)], [this.sx(x0, zn), this.sy(-GY, zn)]], fill, line);
+            const hot = pack(255 * (0.3 + 0.45 * k), 50 + 40 * k * q, 30), hotEdge = pack(255, 90 + 60 * q, 40);
+            quad(-8, gxw - 1.7, hot, hotEdge); quad(gxw + 1.7, 8, hot, hotEdge);
+            quad(gxw - 1.7, gxw + 1.7, pack(60 * (0.4 + 0.6 * k), 255 * (0.4 + 0.6 * k * q), 190 * (0.4 + 0.6 * k)), pack(30, 160 * k + 40, 120 * k + 20));
+            const bx = this.sx(gxw, ZS + 4), by = this.sy(-GY + 0.9, ZS + 4), br = (16 + 6 * q) * K;
+            this.glow(bx, by, br * 1.6, 80, 255, 210, 0.35 * k); this.ring(bx, by, br, Math.max(1.4, 1.6 * K), 120 * k, 255 * k, 220 * k);
             const cx0 = this.sx(b.x, zr), cy0 = this.sy(-GY, zr); this.glow(cx0, cy0, (70 * k + 10) * K, 255, 150, 60, 0.6 * k);
-            this.txt('SLAM', Math.round(this.sx(a.gx, ZS + 3) - 8 * K), Math.round(this.sy(-GY, ZS + 3) - 10 * K), PixelFont.Small, pack(120, 255, 200), 2, hex(0x101020));
         }
     };
 
 
     // ---------------------------------------------------------------- the ship's shield: a ring while it is up, a crackle when it takes a hit, an arc filling while it recharges
     P.fxShield = function (sim, cx, cy) {
-        const S = sim.ship, t = this.t, rad = 36 * K;
+        const S = sim.ship, t = this.t, rad = 29 * K;
         if (S.shieldOn) {
-            const a = 0.3 + 0.08 * Math.sin(t * 6) + (S.shieldUpFlash > 0 ? 0.7 * S.shieldUpFlash : 0);
+            const a = 0.18 + 0.05 * Math.sin(t * 6) + (S.shieldUpFlash > 0 ? 0.7 * S.shieldUpFlash : 0);
             this.shieldRing(cx, cy, rad + (S.shieldUpFlash > 0 ? 8 * K * (1 - S.shieldUpFlash) : 0), a);
         }
         if (S.shieldFlash > 0) {

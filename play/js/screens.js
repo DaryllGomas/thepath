@@ -139,6 +139,12 @@ export class Cabinet {
       // home cabinets are on free play; each keeps its own mercy ledger, like the Unity CoinCabinet
       this.runner = new runtime.CabinetRunner(cart, { cabinetId: opts.cabinetId || 'home_' + id, freePlay: true });
       this.img = new ImageData(this.runner.surface.data, 320, 240);
+      // the tube's picture goes to the GPU straight from the game's pixels (no canvas on the way: putImageData + a canvas upload
+      // cost the Junction's floor ~4 ms a frame); the canvas texture is kept for the frames a moment is drawn over the tube
+      const d = this.runner.surface.data, px = new Uint8Array(d.buffer, d.byteOffset, d.length);
+      this.ct = this.t;
+      this.t = new THREE.DataTexture(px, 320, 240, THREE.RGBAFormat); this.t.flipY = true; this.t.colorSpace = THREE.SRGBColorSpace;
+      this.t.magFilter = THREE.NearestFilter; this.t.minFilter = THREE.LinearFilter; this.t.generateMipmaps = false; this.t.needsUpdate = true;
       this.won = (result, info) => result === runtime.RoundResult.Won && !(info && info.aborted);
     } else {
       this.slides = new Slides(material, frames, 2.5, 0.35);
@@ -177,10 +183,10 @@ export class Cabinet {
       if (!this.runner.dirty && this.shown) return;
     }
     this.shown = true;
-    this.g.putImageData(this.img, 0, 0);
     if (this.sharpApi) { for (const r of this._sharpRenderers()) { r.sharp = this.sharp; if (this.sharp) r.warm && r.warm(); } }
     if (this.sharp && this.sharpApi.mod) {
       // the full-screen picture: the sharp renderer's frame (or the 320 x 240 pages, scaled), with the overlay drawn over it
+      this.g.putImageData(this.img, 0, 0);
       const HI = this.sharpApi.mod.HI;
       if (!this.hc) {
         this.hc = document.createElement('canvas'); this.hc.width = HI.W; this.hc.height = HI.H; this.hg = this.hc.getContext('2d');
@@ -195,9 +201,12 @@ export class Cabinet {
       return;
     }
     this.wasSharp = false;
-    if (this.overlay) this.overlay(this.g, this.c);      // a moment drawn over the tube (js/flashes.js); never the game's own state
-    this.t.needsUpdate = true;
-    this.m.uniforms.map.value = this.t; this.m.uniforms.nextMap.value = this.t; this.m.uniforms.blend.value = 0;
+    let tex = this.t;
+    if (this.overlay) {                                   // a moment drawn over the tube (js/flashes.js); never the game's own state
+      this.g.putImageData(this.img, 0, 0); this.overlay(this.g, this.c); tex = this.ct;
+    }
+    tex.needsUpdate = true;
+    this.m.uniforms.map.value = tex; this.m.uniforms.nextMap.value = tex; this.m.uniforms.blend.value = 0;
   }
 }
 
