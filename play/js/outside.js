@@ -867,12 +867,16 @@ export class OutdoorBody {
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - dy * k * (this.invert ? -1 : 1)));
   }
   forward() { return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); }
-  update(dt, keys) {
+  update(dt, keys, pad) {
     const k = (c) => keys.has(c);
     if (this.bike.mounted) {
       const B = this.bike;
-      const steer = (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0);
-      const throttle = (k('KeyW') || k('ArrowUp') ? 1 : 0) - (k('KeyS') || k('ArrowDown') ? 1 : 0);
+      let steer = (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0);
+      let throttle = (k('KeyW') || k('ArrowUp') ? 1 : 0) - (k('KeyS') || k('ArrowDown') ? 1 : 0);
+      if (pad) {      // the controller: the stick steers (analog); RT or stick up pedals, LT or stick down brakes
+        steer = Math.max(-1, Math.min(1, steer + pad.x));
+        if (!throttle) throttle = (pad.rt > 0.15 || pad.y > 0.3 ? 1 : 0) - (pad.lt > 0.15 || pad.y < -0.3 ? 1 : 0);
+      }
       if (this.control) this.yaw -= steer * 85 * DEG * dt;
       const fwd = this.forward();
       // the component of gravity along the road under the wheels (BikeController)
@@ -894,9 +898,10 @@ export class OutdoorBody {
     } else if (this.control) {
       const turn = (k('ArrowLeft') ? 1 : 0) - (k('ArrowRight') ? 1 : 0);
       this.yaw += turn * 1.9 * dt;
-      const fwd = (k('KeyW') || k('ArrowUp') ? 1 : 0) - (k('KeyS') || k('ArrowDown') ? 1 : 0);
-      const side = (k('KeyD') ? 1 : 0) - (k('KeyA') ? 1 : 0);
-      const hurry = k('ShiftLeft') || k('ShiftRight') ? 1.65 : 1;
+      let fwd = (k('KeyW') || k('ArrowUp') ? 1 : 0) - (k('KeyS') || k('ArrowDown') ? 1 : 0);
+      let side = (k('KeyD') ? 1 : 0) - (k('KeyA') ? 1 : 0);
+      if (pad) { fwd = Math.max(-1, Math.min(1, fwd + pad.y)); side = Math.max(-1, Math.min(1, side + pad.x)); }
+      const hurry = k('ShiftLeft') || k('ShiftRight') || (pad && pad.hurry) ? 1.65 : 1;
       const want = new THREE.Vector3(-Math.sin(this.yaw) * fwd + Math.cos(this.yaw) * side, 0, -Math.cos(this.yaw) * fwd - Math.sin(this.yaw) * side);
       if (want.lengthSq() > 1) want.normalize();
       want.multiplyScalar(this.speed * hurry);

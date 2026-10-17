@@ -30,13 +30,14 @@ export class Player {
     this.pitch -= dy * k * (this.invert ? -1 : 1);
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
   }
-  update(dt, keys) {
+  update(dt, keys, pad) {
     if (this.control) {
       const turn = (keys.has('ArrowLeft') ? 1 : 0) - (keys.has('ArrowRight') ? 1 : 0);
       this.yaw += turn * 1.9 * dt;
-      const fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
-      const side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
-      const hurry = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1.65 : 1;
+      let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+      let side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+      if (pad) { fwd = Math.max(-1, Math.min(1, fwd + pad.y)); side = Math.max(-1, Math.min(1, side + pad.x)); }   // the controller's stick: analog
+      const hurry = keys.has('ShiftLeft') || keys.has('ShiftRight') || (pad && pad.hurry) ? 1.65 : 1;
       const want = new THREE.Vector3(
         -Math.sin(this.yaw) * fwd + Math.cos(this.yaw) * side, 0,
         -Math.cos(this.yaw) * fwd - Math.sin(this.yaw) * side);

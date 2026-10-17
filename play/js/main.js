@@ -17,6 +17,7 @@ import { Pipeline } from './post.js';
 import { Player } from './player.js';
 import { Slides, BBS, BBS_POSTS, Cabinet, loadCabinetRuntime } from './screens.js';
 import { PITCH_HTML } from './pitch.js';
+import { PadBridge, padHint } from './gamepad.js';
 import { Ending } from './ending.js';        // (its NamelessScreen, the retired ring puzzle's tube, stays there archived, unused)
 import { Flashes } from './flashes.js';
 
@@ -81,6 +82,18 @@ const basementReady = new Promise((r) => { markReady = r; });
 let screenMode = null, activeCab = null;
 const S = { quarters: 0, kept: false, beaten: new Set(), lastRead: 0, bowl: false, used: false, idleHint: false, nudge1: false, nudge2: false, firstWinAt: 0, tape: 0, sheenTick: 0 };
 const keys = new Set(), taps = new Set();
+// the controller (js/gamepad.js): a second keyboard plus the analog parts (pad.move walks and steers, pad.look turns the view)
+const pad = new PadBridge({
+  context: () => {
+    if (state === 'handshake') return 'handshake';
+    if (state === 'loading') return 'none';
+    if (paused || state === 'title' || state === 'end' || !$('pitch').hidden) return 'menu';
+    if (state === 'screen' && screenMode === 'cab') return 'cab';
+    if (state === 'play' && region === 'out' && outBody && outBody.bike.mounted) return 'bike';
+    return 'walk';
+  },
+  onActive: (on) => { $('promptKey').textContent = on ? 'A' : 'E'; $('promptKey').classList.toggle('pad', on); if (hintMode) cabHint(hintMode); },
+});
 
 // ---------------------------------------------------------------- HUD
 let lineTimer = 0;
@@ -95,7 +108,9 @@ function pocket() {
   $('pocketText').innerHTML = 'QUARTERS ' + S.quarters + ' ' + '<span class="coin kept"></span>'.repeat(S.kept ? 1 : 0) + '<span class="coin"></span>'.repeat(Math.max(0, spend));
   $('pocket').classList.add('on');
 }
+let hintMode = null;
 function cabHint(mode) {
+  hintMode = mode;
   const el = $('cabhint');
   // at the cabinet with no name the glass fills the view: the hint sits on a dark pill so it reads over the picture
   const pill = !!mode && mode !== 'bbs';
@@ -103,7 +118,7 @@ function cabHint(mode) {
   if (!mode || mode === 'seven:none') { el.classList.remove('on'); return; }   // (none: the seven's passage, nothing left to press)
   const k = (t) => '<span class="key">' + t + '</span>';
   const away = '<span>' + k('&#9003;') + ' WALK AWAY</span>';
-  el.innerHTML = {
+  const html = {
     bbs: '<span>' + k('E') + ' NEXT</span><span>' + k('&#9003;') + ' LOG OFF</span>',
     gridcycles: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' STEER</span>' + away,
     starvector: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' FLY</span><span>' + k('SPACE') + ' FIRE</span><span>' + k('&larr;&larr;') + '/' + k('&rarr;&rarr;') + ' BARREL ROLL</span>' + away,
@@ -114,6 +129,7 @@ function cabHint(mode) {
     deepkeep: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' FIRE</span><span>' + k('X') + ' POTION</span>' + away,
     svEntry: '<span>' + k('&uarr;') + k('&darr;') + ' LETTER</span><span>' + k('SPACE') + ' ENTER</span><span>' + k('X') + ' BACK</span>',   // Starvector's name entry (js/starvector_answer.js)
   }[mode] || sevenHint(mode, k, away) || ('<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' A</span><span>' + k('X') + ' B</span>' + away);
+  el.innerHTML = pad.active ? padHint(html) : html;   // the last input was the pad: A / B / START, a stick
   el.classList.add('on');
 }
 // the cabinet with no name: the controls of the game on its glass ('seven:<id>'), or its first coin's notice ('seven:notice')
@@ -525,7 +541,7 @@ function mountBike() {
   outBody.yaw = bikeParked.userData.yaw;
   bikeParked.visible = false; bikeRig.visible = true;
   const bi = interactables.find((i) => i.id === 'bike'); if (bi) bi.enabled = false;
-  if (!S.rode) { S.rode = true; line('W pedals, S brakes, A and D steer. E gets off.', 6); }
+  if (!S.rode) { S.rode = true; line(pad.active ? 'Right trigger pedals, left trigger brakes, the stick steers. A gets off.' : 'W pedals, S brakes, A and D steer. E gets off.', 6); }
 }
 function dismountBike() {
   const B = outBody.bike; if (!B.mounted) return;
@@ -703,7 +719,7 @@ function updateBikeWalkie() {
     S.walkieHint = clock;
     let h = document.getElementById('walkieHint');
     if (!h) { h = document.createElement('div'); h.id = 'walkieHint'; h.style.cssText = 'position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);font-size:22px;letter-spacing:0.12em;color:#e8dcc0;background:rgba(10,7,5,0.6);padding:4px 14px;opacity:0;transition:opacity .4s;pointer-events:none'; $('hud').appendChild(h); }
-    h.textContent = WALKIE.say.hint; requestAnimationFrame(() => { h.style.opacity = '1'; });
+    h.textContent = pad.active ? 'HOLD RB · WALKIE' : WALKIE.say.hint; requestAnimationFrame(() => { h.style.opacity = '1'; });
   }
   const h = document.getElementById('walkieHint'); if (h && S.walkieHint && h.style.opacity === '1' && (clock - S.walkieHint > 10 || S.walkieUsed)) h.style.opacity = '0';
   const down = B.mounted && keys.has('KeyT');
@@ -1032,6 +1048,7 @@ function sevenCursor() { const want = (sevenAim() && document.pointerLockElement
 
 // ---------------------------------------------------------------- input
 let dragLook = false, dragging = false, lastX = 0, lastY = 0, lockRetry = 0;
+const LOOK_PX_YAW = 1180, LOOK_PX_PITCH = 760;   // the right stick at full tilt, in mouse pixels a second (see js/gamepad.js)
 const PLAYING = new Set(['intro', 'play', 'screen', 'ending', 'waitOut', 'leaving']);   // the states where the mouse is the view
 function lock() {
   // automated browsers (the headless tests) never take the pointer: a real lock clips the owner's cursor to the hidden
@@ -1176,6 +1193,7 @@ function stats() {
 function frame(now) {
   requestAnimationFrame(frame);
   const t = now / 1000; const dt = Math.min(0.05, t - (t0 || t)); t0 = t;
+  pad.tick(dt);                      // the controller, read on this frame's clock (js/gamepad.js)
   if (!ready || state === 'handshake') return;
   const raw = perf.last ? now - perf.last : 0; perf.last = now; perf.raw += raw; perf.rawN++; perf.worst = Math.max(perf.worst, raw);
   perf.frames++; perf.acc += dt;
@@ -1239,7 +1257,7 @@ function frame(now) {
     if (state === 'title') updateTitleCam(clock);
     else {
       if (state === 'intro') updateIntro(dt);
-      if (state === 'play') { player.update(dt, keys); if (region === 'in') updateStory(); const i = (region === 'out' && outBody.bike.mounted) ? null : pick(); setPrompt(i ? promptFor(i) : (region === 'out' && outBody.bike.mounted && Math.abs(outBody.bike.speed) < 0.5 ? 'GET OFF' : null)); }
+      if (state === 'play') { if (pad.look.x || pad.look.y) player.look(pad.look.x * LOOK_PX_YAW * dt, pad.look.y * LOOK_PX_PITCH * dt); player.update(dt, keys, pad.move); if (region === 'in') updateStory(); const i = (region === 'out' && outBody.bike.mounted) ? null : pick(); setPrompt(i ? promptFor(i) : (region === 'out' && outBody.bike.mounted && Math.abs(outBody.bike.speed) < 0.5 ? 'GET OFF' : null)); }
       if (state === 'waitOut') updateWaitOut();
       if (state === 'leaving') updateLeaving(dt);
       if (region === 'out') { updateOutdoors(dt); updateBikeWalkie(); }

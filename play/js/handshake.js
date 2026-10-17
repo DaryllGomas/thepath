@@ -378,7 +378,7 @@ export class Handshake {
     this.slot.replaceChildren();
     if (how === 'skip') { this.stage = 'gone'; return 'skip'; }
     // ESC to skip: at once for a returning player, after 30 s for a first-timer
-    const showSkip = () => { this.skipAt = performance.now(); this.skipEl.classList.add('on'); };
+    const showSkip = () => { this.skipAt = performance.now(); this.skipEl.textContent = document.body.classList.contains('padmode') ? 'PRESS START TO SKIP' : 'PRESS ESC TO SKIP'; this.skipEl.classList.add('on'); };
     if (this.returning) showSkip(); else this.skipTimer = setTimeout(showSkip, 30000);
     return Promise.race([this.sequence(), this.skipP]).finally(() => { clearTimeout(this.skipTimer); this.skipEl.classList.remove('on'); });
   }

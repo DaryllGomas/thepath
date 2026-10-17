@@ -25,6 +25,13 @@ export function onGesture(make) {
     make();
   };
   for (const t of ['pointerdown', 'keydown', 'touchend']) addEventListener(t, go, true);
+  // 2026-10-16 (TV): a controller press counts too (on the couch nobody clicks or types, so the games stayed silent)
+  const padWatch = setInterval(() => {
+    if (done) { clearInterval(padWatch); return; }
+    for (const p of (navigator.getGamepads ? navigator.getGamepads() : [])) {
+      if (p && p.buttons.some((b, i) => i !== 16 && b.pressed)) { clearInterval(padWatch); go({ type: 'gamepad' }); return; }
+    }
+  }, 100);
 }
 
 function badge(api) {

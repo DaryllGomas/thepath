@@ -1,10 +1,10 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.2.2",
- "updated": "2026-10-15",
+ "version": "v0.3",
+ "updated": "2026-10-17",
  "now": [
-  "Controller support: walk, ride the bike and play every cabinet with an Xbox, PlayStation, 8BitDo or Switch pad. It works; we’re smoothing out one stutter before it goes live.",
+  "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
   "The worlds beyond the first chapter are being planned. No dates yet; we’d rather get them right."
  ],
@@ -30,17 +30,65 @@
  ],
  "releases": [
   {
+   "version": "v0.3",
+   "date": "2026-10-17",
+   "title": "Play it from the couch",
+   "items": [
+    {
+     "h": "Controller support",
+     "t": "Plug in or wake an Xbox, PlayStation, 8BitDo or Switch pad and play the whole chapter from the couch. The left stick walks (gently to creep, hard to hurry), the right stick looks, A uses, B steps away, Start pauses."
+    },
+    {
+     "h": "The bike",
+     "t": "A gets on and off, the right trigger pedals, the left trigger brakes, and the stick steers."
+    },
+    {
+     "h": "The arcade",
+     "t": "At a cabinet, A puts your quarter in. Then the stick is the cabinet's stick, A and B are its buttons, Start is its START button, and Select walks you away. The hints under the screen switch to pad buttons when you pick up the pad."
+    },
+    {
+     "h": "Menus and the opening terminal",
+     "t": "The d-pad or stick moves through menus, A presses, B backs out. At the terminal you can type with the pad the arcade way: right adds a letter, up and down change it, left erases, A enters."
+    },
+    {
+     "h": "Smoother with a pad",
+     "t": "The controller is read in step with the game, a mouse nudged on the desk no longer flips the hints back and forth, and a controller that drops its connection for a moment stays in pad mode."
+    }
+   ]
+  },
+  {
    "version": "v0.2.2",
    "date": "2026-10-10",
    "title": "Two hours of jukebox music",
    "items": [
-    { "h": "The Junction", "t": "The jukebox has the whole record collection now: ten full tracks (about two hours of music) instead of three short clips on repeat. A random song starts when you walk in, the next one follows when it ends, and E skips to another and tells you what’s playing." },
-    { "h": "The Junction", "t": "The jukebox moved off the foot of the stairs to the wall under the mezzanine, with a warm glow of its own." },
-    { "h": "The Junction runs much smoother", "t": "Walking in and looking across the cabinets no longer stutters, and the room stays sharp." },
-    { "h": "Starvector", "t": "Double-tap left or right to barrel roll that way." },
-    { "h": "Starvector", "t": "The first act is easier to read: fewer rocks drifting by, more room between waves, a lighter shield bubble." },
-    { "h": "Starvector", "t": "The last boss’s ground slam is a wall you can’t fly over. Find the way through, and see what it opens up." },
-    { "h": "Starvector", "t": "The little light in the third act stays out of your way." },
+    {
+     "h": "The Junction",
+     "t": "The jukebox has the whole record collection now: ten full tracks (about two hours of music) instead of three short clips on repeat. A random song starts when you walk in, the next one follows when it ends, and E skips to another and tells you what’s playing."
+    },
+    {
+     "h": "The Junction",
+     "t": "The jukebox moved off the foot of the stairs to the wall under the mezzanine, with a warm glow of its own."
+    },
+    {
+     "h": "The Junction runs much smoother",
+     "t": "Walking in and looking across the cabinets no longer stutters, and the room stays sharp."
+    },
+    {
+     "h": "Starvector",
+     "t": "Double-tap left or right to barrel roll that way."
+    },
+    {
+     "h": "Starvector",
+     "t": "The first act is easier to read: fewer rocks drifting by, more room between waves, a lighter shield bubble."
+    },
+    {
+     "h": "Starvector",
+     "t": "The last boss’s ground slam is a wall you can’t fly over. Find the way through, and see what it opens up."
+    },
+    {
+     "h": "Starvector",
+     "t": "The little light in the third act stays out of your way."
+    },
     "Sound starts on your first click or key press, wherever you begin."
    ]
   },
@@ -49,8 +97,14 @@
    "date": "2026-10-02",
    "title": "Starvector, a little kinder",
    "items": [
-    { "h": "Starvector", "t": "The final boss of the third act goes down a little faster." },
-    { "h": "Starvector", "t": "The jukebox fades out while you play, so you hear the game’s own soundtrack. It comes back when your game ends." }
+    {
+     "h": "Starvector",
+     "t": "The final boss of the third act goes down a little faster."
+    },
+    {
+     "h": "Starvector",
+     "t": "The jukebox fades out while you play, so you hear the game’s own soundtrack. It comes back when your game ends."
+    }
    ]
   },
   {
@@ -59,34 +113,101 @@
    "title": "The arcade answers",
    "summary": "A big update to the first chapter: the arcade has a heart now, the basement has secrets, and the machine at the back of the Junction is a whole new experience.",
    "items": [
-    { "group": "Starvector, rebuilt from the ground up" },
+    {
+     "group": "Starvector, rebuilt from the ground up"
+    },
     "The machine nobody has ever topped is now a full into-the-screen sprite shooter, in the spirit of the great super-scaler arcade games.",
-    { "h": "Three acts, three worlds", "t": "A nebula field of tumbling rocks, a canyon of fire on a dead moon, and a plain of enormous carved stones under an aurora." },
-    { "h": "A boss at the end of every act,", "t": "each with three phases, telegraphed attacks and a health bar." },
-    { "h": "A recharging shield.", "t": "It takes one hit and refills if you stay clean." },
-    { "h": "Combos and bonuses", "t": "Chain kills for a multiplier, clear whole formations for a bonus, fly close for near-miss points." },
-    { "h": "Feel and sound", "t": "A barrel roll to dodge, hit-stop and big explosions, and an original chip-music soundtrack for each act plus a boss theme." },
-    { "h": "Fairness", "t": "It’s hard, but every quarter you lose makes the next run a little gentler. You still have to earn the win." },
+    {
+     "h": "Three acts, three worlds",
+     "t": "A nebula field of tumbling rocks, a canyon of fire on a dead moon, and a plain of enormous carved stones under an aurora."
+    },
+    {
+     "h": "A boss at the end of every act,",
+     "t": "each with three phases, telegraphed attacks and a health bar."
+    },
+    {
+     "h": "A recharging shield.",
+     "t": "It takes one hit and refills if you stay clean."
+    },
+    {
+     "h": "Combos and bonuses",
+     "t": "Chain kills for a multiplier, clear whole formations for a bonus, fly close for near-miss points."
+    },
+    {
+     "h": "Feel and sound",
+     "t": "A barrel roll to dodge, hit-stop and big explosions, and an original chip-music soundtrack for each act plus a boss theme."
+    },
+    {
+     "h": "Fairness",
+     "t": "It’s hard, but every quarter you lose makes the next run a little gentler. You still have to earn the win."
+    },
     "Beat it, and enter your initials. Then see what happens.",
-    { "group": "The Junction" },
-    { "h": "Every top score in the arcade is taken… except one.", "t": "Keep an eye on the high-score tables." },
-    { "h": "The arcade is more alive while you play.", "t": "Things in the room react. Pay attention." },
-    { "h": "Music and a jukebox.", "t": "A song starts the moment you walk in, from a jukebox by the arch at the back. Press E at it to pick the next one." },
+    {
+     "group": "The Junction"
+    },
+    {
+     "h": "Every top score in the arcade is taken… except one.",
+     "t": "Keep an eye on the high-score tables."
+    },
+    {
+     "h": "The arcade is more alive while you play.",
+     "t": "Things in the room react. Pay attention."
+    },
+    {
+     "h": "Music and a jukebox.",
+     "t": "A song starts the moment you walk in, from a jukebox by the arch at the back. Press E at it to pick the next one."
+    },
     "A wall clock, the office upstairs and more of the room’s details.",
-    { "group": "The basement" },
-    { "h": "Things to look at.", "t": "Walk up to the D&D table, the posters, the corkboard, the clock and the console and see what you notice." },
-    { "h": "Your walkie-talkie works.", "t": "It calls from the yard until you go out. Once you’re on your bike, hold T to talk back." },
-    { "h": "New posts on the BBS.", "t": "Sit at the computer and read the board (E for the next post)." },
-    { "group": "The cabinet at the back" },
+    {
+     "group": "The basement"
+    },
+    {
+     "h": "Things to look at.",
+     "t": "Walk up to the D&D table, the posters, the corkboard, the clock and the console and see what you notice."
+    },
+    {
+     "h": "Your walkie-talkie works.",
+     "t": "It calls from the yard until you go out. Once you’re on your bike, hold T to talk back."
+    },
+    {
+     "h": "New posts on the BBS.",
+     "t": "Sit at the computer and read the board (E for the next post)."
+    },
+    {
+     "group": "The cabinet at the back"
+    },
     "What waits in the back of the arcade has been rebuilt: seven games in one machine, with retro 8-bit sound, a new start screen, and a new ending. We won’t say more.",
-    { "group": "Fixes and polish" },
-    { "h": "The arcade runs smoothly.", "t": "Only the machines you’re facing run at full speed; the rest idle until you look their way." },
-    { "h": "Every arcade game fills your screen.", "t": "Step up to any machine and the view glides in until the game fills the window. Walk away and it glides back." },
-    { "h": "The mouse stays in the game.", "t": "Click once and your view is back, even after pressing Esc, closing a cabinet or going out the door." },
-    { "h": "A gentler opening.", "t": "You work it out yourself; if you’re stuck for a while a quiet hint shows up. Press Esc to skip it." },
-    { "h": "A calmer walkie.", "t": "It chirps twice when you wake, then only now and then, quietly. On the bike its squeal and static are half as loud." },
-    { "h": "Smoother on every machine.", "t": "Big and high-DPI windows draw at a lower internal resolution, and a slow machine steps it down on its own. Press F3 for a small frame-time counter." },
-    { "h": "A sharper Starvector", "t": "when you step up to the machine and the glass fills your screen." },
+    {
+     "group": "Fixes and polish"
+    },
+    {
+     "h": "The arcade runs smoothly.",
+     "t": "Only the machines you’re facing run at full speed; the rest idle until you look their way."
+    },
+    {
+     "h": "Every arcade game fills your screen.",
+     "t": "Step up to any machine and the view glides in until the game fills the window. Walk away and it glides back."
+    },
+    {
+     "h": "The mouse stays in the game.",
+     "t": "Click once and your view is back, even after pressing Esc, closing a cabinet or going out the door."
+    },
+    {
+     "h": "A gentler opening.",
+     "t": "You work it out yourself; if you’re stuck for a while a quiet hint shows up. Press Esc to skip it."
+    },
+    {
+     "h": "A calmer walkie.",
+     "t": "It chirps twice when you wake, then only now and then, quietly. On the bike its squeal and static are half as loud."
+    },
+    {
+     "h": "Smoother on every machine.",
+     "t": "Big and high-DPI windows draw at a lower internal resolution, and a slow machine steps it down on its own. Press F3 for a small frame-time counter."
+    },
+    {
+     "h": "A sharper Starvector",
+     "t": "when you step up to the machine and the glass fills your screen."
+    },
     "Clearer visuals while flying: enemy shots are always bright pink-and-white, objects cast shadows on the ground, and backgrounds stay out of the way.",
     "Sound now starts on your first key press or click (the browser’s rule)."
    ]
