@@ -45,6 +45,10 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
   /* ---------- the night street behind everything ---------- */
+  /* THE JUNCTION's sign is the hero: --W is the backdrop's width. It grows with the screen and shrinks on short ones so
+     the sign, the trailer, the title and Play all fit on a 1080p screen. THE PATH's mark sits in the sign's emblem, its star
+     on the sign's star, sized to cover the sign's own neon road (the star is 412/3200 down the art; the mark's star 60/390). */
+  :root { --W: min(max(1500px, calc(6.4 * (100svh - 800px))), calc(1100px + 70vw), calc(300px + 150vw)); --F: 0.12; --top-h: 68px; }
   .scene { position: absolute; inset: 0 0 auto 0; height: max(100svh, 69.5vw); max-height: 1500px; z-index: -1; overflow: hidden; pointer-events: none;
     background-color: var(--page);
     background-image: url(assets/scene.jpg);
@@ -53,12 +57,10 @@
        in the middle behind the title and the trailer. It grows a little with the screen (less on narrow ones) and is
        lifted so the sign's top sits near the mark's (the sign's top is 20.5% down the art: 0.128 = 20.5% x the art's 0.625
        height-to-width) */
-    --scene-w: min(calc(1100px + 70vw), calc(300px + 150vw));
+    --scene-w: var(--W);
     background-size: var(--scene-w) auto; background-position: 50% calc(90px - var(--scene-w) * 0.128); }
   .scene::before { content: ""; position: absolute; inset: 0;
     background:
-      radial-gradient(ellipse 34% 30% at 50% 26%, rgba(6, 5, 9, 0.8), transparent 72%),
-      radial-gradient(ellipse 26% 9% at 50% 27%, rgba(6, 5, 9, 0.5), transparent 80%),
       linear-gradient(90deg, rgba(7, 6, 10, 0.6) 0%, rgba(7, 6, 10, 0) 28%, rgba(7, 6, 10, 0) 72%, rgba(7, 6, 10, 0.6) 100%); }
   .scene::after { content: ""; position: absolute; inset: 0;
     background: linear-gradient(to bottom, rgba(7, 6, 10, 0.10) 0%, rgba(7, 6, 10, 0.28) 38%, rgba(7, 6, 10, 0.80) 68%, var(--page) 94%); }
@@ -85,15 +87,18 @@
   .menu-btn { display: none; }
 
   /* ---------- hero ---------- */
-  .hero { text-align: center; padding-top: 8px; }
-  .mark { width: clamp(150px, 16vw, 232px); margin: 0 auto -14px; filter: drop-shadow(0 0 18px rgba(242, 160, 80, 0.35)); animation: breathe 6s ease-in-out infinite; }
+  .hero { text-align: center; }
+  .mark { position: absolute; z-index: 1; width: calc(var(--F) * var(--W)); left: calc(50% - var(--F) * var(--W) / 2);
+    top: calc(90px + 0.00075 * var(--W) - 0.1538 * var(--F) * var(--W)); filter: drop-shadow(0 0 18px rgba(242, 160, 80, 0.35)); animation: breathe 6s ease-in-out infinite; }
   .mark img { width: 100%; height: auto; }
-  h1 { margin: 0; font-family: var(--title); font-weight: 500; font-size: clamp(36px, 4.6vw, 68px); line-height: 1.05; letter-spacing: 0.34em; padding-left: 0.34em;
+  h1 { margin: 0; font-family: var(--title); font-weight: 500; font-size: clamp(30px, 2.7vw, 46px); line-height: 1.05; letter-spacing: 0.34em; padding-left: 0.34em;
     color: #f6eee2; text-shadow: 0 0 22px rgba(255, 220, 180, 0.18), 0 2px 18px rgba(0, 0, 0, 0.8); }
-  .tagline { margin: 6px 0 0; font-size: clamp(20px, 1.9vw, 27px); letter-spacing: 0.05em; color: var(--ink); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); }
+  .titles { margin-top: clamp(18px, 2vw, 26px); }
+  .tagline { margin: 4px 0 0; font-size: clamp(17px, 1.35vw, 22px); letter-spacing: 0.05em; color: var(--ink); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); }
 
   /* ---------- trailer ---------- */
-  .player { position: relative; width: min(840px, 100%); margin: clamp(22px, 2.6vw, 34px) auto 0; padding: 6px; border: 1px solid var(--line);
+  .player { position: relative; width: min(840px, 100%, max(520px, calc((100svh - 332px - 0.152 * var(--W)) * 16 / 9)));   /* shorter screens: a smaller trailer keeps Play on the first screen */
+    margin: calc(90px + 0.152 * var(--W) + 22px - var(--top-h)) auto 0;   /* just under the sign */ padding: 6px; border: 1px solid var(--line);
     background: rgba(8, 6, 10, 0.55); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.6) inset; }
   .player::before { content: ""; position: absolute; inset: -5px; border: 1px solid var(--line-soft); pointer-events: none; }
   .screen { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
@@ -237,8 +242,8 @@
   /* ---------- phone ---------- */
   @media (max-width: 640px) {
     body { font-size: 16px; }
-    .scene { height: 62svh; background-size: auto 110%; background-position: 50% -28px; }   /* the sign's emblem rings the mark */
-    .scene::before { background: radial-gradient(ellipse 70% 32% at 50% 30%, rgba(6, 5, 9, 0.66), transparent 75%), linear-gradient(rgba(7, 6, 10, 0.22), rgba(7, 6, 10, 0.22)); }
+    .scene { height: 62svh; }
+    .scene::before { background: linear-gradient(rgba(7, 6, 10, 0.12), rgba(7, 6, 10, 0.12)); }
     .top .wrap { justify-content: space-between; padding-top: 18px; }
     .brand { display: block; }
     .menu-btn { all: unset; cursor: pointer; display: grid; gap: 5px; padding: 10px 2px 10px 12px; }
@@ -255,8 +260,6 @@
     .links a[aria-current="true"] { box-shadow: none; border-bottom-color: var(--neon); }
     .top .wrap > .support-pill { display: none; }
     .support-pill.in-menu { display: inline-flex; margin-top: 14px; }
-    .hero { padding-top: 22px; }
-    .mark { width: 128px; margin-bottom: -8px; }
     h1 { font-size: clamp(34px, 10.5vw, 46px); letter-spacing: 0.26em; padding-left: 0.26em; }
     .tagline { font-size: 19px; }
     .player { padding: 4px; }
@@ -313,9 +316,6 @@
         <img src="assets/path-mark.png" width="390" height="430" alt="THE PATH mark: a winding road through a gold ring, crossed by a line of stars">
       </picture>
     </div>
-    <h1 id="title">THE PATH</h1>
-    <p class="tagline">Something is waiting downtown.</p>
-
     <div class="player">
       <div class="screen">
         <video id="trailer" preload="metadata" playsinline poster="assets/poster.jpg" aria-label="THE PATH trailer">
@@ -331,6 +331,11 @@
           </span>
         </button>
       </div>
+    </div>
+
+    <div class="titles">
+      <h1 id="title">THE PATH</h1>
+      <p class="tagline">Something is waiting downtown.</p>
     </div>
 
     <div class="cta">
