@@ -49,14 +49,16 @@
     background-color: var(--page);
     background-image: url(assets/scene.jpg);
     background-image: image-set(url(assets/scene.webp) type("image/webp"), url(assets/scene.jpg) type("image/jpeg"));
-    /* THE JUNCTION sits in the middle, behind the title and the trailer, a little larger than life: the art is
-       centred on the building, grows a bit with the screen (less on narrow ones), and is lifted so the neon sign
-       frames the mark (the sign's top is 13.7% down the art; 0.0856 = 13.7% of the art's 0.625 height-to-width) */
-    --scene-w: min(calc(2100px + 70vw), calc(600px + 150vw));
-    background-size: var(--scene-w) auto; background-position: 50% calc(90px - var(--scene-w) * 0.0856); }
+    /* THE JUNCTION, front-on (rendered from the game: the sign, its emblem and the arches symmetric about the art's centre),
+       in the middle behind the title and the trailer. It grows a little with the screen (less on narrow ones) and is
+       lifted so the sign's top sits near the mark's (the sign's top is 20.5% down the art: 0.128 = 20.5% x the art's 0.625
+       height-to-width) */
+    --scene-w: min(calc(1100px + 70vw), calc(300px + 150vw));
+    background-size: var(--scene-w) auto; background-position: 50% calc(90px - var(--scene-w) * 0.128); }
   .scene::before { content: ""; position: absolute; inset: 0;
     background:
       radial-gradient(ellipse 34% 30% at 50% 26%, rgba(6, 5, 9, 0.8), transparent 72%),
+      radial-gradient(ellipse 26% 9% at 50% 27%, rgba(6, 5, 9, 0.5), transparent 80%),
       linear-gradient(90deg, rgba(7, 6, 10, 0.6) 0%, rgba(7, 6, 10, 0) 28%, rgba(7, 6, 10, 0) 72%, rgba(7, 6, 10, 0.6) 100%); }
   .scene::after { content: ""; position: absolute; inset: 0;
     background: linear-gradient(to bottom, rgba(7, 6, 10, 0.10) 0%, rgba(7, 6, 10, 0.28) 38%, rgba(7, 6, 10, 0.80) 68%, var(--page) 94%); }
@@ -235,7 +237,7 @@
   /* ---------- phone ---------- */
   @media (max-width: 640px) {
     body { font-size: 16px; }
-    .scene { height: 62svh; background-size: auto 128%; background-position: 50% 0; }
+    .scene { height: 62svh; background-size: auto 110%; background-position: 50% -28px; }   /* the sign's emblem rings the mark */
     .scene::before { background: radial-gradient(ellipse 70% 32% at 50% 30%, rgba(6, 5, 9, 0.66), transparent 75%), linear-gradient(rgba(7, 6, 10, 0.22), rgba(7, 6, 10, 0.22)); }
     .top .wrap { justify-content: space-between; padding-top: 18px; }
     .brand { display: block; }
