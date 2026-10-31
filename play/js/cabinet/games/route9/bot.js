@@ -17,9 +17,9 @@ import { Route9Sim, HazardType, LotKind, LaneL, BikeHS, BikeHL, CarHS, CarHL, lo
 export class Route9Bot extends CabinetBotBase {
     constructor() {
         super();
-        this.notice = 0.80; this.lateSee = 40; this.look = 1.6;
+        this.notice = 0.92; this.lateSee = 50; this.look = 1.6;
         this.aimSigma = 3.2; this.busyAimMul = 1.8; this.porchTry = 0.85; this.porchAimMul = 1.3;
-        this.trafficSigma = 0.25; this.trafficBlind = 0.10;
+        this.trafficSigma = 0.08; this.trafficBlind = 0.02;
         this.windowChance = 0.3; this.laneTapGap = 0.16;
         this.lanePref = [2, 4, 1, 0];
 
@@ -39,7 +39,7 @@ export class Route9Bot extends CabinetBotBase {
 
     reset(seed) {
         super.reset(seed);
-        this._seen = null; this._pendingA = false; this._tapCd = 0; this._sinceSteer = 9; this._trafficLot = null;
+        this._day = -1; this._seen = null; this._pendingA = false; this._tapCd = 0; this._sinceSteer = 9; this._trafficLot = null;
     }
 
     _bind(r) {
@@ -54,7 +54,7 @@ export class Route9Bot extends CabinetBotBase {
     think(sim, dt) {
         const r = sim;
         if (r == null) return InputFrame.neutral;
-        if (r !== this._seen) this._bind(r);
+        if (r !== this._seen || this._day !== r.day) { this._bind(r); this._day = r.day; }
         if (r.p !== Route9Sim.Phase.Riding) { this._pendingA = false; return InputFrame.neutral; }
 
         this._tapCd -= dt; this._sinceSteer += dt;
@@ -80,6 +80,13 @@ export class Route9Bot extends CabinetBotBase {
         for (let k = 0; k < 4; k++) {
             const free = this._freeRun(r, k, look);
             let score = free;
+            // A clear destination is no use if the lane change crosses a parked bumper.
+            for (const h of r.hazards) {
+                if (h.hit || h.s < r.bikeS - h.hs - 16 || h.s > r.bikeS + 38 + h.hs) continue;
+                if (h.type === HazardType.Dog && h.state === 0) continue;
+                const a = Math.min(r.bikeL, LaneL[k]), b = Math.max(r.bikeL, LaneL[k]);
+                if (Math.abs(r.bikeL - h.l) > h.hl + BikeHL && h.l > a - h.hl - BikeHL && h.l < b + h.hl + BikeHL && k !== r.lane) score -= 100;
+            }
             if (k === r.lane) score += 6;
             score += this.lanePref[k];                              // a paperboy rides near the houses
             if (bundleWanted && k <= 1) score += look;
@@ -99,6 +106,11 @@ export class Route9Bot extends CabinetBotBase {
         if (this._pendingA) { if (!this.lastFrame.a) { f.a = true; this._pendingA = false; } }
         else if (this._wantThrow(r)) {
             if (this.lastFrame.a) this._pendingA = true; else f.a = true;
+        }
+        if (r.bikeS >= r.courseS) {
+            const q = r.targets.find(q => q.s > r.bikeS - 12 && !q.hit);
+            if (q && q.lane !== r.lane && this._tapCd <= 0) { f.x = q.lane < r.lane ? -1 : 1; this._tapCd = 0.16; }
+            f.a = true;
         }
         return f;
     }

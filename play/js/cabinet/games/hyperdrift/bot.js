@@ -1,5 +1,7 @@
 // THE NODE · world 1 · HYPER DRIFT (Redline Coin-Op, 1983) on the Cabinet Engine · THE BOT: a modelled
-// average player at the panel. Port of HyperDriftBot.cs (Staging/Batch3/hyperdrift), 1:1, f32 floats.
+// average player at the panel. Started as a port of HyperDriftBot.cs (Staging/Batch3/hyperdrift), f32 floats;
+// the rally taught it the other legs: it dodges puddles, ice and boulders as it does oil (a boulder always),
+// keeps its speed up for the jumps, and in the dash takes the lane the rival isn't in.
 //
 // It plays through the stick and A like anyone else, and it steers like a player on a digital stick:
 // left, right or nothing, never a fine analogue value. What it does:
@@ -17,7 +19,8 @@
 // (CabinetBotBase.rng), never the sim's.
 import { f32, CabinetBotBase, InputFrame } from '../../sdk/index.js';
 import { HyperDriftTrack, HyperDriftScroll, ZoneKind } from './track.js';
-import { HyperDriftSim, Slick } from './sim.js';
+import { HyperDriftSim, Hazard } from './sim.js';
+import { JumpSpeed } from './legs.js';
 
 const FLT_MAX = 3.4028234663852886e38;
 const Phase = HyperDriftSim.Phase;
@@ -62,6 +65,7 @@ export class HyperDriftBot extends CabinetBotBase {
         this._oilSeen = -1; this._oilDodge = false; this._oilShift = 0;
         this._wobble = 0; this._wobbleT = 0;
         this._aHeld = false;
+        this._track = null;
     }
 
     get name() { return 'hd-average-player'; }
@@ -84,14 +88,15 @@ export class HyperDriftBot extends CabinetBotBase {
         this._passId = this._abortId = -1; this._threat = false;
         this._hairpinSeen = -1; this._late = false; this._forget = false;
         this._oilSeen = -1; this._oilDodge = false; this._oilShift = 0;
-        this._wobble = 0; this._wobbleT = 0; this._aHeld = false;
+        this._wobble = 0; this._wobbleT = 0; this._aHeld = false; this._track = null;
         this.intent = '';
     }
 
     think(sim, dt) {
         const r = sim;
-        if (r == null || r.p !== Phase.Racing || r.spinning) { this._aHeld = false; return InputFrame.neutral; }
+        if (r == null || r.p !== Phase.Racing || r.spinning || r.airborne) { this._aHeld = false; return InputFrame.neutral; }
         const tr = r.track;
+        if (tr !== this._track) { this._track = tr; this._forkChosen = false; this._branch = 1; this._hairpinSeen = -1; this._oilSeen = -1; this._oilDodge = false; this._oilShift = 0; this._passing = this._aborting = false; this._lane = +1; }
         const s = r.s, x = r.x, v = r.v;
 
         // ---- a wander in its line, changing every half second
@@ -100,7 +105,7 @@ export class HyperDriftBot extends CabinetBotBase {
 
         // ---- the fork: pick a branch once it's in sight
         if (!this._forkChosen && tr.hasFork(f32(s + 170))) { this._forkChosen = true; this._branch = this.chance(this.forkRight) ? 2 : 1; }
-        if (!tr.hasFork(s) && !tr.hasFork(f32(s + 170))) { if (this._forkChosen && s > tr.fork.s1) this._branch = 1; }
+        if (!tr.hasFork(s) && !tr.hasFork(f32(s + 170))) { if (this._forkChosen && tr.fork !== null && s > tr.fork.s1) this._branch = 1; }
 
         // ---- a new hairpin in reach: roll this one's mistakes
         const hp = tr.nextZone(ZoneKind.Hairpin, s);
@@ -221,6 +226,9 @@ export class HyperDriftBot extends CabinetBotBase {
             if (target === null || f32(target.s - s) > target.halfL + 14 || target.s < f32(f32(s - target.halfL) - 12)) { this._aborting = false; this._lane = +1; }
             else { this._lane = -1; return; }
         }
+        // the rival ahead in the dash: take the other lane (the dash has no oncoming traffic)
+        const R = r.rival;
+        if (R !== null && R.s > f32(s - 20) && f32(R.s - s) < 160) { this._lane = R.lane > 0 ? -1 : +1; return; }
         // start a pass? the slowest thing ahead in your lane, and whatever is queued in front of it
         let first = null;
         for (const t of r.traffic)
@@ -258,25 +266,25 @@ export class HyperDriftBot extends CabinetBotBase {
 
     _oilCheck(r, s) {
         let near = null, idx = -1;
-        for (let i = 0; i < r.oil.length; i++) {
-            const o = r.oil[i];
+        for (let i = 0; i < r.hazards.length; i++) {
+            const o = r.hazards[i];
             if (f32(o.s - s) > 8 && f32(o.s - s) < 120) { near = o; idx = i; break; }
         }
         if (near === null) {
-            if (this._oilDodge && (this._oilSeen < 0 || this._oilSeen >= r.oil.length || r.oil[this._oilSeen].s < f32(s - 14))) { this._oilDodge = false; this._oilShift = 0; }
+            if (this._oilDodge && (this._oilSeen < 0 || this._oilSeen >= r.hazards.length || r.hazards[this._oilSeen].s < f32(s - 14))) { this._oilDodge = false; this._oilShift = 0; }
             return;
         }
-        if (idx !== this._oilSeen) { this._oilSeen = idx; this._oilDodge = this.chance(this._pOil); this._oilShift = 0; }
+        if (idx !== this._oilSeen) { this._oilSeen = idx; this._oilDodge = near.kind === 3 || this.chance(this._pOil); this._oilShift = 0; }
         if (!this._oilDodge) return;
         const line = r.track.laneX(near.s, this._lane, this._branch);
         const gap = f32(line - near.x);
-        if (Math.abs(gap) >= Slick.RX + 12) this._oilShift = 0;
+        if (Math.abs(gap) >= near.rx + 12) this._oilShift = 0;
         else {
             // go round it on the side with more road, unless that side has a car coming
             const c = r.track.cx(near.s);
             const side = near.x > c ? -1 : 1;
             if (side < 0 && this._oncomingArrival(r, s, r.v) < F1_6) { this._oilShift = 0; return; }
-            this._oilShift = f32(side * (Slick.RX + 13) - gap);
+            this._oilShift = f32(side * (near.rx + 13) - gap);
         }
     }
 
@@ -316,6 +324,11 @@ export class HyperDriftBot extends CabinetBotBase {
                 if (o.dir < 0 && Math.abs(f32(o.x - r.x)) < 18 && o.s > s && f32(o.s - s) < 90) vt = Math.min(vt, 20);
         if (this._passing) vt = Math.max(vt, this._threat ? r.vMax : vmax);
         if (this._aborting) { const a = find(r, this._abortId); if (a !== null) vt = Math.min(vt, Math.max(0, f32(a.cur - 40))); }
+        // a crevasse ahead: it needs the speed for the jump
+        const g = tr.nextGap(s);
+        if (g !== null && g.lip > s && f32(g.lip - s) < 320) vt = Math.max(vt, f32(JumpSpeed + 30));
+        // the rival in the dash: flat out
+        if (r.rival !== null) vt = Math.max(vt, f32(Math.min(vmax, tr.vLimit(f32(s + 20)) * this._care)));
         return Math.max(0, vt);
     }
 }

@@ -1,16 +1,16 @@
 // THE NODE · world 1 · NEBULA RUN on the Cabinet Engine · the palette and the SPEC (data only).
 // Split from cartridge.js so the renderer and the round can read it without an import cycle.
 //
-// Palette from the accepted cabinet art (Assets/Art/Flynns/cab_nebularun_*): void black, nebula
-// purple in three steps, ground teal in three steps, a cream-white hull with cyan trim, target
-// red (+ a dark red step) and one ember orange for the heart of an explosion. 13 colours.
-// The marquee's publisher is SUNWARD AMUSEMENTS (the C# draft's "WAVECREST INTERACTIVE" was a
-// placeholder written before the art was accepted; the art is canon).
+// Palette from the accepted cabinet art (Assets/Art/Flynns/cab_nebularun_*): void black, nebula purple in three steps,
+// ground teal in three steps, a cream-white hull with cyan trim, target red (+ a dark red step) and one ember orange
+// for the heart of an explosion. The build-out (2026-10-18) adds four for the later sectors' ground: a steel ramp in
+// three steps (the City of Glass's streets, the Mother Fortress's armour plate) and a pod gold (power-up pods, the
+// beacon, EXTRA SHIP). 17 colours.
+// The marquee's publisher is SUNWARD AMUSEMENTS (the C# draft's "WAVECREST INTERACTIVE" was a placeholder written
+// before the art was accepted; the art is canon).
 //
-// Knobs (base -> per loss on this cabinet -> the mercy credit): ported from the C# cartridge
-// (Staging/Batch4/nebularun/Games/NebulaRun/NebulaRunCartridge.cs) and re-tuned here, since that
-// game was never lab-tested (no bench.txt exists to match). See NOTES.md for the bench that made
-// these numbers.
+// Knobs (base -> per loss on this cabinet -> the mercy credit): re-cut for the five-sector game (the one-sector C#
+// knobs are gone with its parity). See NOTES.md for the bench that made these numbers.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 
 export const NebulaRunPalette = new Palette(
@@ -27,6 +27,10 @@ export const NebulaRunPalette = new Palette(
     ['red', 0xFF3448],         // 10  target red
     ['redDim', 0x7C1530],      // 11
     ['ember', 0xFFA43C],       // 12  the heart of a blast
+    ['steelDeep', 0x1C2034],   // 13  the city's streets, the fortress's armour in shadow
+    ['steel', 0x434B70],       // 14
+    ['steelHi', 0x8890BC],     // 15
+    ['gold', 0xFFD54A],        // 16  pods, the beacon, EXTRA SHIP
 ).roles('void', 'tealHi', 'nebHi', 'white', 'nebDeep');
 
 // the title card's picture (110 x 22, drawn at x2): the starfighter racing right along a
@@ -102,27 +106,30 @@ function buildSpec() {
         publisher: 'SUNWARD AMUSEMENTS',
         year: 1983,
         palette: NebulaRunPalette,
-        tagline: 'BOMB THE FORTRESS AT SECTOR END',
-        controls: ['STICK  FLY      A  AIR GUN', 'B  BOMB THE GROUND AT THE SIGHT'],
-        roundWonText: 'SECTOR CLEAR',
+        tagline: 'FIVE SECTORS TO THE MOTHER FORTRESS',
+        controls: ['STICK FLY   A AIR GUN   B BOMB', 'BOMB AT THE SIGHT   GRAB THE PODS'],
+        hints: [['STICK', 'FLY'], ['A', 'AIR GUN'], ['B', 'BOMB']],
+        roundWonText: 'NEBULA CLEAR',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [24000, 19000, 14500, 10000, 6500],
+        highScoreSeed: [120000, 90000, 65000, 45000, 28000],
         titleArt: TitleArt,
         titleArtScale: 2,
         knobs: [
-            Knob.fixed('scrollSpeed', 24, 'ground scroll, px/s'),
-            Knob.fixed('sectorSeconds', 58, 'seconds of scroll from the start to the parked fortress'),
-            Knob.mul('airRate', 1.10, 0.93, 'interceptor groups per second').clamp(0.15, 3),
-            Knob.mul('bossPass', 1.60, 1.12, 'seconds per radar pass; each live core fires once a pass').clamp(0.7, 14),
-            Knob.mul('turretGap', 1.35, 1.10, 'seconds between a turret\'s shots').clamp(1.0, 4.5),
-            Knob.mul('shotSpeed', 105, 0.95, 'enemy shot speed, px/s').clamp(65, 128),
-            Knob.mul('dartSpeed', 165, 0.96, 'dart dive speed, px/s').clamp(100, 168),
-            Knob.mul('airFire', 0.30, 0.86, 'chance a spinner fires as it turns').clamp(0.06, 0.60),
-            Knob.mul('discGap', 1.20, 1.08, 'seconds between the disc ship\'s shots').clamp(1.15, 3.6),
-            Knob.fixed('startShips', 3, 'ships per round (the mercy credit uses the shield instead)'),
+            Knob.fixed('scrollSpeed', 26, 'ground scroll, px/s (a sector is its seconds x this)'),
+            Knob.fixed('startShips', 3, 'ships per game (+1 at 30,000 and every 70,000; the mercy credit uses the shield)'),
+            Knob.mul('airRate', 0.8, 0.93, 'interceptor groups per second (x the sector\'s airMul)').clamp(0.3, 2),
+            Knob.mul('shotSpeed', 92, 0.95, 'enemy shot speed, px/s (x the sector\'s shotMul)').clamp(62, 128),
+            Knob.mul('turretGap', 1.65, 1.08, 'seconds between a turret\'s shots (x the sector\'s fireMul)').clamp(1.0, 4.0),
+            Knob.mul('airFire', 0.3, 0.86, 'chance a spinner fires as it turns').clamp(0.06, 0.6),
+            Knob.mul('dartSpeed', 160, 0.96, 'dart dive speed, px/s').clamp(100, 170),
+            Knob.mul('discGap', 1.3, 1.08, 'seconds between the disc ship\'s shots').clamp(1.1, 3.6),
+            Knob.mul('flakGap', 2.8, 1.08, 'seconds between a flak gun\'s shells').clamp(1.8, 6),
+            Knob.mul('boltGap', 3.0, 1.08, 'seconds between lightning columns in the storm').clamp(2, 7),
+            Knob.mul('bossPace', 1.0, 1.07, 'x every boss volley\'s gap').clamp(0.7, 2.2),
+            Knob.mul('bossPass', 1.8, 1.1, 'seconds per radar pass on the radar isle').clamp(0.8, 6),
         ],
     });
-    s.phaseNames.set(CabinetState.Intro, 'ready');
+    s.phaseNames.set(CabinetState.Intro, 'card');
     s.phaseNames.set(CabinetState.Playing, 'run');
     s.phaseNames.set(CabinetState.Interlude, 'blast');
     return s;

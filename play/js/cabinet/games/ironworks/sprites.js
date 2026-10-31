@@ -3,7 +3,9 @@
 // can take the title art without importing the renderer (no ES import cycle).
 //
 // indices: 0 bg 1 red 2 redDark 3 steel 4 steelDark 5 drum 6 gold 7 goldDark 8 blue 9 cyan
-//          a white b skin c fire d blueDark e cyanDark
+//          a white b skin c fire d blueDark e cyanDark f ember g green
+// (2026-10-18: the build-out's new pieces: ore carts, hot drums, spring jacks, the three pickups, a
+// cheering climber, the foreman upside down, and the furnace.)
 import { PixelSprite, roundEven } from '../../sdk/index.js';
 
 // ------------------------------------------------------------------ builders
@@ -41,7 +43,9 @@ function stamp(dst, src, x, y) {
 
 // a steel drum's lid, end-on: a steel rim, a black lid with a dark rolled ring, and the
 // bung on the ring turning 45 degrees a frame; a fixed glint top left
-function drumFrame(k) {
+// (map: a HOT drum swaps the steel for fire and ember: { 3: 12, 4: 15, 5: 2, 10: 6 })
+function drumFrame(k, map) {
+    const m = v => (map && map[v] !== undefined ? map[v] : v);
     const s = new PixelSprite(12, 12);
     for (let j = 0; j < 12; j++)
         for (let i = 0; i < 12; i++) {
@@ -49,12 +53,37 @@ function drumFrame(k) {
             if (d > 6.1) continue;
             let v = d > 5.0 ? 3 : d > 4.2 ? 4 : 5;
             if (v === 5 && d > 2.6 && d < 3.5) v = 4;
-            s.set(i, j, v);
+            s.set(i, j, m(v));
         }
     const a = k * Math.PI / 4.0;
     const bx = roundEven(5.5 + Math.cos(a) * 3.0 - 0.5), by = roundEven(5.5 + Math.sin(a) * 3.0 - 0.5);
-    s.set(bx, by, 3); s.set(bx + 1, by, 3); s.set(bx, by + 1, 3); s.set(bx + 1, by + 1, 3);
-    s.set(3, 2, 10); s.set(2, 3, 10); s.set(4, 2, 3);
+    s.set(bx, by, m(3)); s.set(bx + 1, by, m(3)); s.set(bx, by + 1, m(3)); s.set(bx + 1, by + 1, m(3));
+    s.set(3, 2, m(10)); s.set(2, 3, m(10)); s.set(4, 2, m(3));
+    return s;
+}
+
+// the furnace (board 5): a brick stack with a steel rim and an arched mouth; the fire in it flickers
+function buildFurnace(k) {
+    const s = new PixelSprite(24, 22);
+    for (let j = 0; j < 22; j++)
+        for (let i = 0; i < 24; i++) {
+            let v;
+            if (i === 0 || i === 23 || j === 0) v = 4;
+            else if (j <= 2) v = 3;
+            else if ((j - 3) % 4 === 3) v = 2;
+            else if ((i + (Math.trunc((j - 3) / 4) & 1) * 4) % 8 === 0) v = 2;
+            else v = 1;
+            s.set(i, j, v);
+        }
+    for (let j = 11; j < 22; j++)
+        for (let i = 7; i <= 16; i++) {
+            if (j === 11 && (i === 7 || i === 16)) continue;
+            const inner = i >= 9 && i <= 14 && j >= 13;
+            let v = inner ? 6 : 12;
+            if (inner && j >= 17 && ((i + j + k) & 1) === 0) v = 10;
+            if (!inner && ((i * 3 + j + k * 2) % 5) === 0) v = 15;
+            s.set(i, j, v);
+        }
     return s;
 }
 
@@ -204,6 +233,11 @@ const DrumUpright = PixelSprite.fromRows(
 
 const DrumLying = rotate(DrumUpright, 1);
 
+// a hot drum (board 5): it glows, and the furnace turns it into a fire-ball
+const HotMap = { 3: 12, 4: 15, 5: 2, 10: 6 };
+const HotRoll = [];
+for (let k = 0; k < 8; k++) HotRoll.push(drumFrame(k, HotMap));
+
 const FireA = PixelSprite.fromRows(
     '....c..c..',
     '...cc.cc..',
@@ -303,6 +337,105 @@ const ForemanLift = PixelSprite.fromRows(
     '....555555...555555.....',
     '....555555...555555.....');
 
+// an ore cart (board 2): a steel tub heaped with ore on two wheels; the wheels turn (A, B)
+const CartA = PixelSprite.fromRows(
+    '...67..76...',
+    '.6776676776.',
+    '333333333333',
+    '344444444443',
+    '34a444444443',
+    '344444444443',
+    '.3333333333.',
+    '.454....454.',
+    '..5......5..');
+
+const CartB = PixelSprite.fromRows(
+    '...67..76...',
+    '.6776676776.',
+    '333333333333',
+    '344444444443',
+    '34a444444443',
+    '344444444443',
+    '.3333333333.',
+    '.545....545.',
+    '..4......4..');
+
+// a spring jack (board 3): two plates and the coil; squashed for the frame it lands
+const SpringUp = PixelSprite.fromRows(
+    '.33333333.',
+    '..444444..',
+    '.aaaaaaa..',
+    '..3333333.',
+    '.aaaaaaa..',
+    '..3333333.',
+    '.aaaaaaa..',
+    '..3333333.',
+    '..444444..',
+    '.33333333.');
+
+const SpringSquash = PixelSprite.fromRows(
+    '.33333333.',
+    '.aaaaaaa..',
+    '..3333333.',
+    '.aaaaaaa..',
+    '..444444..',
+    '.33333333.');
+
+// the pickups: a hard hat 300, a lunch pail 500, a toolbox 800
+const HardHat = PixelSprite.fromRows(
+    '...6666...',
+    '..666666..',
+    '.66a66666.',
+    '.66666666.',
+    '6666666666',
+    '.77777777.');
+
+const LunchPail = PixelSprite.fromRows(
+    '...3333...',
+    '..3....3..',
+    '.88888888.',
+    '8dddddddd8',
+    '8888888888',
+    '8a88888888',
+    '8888888888',
+    '.dddddddd.');
+
+const Toolbox = PixelSprite.fromRows(
+    '....3333....',
+    '...3....3...',
+    '111111111111',
+    '1a1111111111',
+    '222222222222',
+    '111111111111',
+    '.2222222222.');
+
+// the climber with both arms up: topped out
+const Cheer = PixelSprite.fromRows(
+    '.b..6666..b.',
+    '.a.666666.a.',
+    '.a66666666a.',
+    '..abbbbbba..',
+    '...bbbb5b...',
+    '...bbbbbb...',
+    '....bbbb....',
+    '...a8888a...',
+    '...a8888a...',
+    '...888888...',
+    '...888888...',
+    '...88dd88...',
+    '...888888...',
+    '...88..88...',
+    '..555..555..',
+    '..555..555..');
+
+// a little star over the foreman's head once he has come down
+const Star = PixelSprite.fromRows(
+    '..6..',
+    '..6..',
+    '66a66',
+    '..6..',
+    '..6..');
+
 // the title card's picture, at game scale: the foreman's stack, the foreman, a floating
 // hammer, a drum rolling and the climber hopping the next one, the ladder up
 function buildTitleArt() {
@@ -331,5 +464,8 @@ export const IronworksSprites = Object.freeze({
     ClimberTurn: [Stand, rotate(Stand, 1), rotate(Stand, 2), rotate(Stand, 3)],
     LifeIcon, HammerUp, HammerFwd, DrumRoll, DrumUpright, DrumLying, FireA, FireB,
     OilDrum, FlameA, FlameB, ForemanIdle, ForemanLift,
+    HotRoll, CartA, CartB, SpringUp, SpringSquash, Pickups: [HardHat, LunchPail, Toolbox], Cheer, Star,
+    ForemanDazed: rotate(ForemanIdle, 2),
+    Furnace: [buildFurnace(0), buildFurnace(1)],
     TitleArt: buildTitleArt(),
 });

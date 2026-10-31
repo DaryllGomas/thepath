@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { Handshake } from './handshake.js';
 import { loadOutside, OutdoorBody } from './outside.js';
+import { RiderKit, RIDER } from './rider.js';       // look batch 2: the bars, the lever, the gloved hands and the sleeves
 import { Delivery, loadDeliveryModels } from './delivery.js';
 import { FLOOR, dressCabinet, cabinetPose, addJunctionClock } from './arcade.js';
 import { ArcadeAnswers, ANSWER } from './answer.js';
@@ -67,7 +68,7 @@ let paused = false, t0 = 0, clock = 0, introT = 0, releasedAt = 0, outFailed = f
 let hs = null, introWhite = false, loadError = null, markReady = null;
 // outdoors (js/outside.js): loaded behind the basement; the areaway hands the controls to OutdoorBody
 let OUT = null, outBody = null, basementGroup = null, region = 'in', leaveT = -1, leaveFrom = null, duskPlane = null;
-let bikeRig = null, bikeParked = null, baseFog = null, baseBg = null, outFog = null, doorPivots = [], doorsT = -1;
+let bikeRig = null, bikeParked = null, rider = null, rigSteer = null, baseFog = null, baseBg = null, outFog = null, doorPivots = [], doorsT = -1;
 const fillers = [], flynnView = {};
 let delivery = null, seven = null, ending = null, SevenMod = null;   // seven: the cabinet with no name's tube (js/cabinet/seven/)
 let polyScreen = null;                                               // its screen ({ mesh, material, center, normal }): the glide, the mouse
@@ -78,6 +79,13 @@ let svTrigger = null;                                                // today's 
 const flashes = new Flashes(), floorWatch = [];
 const POLY_SCREEN = 'Outside/Flynns/FlynnsInterior/PolybiusSpot/Visual/PolybiusCab/Screen';
 const LEAVE_TO = new THREE.Vector3(3.78, 0, -7.75);
+// the rider's walkie, moved from where the model has it (10 cm left of the bars' middle, standing up on them, its antenna up the middle of the
+// road) to hang under the bar just inboard of the right grip, where a kid would clip it: its top corner touches the bar's bend (about 4 mm, measured
+// against js/rider.js's bar), it stays 2 cm off the grip's inner end, and only the antenna rises past the bar line. Metres in the bike's own
+// frame (x right, y up, -z ahead).
+const RIDER_WALKIE = new THREE.Vector3(0.22, -0.148, 0.02);
+const RIG_LEAN = 1.5;      // the bike (and the hands on it) lean this much further into a turn than the head's roll: the bars tilt a degree against the view
+const _Y = new THREE.Vector3(0, 1, 0), _Z = new THREE.Vector3(0, 0, 1), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
 const basementReady = new Promise((r) => { markReady = r; });
 let screenMode = null, activeCab = null;
 const S = { quarters: 0, kept: false, beaten: new Set(), lastRead: 0, bowl: false, used: false, idleHint: false, nudge1: false, nudge2: false, firstWinAt: 0, tape: 0, sheenTick: 0 };
@@ -128,9 +136,18 @@ function cabHint(mode) {
     warlordsroad: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' ATTACK</span><span>' + k('X') + ' JUMP</span>' + away,
     deepkeep: '<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' FIRE</span><span>' + k('X') + ' POTION</span>' + away,
     svEntry: '<span>' + k('&uarr;') + k('&darr;') + ' LETTER</span><span>' + k('SPACE') + ' ENTER</span><span>' + k('X') + ' BACK</span>',   // Starvector's name entry (js/starvector_answer.js)
-  }[mode] || sevenHint(mode, k, away) || ('<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' A</span><span>' + k('X') + ' B</span>' + away);
+  }[mode] || sevenHint(mode, k, away) || specHint(mode, k, away) || ('<span>' + k('&larr;') + k('&rarr;') + k('&uarr;') + k('&darr;') + ' MOVE</span><span>' + k('SPACE') + ' A</span><span>' + k('X') + ' B</span>' + away);
   el.innerHTML = pad.active ? padHint(html) : html;   // the last input was the pad: A / B / START, a stick
   el.classList.add('on');
+}
+// a floor game that says its own controls (its spec's `hints`: [['STICK', 'MOVE'], ['A', 'FIRE'], ['B', 'JUMP'] ...]; keys STICK, LR, UD,
+// UP, DOWN, LEFT, RIGHT, A, B, START)
+const HINT_KEYS = { STICK: ['&larr;', '&rarr;', '&uarr;', '&darr;'], LR: ['&larr;', '&rarr;'], UD: ['&uarr;', '&darr;'], UP: ['&uarr;'], DOWN: ['&darr;'],
+  LEFT: ['&larr;'], RIGHT: ['&rarr;'], A: ['SPACE'], B: ['X'], START: ['ENTER'] };
+function specHint(mode, k, away) {
+  const c = runtime && mode && runtime.get(mode), H = c && c.spec.hints;
+  if (!H || !H.length) return null;
+  return H.map(([keys, label]) => '<span>' + String(keys).split(/[ +]/).flatMap((t) => HINT_KEYS[t] || [t]).map(k).join('') + ' ' + label + '</span>').join('') + away;
 }
 // the cabinet with no name: the controls of the game on its glass ('seven:<id>'), or its first coin's notice ('seven:notice')
 function sevenHint(mode, k, away) {
@@ -176,11 +193,43 @@ function svSoundFrame(dt) {
   if (on) { svSnd.update(camera, 1); if (c.runner.sim) c.runner.sim.recordEvents = true; svSnd.game(svAdapter, 'starvector', dt); svSndOn = true; }
   else if (svSndOn) { svSnd.leave(); if (c && c.runner && c.runner.sim) c.runner.sim.recordEvents = false; svSndOn = false; }
 }
-/** the room's music fades out while a Starvector game is being played (its own soundtrack plays), and back in when it ends */
+// EVERY OTHER MACHINE's sound (the floor, Relic Quest and Grid Cycles, the basement's three): the one you stand at plays at its own
+// glass, on one chip wired as Starvector's is, with its palette (js/cabinet/sound/floor.js: the game's own sound.js, or the floor's
+// stock voice in a key of its own). Made after the first gesture; the palette loads when you step up.
+let floorSnd = null, floorSndMaking = false, floorOn = null;      // floorOn: { id, game (the adapter), pal }
+async function initFloorSound() {
+  if (floorSnd || floorSndMaking || !audioOn) return;
+  floorSndMaking = true;
+  try {
+    const [M, F] = await Promise.all([import('./cabinet/seven/sound.js'), import('./cabinet/sound/floor.js')]);
+    floorSnd = new M.SevenSound({ ctx: listener.context, out: listener.getInput() }); floorSnd.F = F;
+    if (paused) floorSnd.pause(true);
+  } catch (e) { console.error('[floor] its sound could not start', e); }
+  floorSndMaking = false;
+}
+function floorSoundFrame(dt) {
+  const id = activeId, c = activeCab;
+  const want = !!c && !!c.runner && !!id && id !== 'fcab_starvector' && id !== 'polybius';
+  if (floorOn && (!want || floorOn.id !== id)) { floorSnd.leave(); floorOn = null; }
+  if (!want) return;
+  if (!floorOn) {
+    const at = flynnView[id] ? flynnView[id].target : HOME_SCREEN[id] && W.screens[HOME_SCREEN[id]].center;
+    if (at) floorSnd.place(at.x, at.y, at.z);
+    floorOn = { id, game: floorSnd.F.floorGame(c.runner), pal: null };
+    const on = floorOn;
+    floorSnd.F.floorPalette(CART[id], LABEL[id]).then((P) => { on.pal = P; });
+  }
+  floorSnd.update(camera, 1);
+  if (floorOn.pal) floorSnd.game(floorOn.game, floorOn.pal, dt);
+  else floorOn.game.events;                                       // (still loading: the cues it would have played go by)
+}
+/** the room's music fades out while a Starvector game is being played (its own soundtrack plays), and back in when it ends; under any
+ *  other machine's game it only dips, so that game's sound reads over it */
 function jukeboxDuckFrame(dt) {
   if (!jukebox) return;
   const c = cabs.fcab_starvector, playing = !!c && c === activeCab && !!c.runner && c.runner.phase === 'playing';
-  const want = playing ? 0 : jukebox.volume, a = jukebox.audio, v = a.getVolume();   // (a streamed element behind a PositionalAudio: its gain ducks it all the same)
+  const other = !playing && !!activeCab && activeCab !== seven && !!activeCab.runner && activeCab.runner.phase === 'playing';
+  const want = playing ? 0 : other ? jukebox.volume * 0.45 : jukebox.volume, a = jukebox.audio, v = a.getVolume();   // (a streamed element behind a PositionalAudio: its gain ducks it all the same)
   if (Math.abs(v - want) > 0.001) a.setVolume(v + (want - v) * Math.min(1, dt * 3));
 }
 async function initSevenSound() {
@@ -211,7 +260,7 @@ function audioGesture() {
 }
 addEventListener('pointerdown', audioGesture, true); addEventListener('keydown', audioGesture, true);
 function startAudio() {
-  audioOn = true; initSevenSound(); initSvSound();
+  audioOn = true; initSevenSound(); initSvSound(); initFloorSound();
   try { if (listener.context.state !== 'running') listener.context.resume(); } catch (e) { /* no audio */ }
   listener.setMasterVolume(settings.vol);
   primeJukeEl();
@@ -498,19 +547,46 @@ function enterOutside() {
   line('Up the steps. Your bike is in the yard.', 4.5);
   if (!document.pointerLockElement && !navigator.webdriver && !dragLook) setTimeout(() => { if (state === 'play' && !document.pointerLockElement) line('Click to look around.', 3); }, 4800);
 }
+// falling out of the world (playtest A-01): the yard has an edge, and the areaway's open door has nothing behind it. While you stand on
+// something, the spot is noted every half second (the last three kept). If you then drop more than 3 m below where you last stood (only
+// time in the air counts, so the hill's 40 m of road is never a fall), or end up under the world, you are put back on the oldest of those
+// three (1 to 1.5 s ago: a few steps in from the edge), facing the same way, standing still. A jump of position (a warp, a cutscene)
+// starts the count again. The first time, a short line says so.
+const FALL = { safe: [], t: 0, has: false, x: 0, y: 0, z: 0, stood: 0, air: 0, maxAir: 0, n: 0, told: false };
+function guardFall(dt) {
+  const b = outBody, p = b.pos, F = FALL;
+  const jumped = !F.has || Math.hypot(p.x - F.x, p.z - F.z) > 3 || Math.abs(p.y - F.y) > 1.5;
+  F.has = true; F.x = p.x; F.y = p.y; F.z = p.z;
+  if (state !== 'play' || player !== b) return;
+  if (jumped) { F.safe.length = 0; F.t = 0; F.stood = p.y; F.air = 0; }
+  if (b.grounded) {
+    F.stood = p.y; F.air = 0;
+    if ((F.t -= dt) <= 0 || !F.safe.length) { F.t = 0.5; F.safe.push([p.x, p.y, p.z]); if (F.safe.length > 3) F.safe.shift(); }
+  } else { F.air = F.stood - p.y; F.maxAir = Math.max(F.maxAir, F.air); }
+  if (F.air > 3 || p.y < -80) {
+    const s = F.safe[0] || [LEAVE_TO.x, LEAVE_TO.y, LEAVE_TO.z];
+    p.set(s[0], s[1] + 0.05, s[2]); b.vel.set(0, 0, 0); b.vy = 0; b.bike.speed = 0;
+    F.safe = [s]; F.x = s[0]; F.y = s[1] + 0.05; F.z = s[2]; F.stood = F.y; F.air = 0; F.t = 0.5; F.n++;      // (the older notes go: the next fall comes back here, not to a spot nearer the edge)
+    if (!F.told && lineTimer <= 0) { F.told = true; line('Not that way.', 2.4); }
+  }
+}
 function updateOutdoors(dt) {
+  if (outBody && player === outBody) guardFall(dt);
   OUT.update(dt, camera, player.pos.y);
   if (OUT.fogColor) { outFog.color.copy(OUT.fogColor); outFog.density = OUT.fogDensity; }
   for (const s of Object.values(OUT.screens)) s.material.uniforms.time.value = clock;
   for (const f of fillers) f.update(dt);
-  // the bike under you: it follows the body, handlebars just ahead of the eye
+  // the bike under you: it follows the body, handlebars just ahead of the eye. It leans into a turn (the head's roll, and a half again), the
+  // bars turn with the stick, and it carries the vibration and half of the pedalling bob (look batch 2)
   if (bikeRig && outBody.bike.mounted) {
-    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), outBody.yaw);
+    const B = outBody.bike;
+    const q = _qa.setFromAxisAngle(_Y, outBody.yaw).multiply(_qb.setFromAxisAngle(_Z, B.lean * RIG_LEAN)).clone();
     const hb = bikeRig.userData.hb.clone().applyQuaternion(q);
     bikeRig.quaternion.copy(q);
-    // grips 0.6 m ahead and 0.3 m under the eye, so the bars sit at the bottom of the view like Unity's rig
-    bikeRig.position.copy(outBody.pos).addScaledVector(outBody.forward(), 0.6).sub(new THREE.Vector3(hb.x, 0, hb.z));
-    bikeRig.position.y = outBody.pos.y + outBody.eyeNow - 0.3 - hb.y;
+    // grips 0.6 m ahead and 0.3 m under the eye, so the bars sit at the bottom of the view like Unity's rig (turned with the bike's lean about the eye)
+    const off = new THREE.Vector3(0, -0.3, -0.6).applyQuaternion(q);
+    bikeRig.position.set(outBody.pos.x, outBody.pos.y + outBody.eyeNow + B.vibY + 0.5 * B.bobY, outBody.pos.z).add(off).sub(hb);
+    if (rider) { rider.update(rigSteer, B.steerVis * RIDER.maxSteer, OUT.k || 0); rider.show(!fixedCam && !outBody.lookOverride); }
   }
   if (doorsT >= 0 && doorsT < 1) {
     doorsT = Math.min(1, doorsT + dt / 0.6); const s = doorsT * doorsT * (3 - 2 * doorsT);
@@ -538,6 +614,7 @@ function updateOutdoors(dt) {
 function mountBike() {
   const B = outBody.bike; if (B.mounted) return;
   B.mounted = true; B.speed = 0;
+  Object.assign(B, { steer: 0, steerVis: 0, lean: 0, bobY: 0, vibY: 0, vibP: 0, vibR: 0, pedal: 0 });
   outBody.yaw = bikeParked.userData.yaw;
   bikeParked.visible = false; bikeRig.visible = true;
   const bi = interactables.find((i) => i.id === 'bike'); if (bi) bi.enabled = false;
@@ -718,7 +795,7 @@ function updateBikeWalkie() {
   if (B.mounted && !S.walkieHint) {
     S.walkieHint = clock;
     let h = document.getElementById('walkieHint');
-    if (!h) { h = document.createElement('div'); h.id = 'walkieHint'; h.style.cssText = 'position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);font-size:22px;letter-spacing:0.12em;color:#e8dcc0;background:rgba(10,7,5,0.6);padding:4px 14px;opacity:0;transition:opacity .4s;pointer-events:none'; $('hud').appendChild(h); }
+    if (!h) { h = document.createElement('div'); h.id = 'walkieHint'; h.style.cssText = 'position:absolute;left:50%;top:5vh;transform:translateX(-50%);font-size:clamp(20px,2.4vh,28px);letter-spacing:0.12em;color:#e8dcc0;background:rgba(10,7,5,0.6);padding:4px 14px;opacity:0;transition:opacity .4s;pointer-events:none'; $('hud').appendChild(h); }
     h.textContent = pad.active ? 'HOLD RB · WALKIE' : WALKIE.say.hint; requestAnimationFrame(() => { h.style.opacity = '1'; });
   }
   const h = document.getElementById('walkieHint'); if (h && S.walkieHint && h.style.opacity === '1' && (clock - S.walkieHint > 10 || S.walkieUsed)) h.style.opacity = '0';
@@ -748,7 +825,7 @@ function attachOutside(O) {
   const at = (path) => { const o = O.obj(path); return o ? new THREE.Vector3(...o.pos) : null; };
   const comp = (type, pathEnd) => (O.comps[type] || []).find((c) => c.path.endsWith(pathEnd));
   // the parked bike and the one under you share the bike's meshes, re-framed upright along its travel direction
-  const parts = Object.entries(O.byPath).filter(([p]) => /^Outside\/Bike\//.test(p)).flatMap(([, m]) => m);
+  const parts = Object.entries(O.byPath).filter(([p]) => /^Outside\/Bike\//.test(p)).flatMap(([p, ms]) => ms.map((m) => [p, m]));
   const centre = (name) => { const m = O.byPath['Outside/Bike/' + name]?.[0]; if (!m) return null; const g = m.geometry; g.computeBoundingBox(); return g.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrix); };
   const front = centre('WheelFront'), rear = centre('WheelRear'), root = new THREE.Vector3(...O.obj('Outside/Bike').pos);
   const dir = front && rear ? front.clone().sub(rear).setY(0).normalize() : new THREE.Vector3(1, 0, 0);
@@ -758,14 +835,35 @@ function attachOutside(O) {
   const unlean = new THREE.Matrix4().compose(root, yawOnly, new THREE.Vector3(1, 1, 1)).multiply(new THREE.Matrix4().compose(root, rq, new THREE.Vector3(1, 1, 1)).invert());
   const toLocal = frameM.clone().invert().multiply(unlean);
   bikeParked = new THREE.Group(); bikeRig = new THREE.Group(); bikeRig.visible = false;
-  for (const m of parts) {
+  // look batch 2 (js/rider.js): the old octagonal bars are replaced by smooth chrome ones with grips, a lever, a cable and a pad on both bikes; on the
+  // one under you everything that turns with the bars hangs from rigSteer, and the gloved hands and sleeves join it when hands.glb has loaded
+  rider = new RiderKit(renderer, O.sun ? O.sun.position.clone() : null);
+  rigSteer = new THREE.Group(); rigSteer.position.copy(RIDER.pivot); bikeRig.add(rigSteer);
+  const STEERED = /\/(Fork|WheelFront|Bell|WalkieTalkie|WalkieLED)$/;
+  for (const [path, m] of parts) {
+    m.visible = false;
+    if (/\/Handlebars$/.test(path)) continue;
     const local = toLocal.clone().multiply(m.matrix);
     for (const g of [bikeParked, bikeRig]) {
-      const c = new THREE.Mesh(m.geometry, m.material); c.matrixAutoUpdate = true;
-      local.decompose(c.position, c.quaternion, c.scale); g.add(c);
+      const bell = /\/Bell$/.test(path);
+      // (the bike's chrome, the fork and the rims, takes the same mirror finish as the bars; the bell a satin one, so it stays a bell and not a lamp)
+      const c = new THREE.Mesh(m.geometry, bell ? rider.mat.satin : m.material.name === 'M_BikeChrome' ? rider.mat.chrome : m.material); c.matrixAutoUpdate = true;
+      local.decompose(c.position, c.quaternion, c.scale);
+      // the walkie (and its LED) hangs by the right grip, not up in the middle of the road: on the parked bike too, so it stays where it was
+      // when you get on and off (Daryll 10-31: it jumped from the left to the right as you mounted)
+      if (/Walkie/.test(path)) c.position.add(RIDER_WALKIE);
+      let obj = c;
+      if (bell) {                                                        // the bell moves to the left bar (the lever and the walkie have the right), and sits a little lower
+        c.position.add(RIDER.bell); c.name = 'bell';
+        obj = new THREE.Group(); obj.position.copy(c.position); obj.position.y -= RIDER.bellBase; obj.scale.y = RIDER.bellFlat;
+        c.position.set(0, RIDER.bellBase, 0); obj.add(c);
+      }
+      if (g === bikeRig && STEERED.test(path)) { obj.position.sub(RIDER.pivot); rigSteer.add(obj); } else g.add(obj);
     }
-    m.visible = false;
   }
+  bikeParked.add(rider.bars());
+  { const b = rider.bars(); b.position.copy(RIDER.pivot).negate(); rigSteer.add(b); }
+  rider.loadHands('assets/bike/hands.glb').then((h) => { if (h) rider.attachHands(bikeRig, rigSteer); });
   bikeParked.position.copy(root); bikeParked.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 6 * DEG));
   bikeParked.userData.yaw = yaw;
   const hbm = O.byPath['Outside/Bike/Handlebars']?.[0];
@@ -1124,11 +1222,11 @@ async function afterHandshake(how) {
   show('hs', false); canvas.focus();
 }
 function pause(fromLockLoss) {
-  paused = true; if (sevenSnd) sevenSnd.pause(true); if (svSnd) svSnd.pause(true); show('pause', true); keys.clear(); if (seven) seven.keys.clear();
+  paused = true; if (sevenSnd) sevenSnd.pause(true); if (svSnd) svSnd.pause(true); if (floorSnd) floorSnd.pause(true); show('pause', true); keys.clear(); if (seven) seven.keys.clear();
   sevenMouseOff();                                   // (the cursor back for the menu; the sight's button let go)
   syncSettingsUI(); $('btnResume').focus();
 }
-function resume() { paused = false; if (sevenSnd) sevenSnd.pause(false); if (svSnd) svSnd.pause(false); show('pause', false); lock(); canvas.focus(); }
+function resume() { paused = false; if (sevenSnd) sevenSnd.pause(false); if (svSnd) svSnd.pause(false); if (floorSnd) floorSnd.pause(false); show('pause', false); lock(); canvas.focus(); }
 function quitToTitle() {
   location.reload();
 }
@@ -1237,6 +1335,7 @@ function frame(now) {
       else c.update(dt, null);
     }
     if (svSnd) svSoundFrame(dt);
+    if (floorSnd) floorSoundFrame(dt);
     jukeboxDuckFrame(dt);
     if (svTrigger) svTrigger.update(dt, { inside: region === 'out' && !!S.inFlynns });    // (on the floor, at a cabinet or not)
     if (answer) answer.update(dt);
@@ -1370,11 +1469,12 @@ window.__node = {
   lens(near, fov) { camera.near = near ?? 0.05; camera.fov = fov ?? 60; camera.updateProjectionMatrix(); },
   debug() { return { views: Object.fromEntries(Object.entries(flynnView).map(([k, v]) => [k, { pos: v.pos && v.pos.toArray(), target: v.target.toArray() }])),
     cam: camera.position.toArray(), look: player.lookOverride ? { pos: player.lookOverride.pos.toArray() } : null }; },
+  get fall() { return FALL; },                       // the fall guard's numbers (n: times put back, maxAir: the deepest drop in the air so far)
   face(x, z) { if (player) player.yaw = Math.atan2(-(x - player.pos.x), -(z - player.pos.z)); },
   place(x, z, yaw) { player.place(x, 0.02, z, yaw ?? player.yaw); },
   setLook(m) { settings.look = m; pipe.setMode(m); },
   // for look passes and probes (tools/stage1shots.mjs): the live objects, read-only by convention
-  internals() { return { THREE, W, OUT, camera, renderer, pipe, bbs, cabs, seven, ending, answer, svTrigger }; },
+  internals() { return { THREE, W, OUT, camera, renderer, pipe, bbs, cabs, seven, ending, answer, svTrigger, rider, bikeRig, rigSteer, outBody }; },
   // the glass of the cabinet being played, where it lands on screen (tools/fullscreen_test.mjs): [x0, y0, x1, y1] in window px
   camGlass() {
     const G = activeId && cabGeo(activeId); if (!G) return null;
@@ -1442,7 +1542,7 @@ window.__node = {
   },
   // tests only: the arcade's audio (tools/seven_sound*.mjs): the listener, the cabinet's sound, the arcade's own mix
   walkie: { cfg: WALKIE, stats: WK, atten: wkAtten, dist: wkDist, nextIn(sec) { S.walkieNext = clock + sec; }, call(k, w) { wkCall(WALKIE.calls[k], w || 'yard'); } },
-  audio: { get listener() { return listener; }, get snd() { return sevenSnd; }, get bed() { return bed; }, get tape() { return tapeAudio; }, buffers },
+  audio: { get listener() { return listener; }, get snd() { return sevenSnd; }, get floor() { return floorSnd; }, get floorOn() { return floorOn; }, get bed() { return bed; }, get tape() { return tapeAudio; }, buffers },
   // tests only: run the delivery to its end at once (its own timeline, stepped fast)
   skipDelivery() { if (!delivery || delivery.t < 0) return false; let n = 0; while (!delivery.done && n++ < 2000) delivery.update(0.1); return delivery.done; },
   flashInfo() { return { count: { ...flashes.count }, attract: flashes.attractAt || null, avr: flashes.avrAt || null, gaze: flashes.gaze.bbs }; },

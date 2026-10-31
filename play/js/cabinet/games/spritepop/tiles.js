@@ -1,11 +1,14 @@
-// THE NODE · world 1 · SPRITE POP (Wavecrest Interactive, 1986) · THE TILES: one screen of platforms.
-// Port of SpritePopTiles.cs (SpritePopLevel) from Staging/Batch2/spritepop.
+// THE NODE · world 1 · SPRITE POP (Wavecrest Interactive, 1986) · THE TILES: the tower's seven screens of platforms.
+// Began as a port of SpritePopTiles.cs (SpritePopLevel, Staging/Batch2/spritepop); the 2026-10-18 build-out added four
+// screens (CORK ALLEY, THE ATTIC, RUBBER ROOM, THE TIN THRONE) and a colour theme per screen.
 //
 // A field of 19 x 12 tiles of 16 px (304 x 192, drawn at screen (8, 32)). Column 0 and column 18
 // are the side walls; row 0 is the ceiling and row 11 the floor, and both have the same 3-tile gap
 // in the middle: fall through the floor and you drop back in through the ceiling (wrap-around).
 // Every other tile is a ONE-WAY platform, solid only from above, the way the 1986 board did it:
-// you jump up through a platform and land on top of it.
+// you jump up through a platform and land on top of it. Platforms are single rows: a jump goes
+// straight up through three rows at most, so every screen climbs in steps of two or three rows
+// that overlap by a column or more (the nav graph only knows straight jumps).
 //
 // The level also carries what the bot and the creatures need to know about it:
 //   standable(col,row)  a tile you can stand on (solid, with air above it)
@@ -15,6 +18,7 @@
 //                       toward the nearest reachable column, so no bubble parks out of reach
 //   the NAV GRAPH       stand spots joined by walk / jump / fall (+wrap) edges, with all-pairs
 //                       costs and next hops precomputed once per layout (shared, immutable)
+//   theme               the screen's block colours (base, lit, dark: palette names) and its pattern
 import { f32 } from '../../sdk/index.js';
 
 const Tile = 16, Cols = 19, Rows = 12;
@@ -22,7 +26,7 @@ const Far = 1 << 20;
 
 // '#' = a tile. Rows 0 and 11 must keep their gaps aligned (the wrap).
 const Layouts = [
-    [                       // 0  THE SHELVES: wall shelves and a long middle bar on three rows
+    [                       // 0  SUGAR STEPS: wall shelves and a long middle bar on three rows
         '########...########',
         '#.................#',
         '###...#######...###',
@@ -50,7 +54,7 @@ const Layouts = [
         '#.................#',
         '########...########',
     ],
-    [                       // 2  THE DIAMOND: two pairs of wings and a bar between them
+    [                       // 2  SPRING GARDEN: two pairs of wings and a bar between them (the old DIAMOND)
         '########...########',
         '#.................#',
         '#.#####.....#####.#',
@@ -64,9 +68,78 @@ const Layouts = [
         '#.................#',
         '########...########',
     ],
+    [                       // 3  CORK ALLEY: three long alleys, two hung from alternate walls (a zigzag)
+        '########...########',
+        '#.................#',
+        '#.....#############',
+        '#.................#',
+        '#.................#',
+        '############......#',
+        '#.................#',
+        '#.................#',
+        '#.....##########..#',
+        '#.................#',
+        '#.................#',
+        '########...########',
+    ],
+    [                       // 4  THE ATTIC: the rafters, a roof of overlapping steps up to the ridge
+        '########...########',
+        '#.................#',
+        '#......#####......#',
+        '#.................#',
+        '#....####.####....#',
+        '#.................#',
+        '#..####.....####..#',
+        '#.................#',
+        '#####.........#####',
+        '#.................#',
+        '#.................#',
+        '########...########',
+    ],
+    [                       // 5  RUBBER ROOM: three tiers of pads; the low middle pad bridges the gap
+        '########...########',
+        '#.................#',
+        '#.................#',
+        '####...#####...####',
+        '#.................#',
+        '#.................#',
+        '#..#####...#####..#',
+        '#.................#',
+        '#.................#',
+        '####...#####...####',
+        '#.................#',
+        '########...########',
+    ],
+    [                       // 6  THE TIN THRONE: the king's open room, two ledges a side and the dais
+        '########...########',
+        '#.................#',
+        '#.................#',
+        '#.####.......####.#',
+        '#.................#',
+        '#.................#',
+        '#....#########....#',
+        '#.................#',
+        '#.................#',
+        '#.####.......####.#',
+        '#.................#',
+        '########...########',
+    ],
 ];
 
-const Names = ['THE SHELVES', 'THE CUPS', 'THE DIAMOND'];
+const Names = ['SUGAR STEPS', 'THE CUPS', 'SPRING GARDEN', 'CORK ALLEY', 'THE ATTIC', 'RUBBER ROOM', 'THE TIN THRONE'];
+
+// each screen's blocks: base, lit edge and stripe, dark underside (palette names), and the pattern
+// the renderer stamps on them (0 candy stripes, 1 dots, 2 checks, 3 bricks, 4 planks, 5 back stripes, 6 rivets)
+const Themes = [
+    { base: 'pink', light: 'pinkLight', dark: 'pinkDark', pattern: 0 },
+    { base: 'blue', light: 'blueLight', dark: 'blueDark', pattern: 1 },
+    { base: 'green', light: 'cub', dark: 'greenDark', pattern: 2 },
+    { base: 'orange', light: 'yellow', dark: 'brown', pattern: 3 },
+    { base: 'violet', light: 'violetLight', dark: 'violetDark', pattern: 4 },
+    { base: 'red', light: 'rose', dark: 'redDark', pattern: 5 },
+    { base: 'steel', light: 'steelLight', dark: 'steelDark', pattern: 6 },
+];
+
 const cache = new Array(Layouts.length).fill(null);
 
 export class SpritePopLevel {
@@ -81,6 +154,7 @@ export class SpritePopLevel {
     constructor(index) {
         this.index = index;
         this.name = Names[index];
+        this.theme = Themes[index];
         this._solid = new Uint8Array(Cols * Rows);
         this.topReach = new Array(Cols).fill(false);
         this.topDrift = new Int32Array(Cols);
@@ -241,3 +315,4 @@ SpritePopLevel.EdgeJump = 1;
 SpritePopLevel.EdgeFall = 2;
 SpritePopLevel.Far = Far;
 SpritePopLevel.Names = Names;
+SpritePopLevel.Themes = Themes;

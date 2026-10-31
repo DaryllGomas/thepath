@@ -16,7 +16,7 @@ function newCycle() { return { x: 0, y: 0, dir: 0, speed: 0, acc: 0, alive: fals
 
 export class GridCyclesDuel {
     constructor(w, h, seed) {
-        this.W = w; this.H = h;
+        this.wrap = false; this.W = w; this.H = h;
         this.cells = new Uint8Array(w * h);
         this.seq = new Int32Array(w * h);              // step index of each wall cell per owner (drawing joins consecutive cells)
         this._stamp = new Int32Array(w * h); this._stampId = 0;
@@ -39,7 +39,7 @@ export class GridCyclesDuel {
 
     static reverse(d) { return (d + 2) & 3; }
     inBounds(x, y) { return x >= 0 && y >= 0 && x < this.W && y < this.H; }
-    free(x, y) { return this.inBounds(x, y) && this.cells[y * this.W + x] === GridCyclesDuel.Empty; }
+    free(x, y) { if (this.wrap) { x=(x+this.W)%this.W; y=(y+this.H)%this.H; } return this.inBounds(x, y) && this.cells[y * this.W + x] === GridCyclesDuel.Empty; }
     cell(x, y) { return this.inBounds(x, y) ? this.cells[y * this.W + x] : -1; }
 
     // Parallel lanes, facing opposite ways: no head-on opening (the Unreal build's lesson).
@@ -100,6 +100,7 @@ export class GridCyclesDuel {
             rnx = rival.x + DX[rival.dir]; rny = rival.y + DY[rival.dir];
             if (this.free(rnx, rny)) rMove = true; else rCrash = true;
         }
+        if (this.wrap) { pnx=(pnx+W)%W; pny=(pny+this.H)%this.H; rnx=(rnx+W)%W; rny=(rny+this.H)%this.H; }
         if (pMove && rMove && pnx === rnx && pny === rny) {
             if (this.playerAssist) { pMove = false; this.playerStalls++; rCrash = true; rMove = false; }
             else { pCrash = true; rCrash = true; pMove = rMove = false; }

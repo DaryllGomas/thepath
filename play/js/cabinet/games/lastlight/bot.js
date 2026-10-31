@@ -1,11 +1,11 @@
 // THE NODE · world 1 · LAST LIGHT on the Cabinet Engine · THE BOT: a modelled average player.
-// Port of LastLightBot.cs from Staging/Batch1/lastlight.
+// Expanded from the original pilot: it now leads the carrier hull as well as warheads.
 //
 // It plays through the control panel like anyone else: it pushes the stick to walk the crosshair
 // and taps A. Its rule: go for the missile with the LEAST TIME TO IMPACT that has no interceptor
 // already en route, and LEAD its path (aim where the warhead will be when the interceptor gets
 // there and the blast has grown). Missiles falling on rubble come last, and once it is down to
-// spareShots (12) shots it lets them burn. It never shoots the bomber on purpose.
+// spareShots (12) shots it lets them burn. It concentrates on the carrier once the sky thins.
 //
 // What makes it average rather than perfect (its dice are its own, never the sim's):
 //   reaction   0.55 s  a new missile is on screen this long before it is noticed    (x form)
@@ -58,6 +58,13 @@ export class LastLightBot extends CabinetBotBase {
         if (this._lapseT > 0) { this._lapseT -= dt; return InputFrame.neutral; }
         if (this.chance(this.lapse * this.form * dt)) { this._lapseT = this.range(this.lapseMin, this.lapseMax); return InputFrame.neutral; }
 
+        if (s.boss && s.boss.alive && (s.inbound < 3 || s.waveTime > 36)) {
+            const b = s.boss, ax = clamp(b.x + b.vx * 0.8, 35, 285), dx = ax - s.crossX, dy = b.y - s.crossY;
+            const d = Math.hypot(dx, dy);
+            if (d < 4 && this._gap <= 0) { this._gap = 0.55; return this.tapA(); }
+            if (d > 2) return new InputFrame(dx / Math.max(14, d), -dy / Math.max(14, d));
+            return InputFrame.neutral;
+        }
         let m = this._find(s, this._targetId);
         if (m == null || this._isCovered(s, m)) {
             m = this._choose(s);
@@ -97,7 +104,7 @@ export class LastLightBot extends CabinetBotBase {
     _choose(s) {
         let best = null, bestT = Infinity;
         for (const m of s.missiles) {
-            if (!m.alive || m.age < this.reaction * this.form || m.ty - m.y < 4) continue;
+            if (m.decoy || !m.alive || m.age < this.reaction * this.form || m.ty - m.y < 4) continue;
             if (this._isCovered(s, m)) continue;
             let tti = m.timeToImpact;
             const sol = this._solve(s, m, 1);

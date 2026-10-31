@@ -1,17 +1,5 @@
 // THE NODE · world 1 · LUNAR DUTY (Anvil & Sparks, 1982) on the Cabinet Engine · THE CARTRIDGE: spec + factories.
-// Port of LunarDutyCartridge.cs.
-//
-// Palette = the brief's six (void black, moondust grey, dome cyan, missile red, buggy tan, UFO
-// magenta) plus one or two darker steps of each for the parallax layers, shading and the palette
-// fades. The title art is the accepted cabinet art's moment: the six-wheeled buggy in the air over
-// a crater, a cannon shot on its way to a rock, a UFO letting go of a bomb.
-//
-// Knobs (Mercy.resolve eases them per round already lost on this cabinet):
-//   hazardDensity  share of the fixed course's rocks, craters, mines and UFOs that are there (x0.9/loss)
-//   craterWidth    crater width scale, the course's and the bombs' (x0.92/loss)
-//   bombRate       how often the UFOs bomb (x0.9/loss); 0 on the unlosable credit
-//   speed          cruise speed, px/s
-//   tankInterval   seconds between a tank's shells
+// Six-sector patrol, original palette and expanded scoring.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob, roundEven } from '../../sdk/index.js';
 import * as Sprites from './sprites.js';
 
@@ -68,22 +56,23 @@ function buildSpec() {
         publisher: 'ANVIL AND SPARKS',
         year: 1982,
         palette: LunarDutyPalette,
-        tagline: 'PATROL THE MOON FROM POINT A TO E',
-        controls: ['STICK SPEED   A JUMP   B FIRE', 'JUMP THE CRATERS  SHOOT THE REST'],
-        roundWonText: 'ROUND WON',
+        tagline: 'SIX SECTORS. ONE LAST BEACON.',
+        controls: ['STICK SPEED  A JUMP  HOLD B FIRE', 'JUMP THE CRATERS  SHOOT THE REST'],
+        roundWonText: 'PATROL COMPLETE',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [9000, 7500, 6000, 4500, 3000],
+        highScoreSeed: [10000, 8000, 6000, 3500, 2000],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
             Knob.mul('hazardDensity', 1.0, 0.90, "share of the course's hazards and UFOs that are there").clamp(0.3, 1),
             Knob.mul('craterWidth', 1.0, 0.96, 'crater width scale (course + bomb craters)').clamp(0.5, 1.2),
-            Knob.mul('bombRate', 1.4, 0.88, 'how often a UFO bombs').clamp(0, 3).setOnMercy(0),
+            Knob.mul('bombRate', 1.9, 0.79, 'how often a UFO bombs').clamp(0, 3).setOnMercy(0),
             Knob.fixed('bombAim', 0.4, 'share of the bombs dropped right over the buggy'),
             Knob.fixed('speed', 72, 'cruise speed px/s (the stick gives +-25%)'),
             Knob.mul('tankInterval', 2.2, 1.12, "seconds between a tank's shells").clamp(1, 5),
         ],
     });
+    s.hints = [['LR', 'SPEED'], ['A', 'JUMP'], ['B', 'FIRE']];
     s.phaseNames.set(CabinetState.Intro, 'ready');
     s.phaseNames.set(CabinetState.Playing, 'patrol');
     s.phaseNames.set(CabinetState.Interlude, 'interlude');      // a crash, or the roll-out past point E

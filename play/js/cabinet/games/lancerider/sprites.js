@@ -150,3 +150,103 @@ export function make(rows, map) {
         }
     return s;
 }
+
+// THE CINDER HAWK (facing right): F flame body, f its dark edge, Y white-hot crest, W eye, G beak.
+// Two frames: wings up, the downstroke.
+export const RowsHawkUp = [
+    "......YY..............",
+    ".....YFFY.............",
+    "....YFFFf.............",
+    "...YFFFff.......FFF...",
+    "..YFFFFffFFFFFFFFYWF..",
+    ".fFFFFFFFFFFFFFFFFFFGG",
+    "ff..ffFFFFFFFFFFFFf...",
+    "f......fffFFFFff......",
+    "..........f..f........",
+];
+
+export const RowsHawkDown = [
+    "......................",
+    "......................",
+    "................FFF...",
+    "...............FFYWF..",
+    "..ffFFFFFFFFFFFFFFFFGG",
+    ".fFFFFFFFFFFFFFFFFFf..",
+    "ff..YFFFFFFFFFFfff....",
+    "f....YFFFFFf..........",
+    "......YFFFf...........",
+];
+
+// THE PIT BEAST's head (facing right; its jaws to the right). The crown's centre is column 16
+// (BEAST_CROWN_COL): the beast's x. H hide, h its lit edge, D dark stone (brow), S stone, L bone
+// (horns, teeth), O lava (the cracks in its hide), Y white-hot eye, W white, G crown gold, g its shade,
+// o the dark of its lip. Rows 0..4 are its crown (three spikes, the gem), rows 15..18 its mouth (open
+// in the second frame).
+export const BEAST_CROWN_COL = 16;
+export const RowsBeastShut = [
+    "............G...G...G...................",
+    "...........gG..GWG..Gg..................",
+    "...SS......gGGgGYGgGGg..................",
+    "....SS.....gGGGGGGGGGg..................",
+    "....SSL...gGgGGGGGGGgGg.................",
+    ".....SSLhhhhhhhhhhhhhhhh................",
+    "......SHHHHHHHHHHHHHHHHHhh..............",
+    ".....hHHHHHHHHHHHHHHHHHHHHhh............",
+    "....hHHHHHHHHHHHHHHHHHDDDHHHhh..........",
+    "...hHHHHHHHHHHHHHHHHHDYYWDHHHHhh........",
+    "...HHHOHHHHHHHHHHHHHHDYYYDHHHHHHhhh.....",
+    "..HHHOOHHHHHHHHHHHHHHHDDDHHHHHHHHHHhh...",
+    "..HHHHOHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHho.",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH.",
+    "..HHHHHHHHHHHHHHHHHHHHHHoLoLoLoLoLoLoLo.",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH..",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHh..",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHh...",
+    "...HHHHHOHHHHHHHHHHHHHHHHHHHHHHHHHhh....",
+    "...HHHHOOHHHHHHHHHHHHHHHHHHHHHHhhh......",
+    "....HHHHHHHHHHHHHHHHHHHHHHHHhhh.........",
+    ".....HHHHHHHHHHHHHHHHHhhhh..............",
+    "......HHHHHHHHHHHHHHH...................",
+    ".......HHHHHHHHHHHH.....................",
+];
+export const RowsBeastOpen = [
+    "............G...G...G...................",
+    "...........gG..GWG..Gg..................",
+    "...SS......gGGgGYGgGGg..................",
+    "....SS.....gGGGGGGGGGg..................",
+    "....SSL...gGgGGGGGGGgGg.................",
+    ".....SSLhhhhhhhhhhhhhhhh................",
+    "......SHHHHHHHHHHHHHHHHHhh..............",
+    ".....hHHHHHHHHHHHHHHHHHHHHhh............",
+    "....hHHHHHHHHHHHHHHHHHDDDHHHhh..........",
+    "...hHHHHHHHHHHHHHHHHHDYYWDHHHHhh........",
+    "...HHHOHHHHHHHHHHHHHHDYYYDHHHHHHhhh.....",
+    "..HHHOOHHHHHHHHHHHHHHHDDDHHHHHHHHHHhh...",
+    "..HHHHOHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHho.",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+    "..HHHHHHHHHHHHHHHHHHHHHHHHLLLHLLLHLLLHLL",
+    "..HHHHHHHHHHHHHHHHHHHHHHo..L...L...L...L",
+    "..HHHHHHHHHHHHHHHHHHHHHo................",
+    "..HHHHHHHHHHHHHHHHHHHHHo................",
+    "..HHHHHHHHHHHHHHHHHHHHHHo..L...L...L....",
+    "..HHHHHHHHHHHHHHHHHHHHHHHLLLHLLLHLLLHL..",
+    "...HHHHHOHHHHHHHHHHHHHHHHHHHHHHHHHHHh...",
+    "...HHHHOOHHHHHHHHHHHHHHHHHHHHHHHhhh.....",
+    "....HHHHHHHHHHHHHHHHHHHHHHHHhhh.........",
+    ".....HHHHHHHHHHHHHHHHHhhhh..............",
+    "......HHHHHHHHHHHHHHH...................",
+    ".......HHHHHHHHHHHH.....................",
+];
+
+export function hawkMap(P) {
+    return new Map([['F', P.indexOf('lava')], ['f', P.indexOf('lavaDark')], ['Y', P.indexOf('lavaHot')], ['W', P.indexOf('white')], ['G', P.indexOf('egg')]]);
+}
+
+export function beastMap(P) {
+    return new Map([
+        ['H', P.indexOf('hide')], ['h', P.indexOf('hideLight')], ['D', P.indexOf('stoneDark')], ['S', P.indexOf('stone')], ['L', P.indexOf('stoneLight')],
+        ['O', P.indexOf('lava')], ['o', P.indexOf('lavaDark')], ['Y', P.indexOf('lavaHot')], ['W', P.indexOf('white')], ['G', P.indexOf('egg')], ['g', P.indexOf('eggDark')],
+    ]);
+}

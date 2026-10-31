@@ -1,23 +1,25 @@
 // THE NODE · world 1 · VAULT DIGGER (Castle Coin, 1983) on the Cabinet Engine · the palette, the
-// sprite art and the SPEC (data only). Port of VaultDiggerCartridge.cs and the VaultArt static class
-// from VaultDiggerRenderer.cs (Staging/Batch2/vaultdigger).
+// sprite art and the SPEC (data only). Grew out of the port of VaultDiggerCartridge.cs and the VaultArt
+// static class from VaultDiggerRenderer.cs (Staging/Batch2/vaultdigger); the build-out (2026-10-18) added
+// the heist's art: cracked brick, the key, the crown, the payroll sack and the warden.
 // VaultArt lives here (not renderer.js) so both the renderer and the title art can read it without an
 // import cycle back to renderer.js.
 //
 // Palette: vault-blue brick (three steps), slate bedrock, ladder grey, gold (three steps), guard red
-// (two), the runner's white with a blue-grey shade. 15 colours. The sprite rows below index this
-// palette by position, so its ORDER is load-bearing.
+// (two), the runner's white with a blue-grey shade, then the build-out's four: the warden's violet (two)
+// and the key's green (two). 19 colours. The sprite rows below index this palette by position
+// ('0'-'9', then 'a'-'i'), so its ORDER is load-bearing.
 //
-// Knobs (tuned on the Lab bench, 200 rounds a credit, worst case):
+// Knobs (tuned on the Lab bench, worst case):
 //   runSpeed      the runner, tiles/s                                     fixed
-//   guardSpeed    a guard's pace as a fraction of the runner's             fixed
-//   guardPathing  chance a guard's decision HUNTS (the runner's row, then  x0.9 a loss (MERCY)
-//                 the column); otherwise it looks about, then patrols
+//   guardSpeed    a guard's pace as a fraction of the runner's             fixed (x each vault's pace)
+//   guardPathing  chance a guard's decision HUNTS (the runner's row, then  -0.07 a loss (MERCY)
+//                 the column); otherwise it looks about, then patrols      (+ each vault's hunt)
 //   guardHesitate seconds a guard that is not hunting looks about first    fixed
-//   holeTime      seconds a dug hole stays open                           +0.5 s a loss (MERCY)
+//   holeTime      seconds a dug hole stays open                           +0.6 s a loss (MERCY)
 //   trapShare     a trapped guard is held for this share of holeTime      fixed (so it eases with holeTime)
-//   guards        how many guards hunt                                    fixed
 //   guardGreed    chance a guard picks up the gold it walks over          fixed
+//   lives         runners a coin starts with (whole ones, 5 to 7)         +0.5 a loss (MERCY)
 // Credit 5 (the unlosable credit) is the sim's own rule: the guards wander, the runner cannot die.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 
@@ -37,6 +39,10 @@ export const VaultDiggerPalette = new Palette(
     ['redLo', 0x7A0C1A],
     ['white', 0xF4F4F4],     // the runner
     ['shade', 0x8E9CC6],
+    ['violet', 0xA85CF2],    // the warden
+    ['violetLo', 0x4A1E86],
+    ['green', 0x4CE07A],     // the key
+    ['greenLo', 0x1A6A36],
 ).roles('bg', 'white', 'gold', 'goldHi', 'brickLo');
 
 // ------------------------------------------------------------------ VaultArt
@@ -287,6 +293,52 @@ const Glint = PixelSprite.fromRows(
     '..a..',
     '..d..');
 
+// ---- the build-out's art
+// cracked brick: the vault's brick with a dark split down it (it looks like floor and it is not)
+const Crack = PixelSprite.fromRows(
+    '3333333033333331',
+    '3222222022222221',
+    '3222220222222221',
+    '3222220222222221',
+    '3222202222222221',
+    '3222220222222221',
+    '3222222022222221',
+    '1111111101111111',
+    '3333333303333333',
+    '2222222220222222',
+    '2222222202222222',
+    '2222222022222222',
+    '2222222202222222',
+    '2222222220222222',
+    '2222222220222222',
+    '1111111110111111');
+// the key to the strongroom (green, so it never reads as gold)
+const Key = PixelSprite.fromRows(
+    '.hhhh.........',
+    'hhiihh........',
+    'hi..ihhhhhhhhh',
+    'hi..ihiiiiiiii',
+    'hhiihh...hh.hh',
+    '.hhhh....ii.ii');
+// the crown: gold, three points, red stones
+const Crown = PixelSprite.fromRows(
+    'a.....a.....a',
+    '9a...a9a...a9',
+    '99a.a999a.a99',
+    '9999999999999',
+    '9b99a9b9a99b9',
+    '9999999999999',
+    '8888888888888');
+// the payroll sack on a guard's back
+const Sack = PixelSprite.fromRows(
+    '..8888..',
+    '...88...',
+    '.899998.',
+    '89999a98',
+    '899a9998',
+    '8999a998',
+    '.888888.');
+
 // recolour sprite rows: each pair "Xy" swaps class char X for palette char y
 function mapRows(rows, pairs) {
     return rows.map(row => {
@@ -319,6 +371,7 @@ function makeFigure(w, s, e) {
 const RunnerFig = makeFigure('d', 'e', '0');
 const GuardFig = makeFigure('b', 'c', 'a');
 const FlashFig = makeFigure('a', '9', '0');   // the runner caught: a gold flash
+const WardenFig = makeFigure('f', 'g', 'a');  // the warden: violet, a gold eye
 
 // paste src into dst at (x, y), rows [sy0, sy1) of src only
 function paste(dst, src, x, y, flip = false, sy0 = 0, sy1 = 999) {
@@ -329,7 +382,7 @@ function paste(dst, src, x, y, flip = false, sy0 = 0, sy1 = 999) {
         }
 }
 
-export const VaultArt = { T: 16, Brick, Rock, Ladder, ExitLadder, Bar, Gold, Nugget, Glint, RunnerFig, GuardFig, FlashFig, paste };
+export const VaultArt = { T: 16, Brick, Rock, Ladder, ExitLadder, Bar, Gold, Nugget, Glint, Crack, Key, Crown, Sack, RunnerFig, GuardFig, FlashFig, WardenFig, paste };
 
 // the title card: the runner digs, a guard is trapped in the hole, gold beyond, a second guard
 // coming; a ladder at the left. 6 x 1.6 tiles, drawn x2.
@@ -356,27 +409,28 @@ function buildSpec() {
         publisher: 'CASTLE COIN',
         year: 1983,
         palette: VaultDiggerPalette,
-        tagline: 'TAKE EVERY BAR OF GOLD',
-        controls: ['STICK  RUN  CLIMB  HANG', 'A  DIG THE BRICK BESIDE YOU'],
-        roundWonText: 'ROUND WON',
+        tagline: 'FIVE VAULTS. ONE CROWN.',
+        controls: ['STICK  RUN  CLIMB  HANG', 'A DIG AHEAD    B DIG BEHIND'],
+        hints: [['STICK', 'RUN  CLIMB'], ['A', 'DIG AHEAD'], ['B', 'DIG BEHIND']],
+        roundWonText: 'HEIST COMPLETE',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [4000, 3300, 2600, 1900, 1200],
+        highScoreSeed: [24000, 20000, 16000, 12000, 8000],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
             Knob.fixed('runSpeed', 3.75, 'runner tiles/s'),
-            Knob.fixed('guardSpeed', 0.80, 'guard pace vs the runner'),
-            Knob.add('guardPathing', 0.51, -0.10, "chance a guard's decision hunts (else it looks about, then patrols)").clamp(0, 1),
+            Knob.fixed('guardSpeed', 0.80, "guard pace vs the runner (x each vault's pace)"),
+            Knob.add('guardPathing', 0.40, -0.07, "chance a guard's decision hunts, + each vault's hunt (else it looks about, then patrols)").clamp(0, 1),
             Knob.fixed('guardHesitate', 0.5, 'seconds a guard that is not hunting looks about first'),
-            Knob.add('holeTime', 4.0, 0.5, 'seconds a dug hole stays open').clamp(1, 8),
+            Knob.add('holeTime', 4.0, 0.6, 'seconds a dug hole stays open').clamp(1, 8),
             Knob.fixed('trapShare', 0.75, 'a trapped guard is held for this share of holeTime'),
-            Knob.fixed('guards', 3, 'guards in the vault'),
             Knob.fixed('guardGreed', 0.35, 'chance a guard picks up gold it walks over'),
+            Knob.add('lives', 5, 0.5, 'runners a coin starts with (whole ones)').clamp(5, 7),
         ],
     });
-    s.phaseNames.set(CabinetState.Intro, 'ready');
+    s.phaseNames.set(CabinetState.Intro, 'card');
     s.phaseNames.set(CabinetState.Playing, 'play');
-    s.phaseNames.set(CabinetState.Interlude, 'caught');
+    s.phaseNames.set(CabinetState.Interlude, 'interlude');
     return s;
 }
 

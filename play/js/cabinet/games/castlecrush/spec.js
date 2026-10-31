@@ -1,15 +1,22 @@
 // THE NODE · world 1 · CASTLE CRUSH (Ironclad Amusements, 1981) on the Cabinet Engine · the palette
-// and the SPEC (data only). Port of CastleCrushCartridge.cs from Staging/Batch1/castlecrush.
-// Split from cartridge.js so the renderer and the sim can read it without an import cycle.
+// and the SPEC (data only). Began as a port of CastleCrushCartridge.cs from Staging/Batch1/castlecrush;
+// built out 2026-10-18 into the six-castle campaign (stages.js, round.js). Split from cartridge.js so
+// the renderer and the sim can read it without an import cycle.
 //
 // The siege game: Breakout with a catapult. Palette: stone grey (three steps), cannonball black,
 // girder/banner red (two steps), gold (two steps), sky navy, and the cream + field green of the
-// accepted cabinet art (a red catapult and green archers against a cream-and-red castle).
+// accepted cabinet art (a red catapult and green archers against a cream-and-red castle); the
+// campaign adds the palisade's wood, the River Keep's water, the sorcerer's violet, fire orange and
+// the Night Siege's darker sky (21 colours).
 //
-// MERCY (bench, worst case: 31.5 / 51 / 62.5 / 72 / 100 %, rounds 74-110 s):
-//   credit 2-4  the stone eases x0.9 per lost round, the cart widens +4 px per lost round (20-60 px)
+// MERCY (bench, worst case, see NOTES.md):
+//   credit 2-4  the stone eases x0.94 per lost round, the cart widens +7 px per lost round (20-60 px),
+//               a spare stone per two lost rounds (4, 4, 5, 5),
+//               archers come x1.22 slower, the sorcerer regrows 2 fewer blocks, the engine has
+//               x0.80 the furnace hits (at least four)
 //   credit 5    (CreditInfo.unlosable) the golden net is strung under the cart in the sim itself:
-//               the stone cannot pass it and arrows glance off, so the round cannot be lost
+//               the stone cannot pass it and anything that strikes the beam glances off, so the
+//               round cannot be lost; the stone keeps its first-credit pace to shorten the siege
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 
 export const CastleCrushPalette = new Palette(
@@ -26,6 +33,14 @@ export const CastleCrushPalette = new Palette(
     ['green', 0x3E8E3C],        // a
     ['greenDark', 0x1E4E24],    // b
     ['hill', 0x141E48],         // c  the far hills, a step off the sky
+    ['wood', 0x9A5A2A],         // d  the Border Fort's palisade, the ballistas
+    ['woodDark', 0x5A3214],     // e
+    ['water', 0x2C5AA0],        // f  the River Keep's moat
+    ['waterLight', 0x7FB0E0],   // g
+    ['violet', 0x9A5AE0],       // h  the sorcerer, his runes, his hex
+    ['violetDark', 0x4A2878],   // i
+    ['orange', 0xF07820],       // j  fire: the fire stone, fire arrows, burning grass, the furnace
+    ['night', 0x05060E],        // k  the Night Siege's sky
 ).roles('sky', 'gold', 'red', 'cream', 'stoneDark');
 
 // the title card's picture: the catapult has just loosed, the stone arcs over to the castle, an
@@ -83,23 +98,26 @@ function buildSpec() {
         publisher: 'IRONCLAD AMUSEMENTS',
         year: 1981,
         palette: CastleCrushPalette,
-        tagline: 'BREAK THE WALLS  TOPPLE THE BANNER',
-        controls: ['STICK  ROLL THE CATAPULT', 'A  LAUNCH THE STONE', 'DODGE THE ARCHERS ARROWS'],
-        roundWonText: 'ROUND WON',
+        tagline: 'SIX CASTLES STAND  THE WARLORD WAITS',
+        controls: ['STICK  ROLL THE CATAPULT   A  LAUNCH', 'BREAK EVERY BLOCK  THE BANNER FALLS', 'CATCH THE POWER-UPS  DODGE THE ARROWS'],
+        hints: [['LR', 'ROLL THE CATAPULT'], ['A', 'LAUNCH THE STONE']],
+        roundWonText: 'VICTORY',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [7500, 6000, 4500, 3000, 1500],
+        highScoreSeed: [40000, 30000, 22000, 15000, 9000],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
-            Knob.mul('stoneSpeed', 158, 0.9, 'px/s of the stone at the first launch; x0.9 per lost round'),
-            Knob.add('cartWidth', 30, 4, 'px width of the catapult carts beam; +4 per lost round').clamp(20, 60),
+            Knob.mul('stoneSpeed', 122, 0.94, 'px/s of the stone at a castle\'s first launch (x the castle\'s own pace); x0.94 per lost round').setOnMercy(122),
+            Knob.add('cartWidth', 34, 7, 'px width of the catapult carts beam; +7 per lost round').clamp(20, 60),
+            Knob.mul('archerEvery', 4.5, 1.22, 'mean seconds between archers stepping up (x the castle\'s own pace); x1.22 per lost round'),
+            Knob.add('regrowBudget', 14, -2, 'blocks the sorcerer may regrow in the Wizard\'s Tower; -2 per lost round').clamp(4, 20),
+            Knob.mul('bossHp', 7, 0.80, 'furnace hits that break the warlord\'s engine; x0.80 per lost round').clamp(4, 30),
             Knob.fixed('cartSpeed', 200, 'px/s the cart rolls at full stick'),
-            Knob.fixed('speedRamp', 0.30, 'stone speed gained by the time the castle is down (+30 %)'),
-            Knob.fixed('archerEvery', 4.5, 'mean seconds between archers stepping up'),
-            Knob.fixed('archerMax', 2, 'archers on the battlements at once'),
+            Knob.fixed('speedRamp', 0.25, 'stone speed gained by the time a castle is down (+25 %)'),
             Knob.fixed('arrowSpeed', 85, 'px/s an arrow falls'),
-            Knob.fixed('powerBlocks', 9, 'gold-marked blocks that drop a power-up'),
-            Knob.fixed('stones', 3, 'stones (lives) per round'),
+            Knob.fixed('ballistaEvery', 4.6, 'mean seconds a ballista takes to reload'),
+            Knob.mul('potEvery', 6.5, 1.18, 'mean seconds between the engine\'s firepots (phase 1; quicker later)'),
+            Knob.add('stones', 4, 0.5, 'stones (lives) a game, +1 per two lost rounds; an extra one at 12000 and every 25000').clamp(4, 5),
         ],
     });
     s.phaseNames.set(CabinetState.Intro, 'ready');

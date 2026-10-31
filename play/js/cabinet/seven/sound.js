@@ -78,7 +78,7 @@ export class SevenSound {
     if (this.paused) return;
     let s = this.gs.get(g);
     if (!s) {
-      s = new GameSound(this.chip, PALETTES[id]); this.gs.set(g, s);
+      s = new GameSound(this.chip, typeof id === 'string' ? PALETTES[id] : id); this.gs.set(g, s);   // (the floor's games pass their palette)
       // a round already at its ready card when you arrive (a credit waiting, parked): the ready call, once (a Start cue in the
       // same frame is the same call: the voice's gap drops the repeat)
       if (g.mode === 'play' && g.sim && g.sim.phase === 'ready') s.play('start');

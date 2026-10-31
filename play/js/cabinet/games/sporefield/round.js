@@ -1,35 +1,19 @@
 // THE NODE · world 1 · SPORE FIELD (Bright Spark Inc., 1981) on the Cabinet Engine · THE ROUND.
-// Port of SporeFieldSim.cs from Staging/Batch1/sporefield.
-//
-// The tube is a 40 x 30 grid of 8 x 8 cells. The outer ring of cells is the curved tube's 8 px
-// safe margin and rows 1-2 are the HUD, so the FIELD is the 38 x 26 cells inside (col 1, row 3).
-// Every coordinate in here is in field cells: x 0..38 left to right, y 0..26 top to bottom, and a
-// thing "at" (x, y) has its centre there (a cell's centre is +0.5).
-//
-//   the field    mushrooms planted at random, denser toward the top (4 hits each, 1 point)
-//   the borer    12 segments file in at the top and walk sideways; a head that meets a mushroom
-//                or the edge drops a row and reverses. The body follows the head's path exactly.
-//                In the bottom strip it bounces between the strip's top and the bottom row.
-//                Shooting a body segment splits it (the piece behind gets a head), shooting a
-//                head shortens it; either way a mushroom grows where the segment was.
-//                Segment 10, head 100.
-//   the strip    the bottom 6 rows: the player moves here (4-way, blocked by mushrooms) and fires
-//                straight up, one shot on screen (hold A = autofire).
-//   the spider   bounces through the strip (and 2 rows above it), leans toward the wand for a few
-//                seconds, then leaves by the far side; eats mushrooms as it goes. No spider for 3 s
-//                after any GET READY. 300 / 600 / 900 by how close it was to you when shot.
-//   the flea     drops straight down when the strip is sparse, sowing mushrooms; 2 hits, 200.
-//
-// A touch from any of them costs a life (3): the wand bursts, the damaged mushrooms heal one by
-// one, the surviving borer pieces re-enter at the top, GET READY. ROUND WON = every segment of the
-// one borer destroyed. ROUND LOST = the third life gone.
-//
-// MERCY: the knobs thin the field 10% and slow the spider 35% per lost round. On the unlosable
-// credit (5) the borer cannot survive a mushroom hit and the player is shielded: contact does
-// nothing.
+// Six gardens on the old 38 x 26 field. Every split becomes another head; the last garden
+// keeps an armoured queen alive until her eye opens. A coin ends only at the queen or no wands.
+// Coordinates are field cells, centres at +0.5. The board runs at its own deliberate pace.
 import { f32, idiv, roundEven, fmt, F32, SoundCue, CueBuffer, CabinetState, RoundResult, Pad, Dir4, SystemRandom } from '../../sdk/index.js';
 
-const Phase = Object.freeze({ Idle: 0, Ready: 1, Playing: 2, Dying: 3, Card: 4, Over: 5 });
+const Phase = Object.freeze({ Idle: 0, Ready: 1, Playing: 2, Dying: 3, Card: 4, Over: 5, Tally: 6 });
+
+export const GARDENS = [
+    ['FIRST SPORES', 'SPLIT THE BORER. HOLD A TO FIRE.'],
+    ['SILK GARDEN', 'SPIDERS HUNT IN YOUR STRIP.'],
+    ['SEED RAIN', 'FLEAS PLANT NEW FIRING LANES.'],
+    ['BITTER ROOT', 'VIOLET SPORES MAKE HEADS DIVE.'],
+    ['NIGHT BLOOM', 'WATCH THE SIDES. B CLEARS SPACE.'],
+    ['QUEEN BORER', 'BREAK THE BODY. HIT THE OPEN EYE.'],
+];
 
 const GridW = 40, GridH = 30;
 const FieldCol = 1, FieldRow = 3;
@@ -82,6 +66,9 @@ export class SporeFieldRound {
         this.burstSeconds = f32(1.5);
         this.healStep = f32(0.1);
 
+        this.recordEvents = false; this.events = [];
+        this.stage = 0; this.cleared = 0; this.extra = false; this.particles = [];
+        this.poison = new Uint8Array(W * H);
         this.p = Phase.Idle; this.phaseTime = 0;
         this.credit = null;
         this.shielded = false; this.fragile = false;
@@ -116,6 +103,7 @@ export class SporeFieldRound {
         switch (this.p) {
             case Phase.Ready: return CabinetState.Intro;
             case Phase.Playing: return CabinetState.Playing;
+            case Phase.Tally: return CabinetState.Interlude;
             case Phase.Dying: return CabinetState.Interlude;
             case Phase.Card: return CabinetState.Card;
             case Phase.Over: return CabinetState.Over;
@@ -142,8 +130,11 @@ export class SporeFieldRound {
 
     reset(seed, credit, k) {
         this.credit = credit;
-        this._rng = seed === 0 ? new SystemRandom() : new SystemRandom(seed);
-        this.borerSpeed = k.get('borerSpeed');
+        this._rng = new SystemRandom(seed || 1);
+        this.events.length = 0; this.stage = this.isDemo ? 3 : 0; this.cleared = 0; this.extra = false; this._lifeMush = 0;
+        this.particles.length = 0; this.poison.fill(0);
+        this.burstCooldown = 0; this.burstFlash = 0; this.invulnerable = 3; this.stageTime = 0;
+        this.baseSpeed = k.get('borerSpeed'); this.borerSpeed = this.baseSpeed;
         this.spiderSpeed = k.get('spiderSpeed');
         this.spiderDelay = k.get('spiderDelay');
         this.spiderCross = k.get('spiderCross');
@@ -155,7 +146,7 @@ export class SporeFieldRound {
         this.fragile = k.get('fragile') >= 0.5;
         this.shielded = credit.unlosable;
 
-        this._score = 0; this._time = 0; this.lives = StartLives; this._result = RoundResult.None;
+        this._score = 0; this._time = 0; this.lives = Math.round(k.get('wands', 3)); this._result = RoundResult.None;
         this._deaths = this._bySpider = this._bySeg = this._byFlea = 0;
         this._spidersShot = this._fleasShot = this._headsShot = this._bodiesShot = this._mushShot = this._shots = this._eaten = this._spiderAte = 0;
         this.splits = 0; this.deathCause = 0;
@@ -163,7 +154,8 @@ export class SporeFieldRound {
         this.popups.length = 0;
 
         this.mush.fill(0);
-        this._plant(Math.trunc(roundEven(k.get('mushrooms'))));
+        this.plantCount = Math.trunc(roundEven(k.get('mushrooms')));
+        this._plant(this.plantCount);
 
         this.chains.length = 0;
         const c = new Chain();
@@ -178,6 +170,45 @@ export class SporeFieldRound {
         this._home();
         this.firstReady = true;
         this.p = Phase.Ready; this.phaseTime = 0; this._readyLen = this.readySeconds;
+        this._garden();
+    }
+
+    _emit(kind, o = {}) { if (this.recordEvents) this.events.push({ ...o, kind }); }
+
+    _garden() {
+        this.popups.length = 0; this.particles.length = 0; this.burstFlash = 0;
+        this.flight = 1; this.stageTime = 0; this.borerSpeed = f32(this.baseSpeed * (1 + this.stage * 0.09));
+        this.mush.fill(0); this.poison.fill(0); this._plant(this.plantCount + this.stage * 9);
+        this.chains.length = 0;
+        const c = new Chain(); c.dirX = c.entryDirX = 1;
+        const length = 12 + this.stage * 3;
+        for (let i = 0; i < length; i++) c.segs.push(newSeg(7 + this.stage * 3, -i));
+        if (this.stage === 5) { c.segs[0].queen = true; c.segs[0].hp = 16; }
+        this.chains.push(c);
+        if (this.stage >= 4) {
+            const side = new Chain(); side.dirX = side.entryDirX = -1;
+            for (let i = 0; i < 5; i++) side.segs.push(newSeg(W - 1, 9 - i));
+            this.chains.push(side);
+        }
+        if (this.stage >= 3) for (let i = 0; i < this.mush.length; i++)
+            if (this.mush[i] && i % 7 === this.stage) this.poison[i] = 1;
+        this.moveFrac = 0; this._count(); this._clearCritters(); this._home();
+        this.invulnerable = 3; this.burstCooldown = 0;
+        this.firstReady = true; this.p = Phase.Ready; this.phaseTime = 0;
+        this._readyLen = this.readySeconds; this._emit(this.stage === 5 ? 'boss' : 'stageStart');
+    }
+
+    _burst() {
+        this.burstCooldown = 9; this.burstFlash = 0.4; this.invulnerable = Math.max(this.invulnerable, 1.2);
+        this._emit('burst');
+        for (let ci = this.chains.length - 1; ci >= 0; ci--)
+            for (let k = this.chains[ci].segs.length - 1; k >= 0; k--) {
+                const g = this.chains[ci]?.segs[k];
+                if (g && this.segY(g) > ZoneTop - 2) this._shootSegment(ci, k);
+            }
+        if (this.spider.active) { this.spider.active = false; this._score += 300; this._spiderTimer = 3; }
+        if (this.flea.active) { this.flea.active = false; this._score += 200; }
+        for (let i = ZoneTop * W; i < this.mush.length; i++) this.mush[i] = 0;
     }
 
     // denser at the top, sparse in the strip, never in the bottom row (where you stand). Plain
@@ -225,7 +256,19 @@ export class SporeFieldRound {
         if (dt > f32(0.1)) dt = f32(0.1);
         if (dt <= 0) return;
         this._time = f32(this._time + dt);
+        dt = f32(dt * 0.78);
         this.phaseTime = f32(this.phaseTime + dt);
+        this.invulnerable = Math.max(0, this.invulnerable - dt);
+        this.burstCooldown = Math.max(0, this.burstCooldown - dt);
+        this.burstFlash = Math.max(0, this.burstFlash - dt);
+        if (!this.extra && this._score >= 6000) {
+            this.extra = true; this.lives++; this._emit('extraLife');
+            this.popups.push({ x: 19, y: 22, t: 2, points: 'EXTRA WAND' });
+        }
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const q = this.particles[i]; q.t -= dt; q.x += q.vx * dt; q.y += q.vy * dt;
+            if (q.t <= 0) this.particles.splice(i, 1);
+        }
         for (let i = this.popups.length - 1; i >= 0; i--) {
             const p = this.popups[i]; p.t = f32(p.t - dt);
             if (p.t <= 0) this.popups.splice(i, 1);
@@ -250,6 +293,14 @@ export class SporeFieldRound {
                     if (this._healDone && this.phaseTime >= f32(this.burstSeconds + 0.4)) this._afterDeath();
                 }
                 break;
+            case Phase.Tally:
+                if (this.phaseTime >= 2.8) {
+                    if (this.stage === 5) {
+                        this._result = RoundResult.Won; this.p = Phase.Card; this.phaseTime = 0;
+                        this._cues.emit(SoundCue.Win); this._emit('win');
+                    } else { this.stage++; this._garden(); }
+                }
+                break;
             case Phase.Card:
                 if (this.phaseTime >= this.cardSeconds) this.p = Phase.Over;
                 break;
@@ -257,9 +308,11 @@ export class SporeFieldRound {
     }
 
     _play(dt, input) {
+        this.stageTime += dt;
         this._movePlayer(dt, input);
+        if (input && input.held(Pad.B) && this.burstCooldown <= 0) this._burst();
         if (!this.shotActive && input != null && input.held(Pad.A)) {
-            this.shotActive = true; this.shotX = this.playerX; this.shotY = f32(this.playerY - 0.45); this._shots++;
+            this.shotActive = true; this.shotX = this.playerX; this.shotY = f32(this.playerY - 0.45); this._shots++; this._emit('fire');
             this._cues.emit(SoundCue.Tick);
         }
 
@@ -268,12 +321,12 @@ export class SporeFieldRound {
         this._count();
         if (this.segmentsLeft === 0) { this._win(); return; }
 
-        this._updateSpider(dt);
-        this._updateFlea(dt);
+        if (this.stage >= 1) this._updateSpider(dt);
+        if (this.stage >= 2) this._updateFlea(dt);
         if (this.shotActive) this._updateShot(dt);
         this._count();
         if (this.segmentsLeft === 0) { this._win(); return; }
-        if (!this.shielded) this._checkContact();
+        if (!this.shielded && this.invulnerable <= 0) this._checkContact();
     }
 
     _count() {
@@ -283,10 +336,17 @@ export class SporeFieldRound {
     }
 
     _win() {
-        this._result = RoundResult.Won;
-        this.p = Phase.Card; this.phaseTime = 0;
-        this.shotActive = false;
-        this._cues.emit(SoundCue.Win);
+        if (this.stage > 0 && this.stage < 5 && this.flight === 1) {
+            this.flight = 2;
+            const c = new Chain(); c.dirX = c.entryDirX = this.stage % 2 ? -1 : 1;
+            for (let i = 0; i < 24 + this.stage * 2; i++) c.segs.push(newSeg(this.stage % 2 ? W - 3 : 2, -i));
+            this.chains.push(c); this._count(); this._emit('reinforce');
+            this.popups.push({ x: 19, y: 6, t: 2, points: 'SECOND BROOD' });
+            return;
+        }
+        this.cleared++; this.lastBonus = 1000 * (this.stage + 1) + this.lives * 200;
+        this._score += this.lastBonus; this.p = Phase.Tally; this.phaseTime = 0;
+        this.shotActive = false; this._emit('stageClear');
     }
 
     // ------------------------------------------------------------------ the player
@@ -364,7 +424,7 @@ export class SporeFieldRound {
                 nx = h.x + c.dirX; ny = h.y;
                 const edge = nx < 0 || nx >= W;
                 const shroom = !edge && this.mush[h.y * W + nx] > 0;
-                if (shroom && this.fragile) {
+                if (shroom && this.fragile && !h.queen) {
                     // MERCY: the borer cannot survive a mushroom. The head is destroyed on it and
                     // the next segment leads on (into the same mushroom, a step later).
                     this._score += PtsSegment; this._eaten++;
@@ -374,7 +434,9 @@ export class SporeFieldRound {
                     for (const s of c.segs) { s.px = s.x; s.py = s.y; }
                     continue;
                 }
-                if (edge || shroom) {
+                if (this.poison[h.y * W + h.x] && h.y < ZoneTop) c.diving = true;
+                if (c.diving && h.y < ZoneTop) { nx = h.x; ny = h.y + 1; }
+                else if (edge || shroom) {
                     let dy = c.dirY;
                     if (dy > 0 && h.y >= H - 1) dy = -1;
                     else if (dy < 0 && h.y <= ZoneTop) dy = 1;
@@ -392,7 +454,16 @@ export class SporeFieldRound {
     _shootSegment(ci, k) {
         const c = this.chains[ci];
         const s = c.segs[k];
+        if (s.queen) {
+            if (c.segs.length > 1 && Math.floor(this.stageTime / 2) % 2 === 0) { this._emit('armour'); return; }
+            s.hp--; this._emit('queenHit');
+            if (s.hp > 0) return;
+            this._score += 5000; this._emit('queenGone');
+        }
         const head = k === 0;
+        this._emit(head ? 'head' : 'split');
+        this.popups.push({ x: this.segX(s), y: this.segY(s), t: 0.7, points: head ? 100 : 10 });
+        for (let n = 0; n < 8; n++) this.particles.push({ x: this.segX(s), y: this.segY(s), vx: Math.cos(n * 0.785) * 4, vy: Math.sin(n * 0.785) * 4, t: 0.5 });
         this._score += head ? PtsHead : PtsSegment;
         if (head) this._headsShot++; else { this._bodiesShot++; this.splits++; }
         this._cues.emit(SoundCue.Hit);
@@ -435,7 +506,7 @@ export class SporeFieldRound {
         if (!sp.active) {
             this._spiderTimer = f32(this._spiderTimer - dt);
             if (this._spiderTimer <= 0) {
-                sp.active = true;
+                sp.active = true; this._emit('spider');
                 sp.dir = this._rng.next(2) === 0 ? 1 : -1;
                 sp.x = sp.dir > 0 ? -1 : f32(W + 1);
                 sp.y = f32(SpiderTop + f32(f32(this._rng.nextDouble()) * f32(SpiderBottom - SpiderTop)));
@@ -494,8 +565,8 @@ export class SporeFieldRound {
             this._fleaTimer = f32(this._fleaTimer - dt);
             if (this._fleaTimer <= 0) {
                 this._fleaTimer = f32(1.5);
-                if (this.stripMushrooms() < this.fleaThreshold) {
-                    fl.active = true; fl.hits = 0;
+                if (this.stripMushrooms() < this.fleaThreshold + this.stage * 3) {
+                    fl.active = true; this._emit('flea'); fl.hits = 0;
                     fl.x = f32(this._rng.next(W) + 0.5); fl.y = f32(-0.5); fl.vy = this.fleaSpeed; fl.vx = 0;
                 }
             }
@@ -553,8 +624,8 @@ export class SporeFieldRound {
                 if (y1 < 0) { this.shotActive = false; this._cues.emit(SoundCue.Miss); }
                 return;
             case 1:
-                this.mush[b * W + a]--;
-                if (this.mush[b * W + a] === 0) { this._score += PtsMushroom; this._mushShot++; }
+                this.mush[b * W + a]--; this._emit('mushroom');
+                if (this.mush[b * W + a] === 0) { this._score += PtsMushroom; this._mushShot++; this._lifeMush++; }
                 break;
             case 2:
                 this._shootSegment(a, b);
@@ -563,7 +634,7 @@ export class SporeFieldRound {
                 const dx = f32(sp.x - this.playerX), dy = f32(sp.y - this.playerY);
                 const d = f32(Math.sqrt(f32(f32(dx * dx) + f32(dy * dy))));
                 const pts = d < 3 ? 900 : d < 6 ? 600 : 300;
-                this._score += pts; this._spidersShot++;
+                this._score += pts; this._spidersShot++; this._emit('spiderHit');
                 this.popups.push({ x: sp.x, y: sp.y, t: 1.0, points: pts });
                 sp.active = false;
                 this._spiderTimer = f32(this.spiderDelay * f32(0.6 + f32(0.8 * this._rng.nextDouble())));
@@ -573,7 +644,7 @@ export class SporeFieldRound {
             case 4:
                 fl.hits++;
                 if (fl.hits >= 2) {
-                    this._score += PtsFlea; this._fleasShot++;
+                    this._score += PtsFlea; this._fleasShot++; this._emit('fleaHit');
                     this.popups.push({ x: fl.x, y: fl.y, t: 0.8, points: PtsFlea });
                     fl.active = false; this._fleaTimer = 3;
                     this._cues.emit(SoundCue.Bonus);
@@ -598,7 +669,8 @@ export class SporeFieldRound {
     }
 
     _die(cause) {
-        this.lives--; this._deaths++;
+        this.lives--; this._deaths++; this._emit('death');
+        this.lifeBonus = this._lifeMush * 5; this._lifeMush = 0; this._score += this.lifeBonus;
         if (cause === 1) this._bySpider++; else if (cause === 2) this._bySeg++; else this._byFlea++;
         this.deathCause = cause;
         this.deathX = this.playerX; this.deathY = this.playerY;
@@ -624,7 +696,7 @@ export class SporeFieldRound {
             return;
         }
         for (let i = 0; i < this.mush.length; i++) if (this.mush[i] > 0 && this.mush[i] < MushroomHp) this.mush[i] = MushroomHp;
-        this._reEnter();
+        this.invulnerable = 3; this._reEnter();
         this._clearCritters();
         this.popups.length = 0;
         this._home();

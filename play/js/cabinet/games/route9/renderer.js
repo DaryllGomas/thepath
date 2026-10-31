@@ -20,7 +20,7 @@ import { PixelFont, SurfaceDraw, d6, dn } from '../../sdk/index.js';
 import * as Art from './art.js';
 import { Route9View, Left, Top, Right, Bottom, floorDiv } from './view.js';
 import {
-    Route9Sim, HazardType, LotKind, Subscribers, MailboxL, WallL, DogHomeL, BundleL,
+    Route9Sim, Days, HazardType, LotKind, Subscribers, MailboxL, WallL, DogHomeL, BundleL,
     HouseS0, HouseS1, DoorOff, PorchHalf, WindowHalf,
     lotEnd, lotMailboxS, lotDoorS, lotWindowS, lotCarLaneS, lotCarDir, lotBundleS,
 } from './sim.js';
@@ -75,7 +75,37 @@ export class Route9Renderer {
         this._drawFlat(s, r, v, t);
         this._drawUpright(s, r, v, t);
         this._drawAir(s, r, v, t);
+        for (const q of r.targets) {
+            if (q.s < v.nearS || q.s > v.farS) continue;
+            const x = v.x(q.s, 102), y = v.y(q.s);
+            s.rect(x - 5, y - 24, 11, 14, this.cBg);
+            s.frame(x - 4, y - 23, 9, 12, q.hit ? this.cLawn : this.cGold);
+            s.text(q.hit ? '+' : 'O', x - 2, y - 21, PixelFont.Small, this.cPaper);
+            const rx = v.x(q.s - 20, [118,146,166][q.lane]), ry = v.y(q.s - 20);
+            s.line(rx - 7, ry, rx + 7, ry - 8, this.cGold);
+            s.line(rx + 7, ry - 8, rx + 7, ry, this.cDusk);
+        }
+        for (const h of r.hazards) {
+            if (h.s < v.nearS || h.s > v.farS || h.hit) continue;
+            if (h.variant >= 5) {
+                const x = v.x(h.s, h.l), y = v.y(h.s);
+                s.rect(x - 10, y - 4, 20, 7, this.cBg);
+                for (let k = -8; k < 9; k += 4) s.line(x + k, y - 3, x + k + 2, y + 1, h.variant === 5 ? this.cDusk : this.cCurb);
+            }
+            if (h.s - r.bikeS > 18 && h.s - r.bikeS < 100) {
+                s.text('!', v.x(h.s, h.l), v.y(h.s) - 24, PixelFont.Arcade, this.cGold);
+            }
+        }
         s.noClip();
+        if (r.p === Route9Sim.Phase.Crash && r.phaseTime < 0.35)
+            s.frame(8, 32, 304, 200, this.cRed);
+        if (r.p === Route9Sim.Phase.Riding) {
+            const label = r.bikeS > r.courseS - 70 ? 'TRAINING COURSE / RAMPS + HOLD A' : Days[r.day][0] + ' / ' + Days[r.day][1];
+            s.rect(36, 33, 248, 11, this.cBg);
+            s.textCentered(label, 160, 36, PixelFont.Small, this.cGold);
+            s.rect(8, 229, 304, 3, this.cBg);
+            s.rect(8, 230, Math.min(304, Math.trunc(304 * r.bikeS / r.finishS)), 2, this.cDusk);
+        }
         this._drawHud(s, r, t);
         this._drawCards(s, r, t);
     }
@@ -269,7 +299,7 @@ export class Route9Renderer {
             const show = r.invuln <= 0 || (Math.trunc(r.invuln * 5) & 1) === 0;     // 2.5 Hz while invulnerable
             if (show) {
                 const spr = r.throwAge < 0.22 ? Art.BikeThrow : (Math.trunc(r.bikeS / 7) & 1) === 0 ? Art.BikeA : Art.BikeB;
-                ups.push({ s: r.bikeS, l: r.bikeL, spr, map: this.baseMap, flip: false, lift: 0, shadow: 11 });
+                ups.push({ s: r.bikeS, l: r.bikeL, spr, map: this.baseMap, flip: false, lift: Math.trunc(22 * Math.sin(Math.min(1, r.jump / 0.8) * Math.PI)), shadow: 11 });
             }
         }
 
@@ -341,16 +371,9 @@ export class Route9Renderer {
         // deliveries
         g.blit(Art.IconMailbox, 166, 11, this.pal);
         g.text(dn(r.delivered, 2), 179, 10, dsp, this.cGold, 2);
-        g.text('/12', 211, 19, arc, this.cGold);
-        // the three misses
-        for (let i = 0; i < r.missesToEnd; i++) {
-            const x = 236 + i * 9;
-            if (i < r.missed) {
-                g.rect(x, 11, 8, 8, this.cRed);
-                g.line(x + 1, 12, x + 6, 17, this.cPaper); g.line(x + 6, 12, x + 1, 17, this.cPaper);
-            } else g.frame(x, 11, 8, 8, this.cPurple);
-        }
-        g.text('MISS', 236, 22, sm, this.cPurple);
+        g.text('/' + r.lots.filter(l => l.subscriber).length, 211, 19, arc, this.cGold);
+        g.text(Days[r.day][0].slice(0,3), 236, 11, arc, this.cGold);
+        g.text('DAY ' + (r.day + 1), 236, 22, sm, this.cPaper);
         // bikes left
         g.blit(Art.IconBike, 268, 10, this.pal);
         g.text(String(Math.max(0, r.lives)), 292, 10, dsp, r.lives <= 1 ? this.cRed : this.cPaper, 2);
@@ -362,12 +385,20 @@ export class Route9Renderer {
         const dsp = PixelFont.Display, arc = PixelFont.Arcade;
         const spec = Route9Spec;
         if (r.p === Route9Sim.Phase.Intro) {
-            g.textBox('ROUTE 9', 160, 64, dsp, 3, this.cGold, this.cDusk, this.cBg);
-            g.plate(76, 100, 168, r.mercyActive ? 52 : 40, this.cBg, this.cDusk);
-            g.textCentered('DELIVER TO ALL 12', 160, 106, arc, this.cPaper);
-            g.textCentered('SUBSCRIBERS', 160, 117, arc, this.cPaper);
-            if (SurfaceDraw.blink(r.phaseTime + 0.25)) g.textCentered('GET READY', 160, 128, arc, this.cGold);
-            if (r.mercyActive) g.textCentered('FREE RIDE: NO HAZARDS', 160, 140, arc, this.cDusk);
+            g.plate(24, 65, 272, 106, this.cBg, this.cDusk);
+            g.textCentered('DAY ' + (r.day + 1) + ' / ' + Days[r.day][0], 160, 77, arc, this.cGold, 2);
+            g.textCentered(Days[r.day][1], 160, 101, arc, this.cPaper, 2);
+            g.textCentered(Days[r.day][2], 160, 126, arc, this.cGold);
+            g.textCentered('A THROW   B HOP   9000 EXTRA BIKE', 160, 143, PixelFont.Small, this.cPaper);
+            g.textCentered(r.mercyActive ? 'FREE RIDE - KEEP ROLLING' : 'LIT BOXES / DARK WINDOWS', 160, 157, PixelFont.Small, this.cDusk);
+        } else if (r.p === Route9Sim.Phase.Tally) {
+            g.plate(43, 63, 234, 116, this.cBg, this.cGold);
+            g.textCentered(Days[r.day][0] + ' EDITION', 160, 74, arc, this.cGold, 2);
+            const n = Math.min(1, r.phaseTime / 2);
+            g.textCentered('DELIVERIES  ' + Math.trunc(r.tally.delivery * n), 160, 103, arc, this.cPaper);
+            g.textCentered('COURSE      ' + Math.trunc(r.tally.course * n), 160, 119, arc, this.cPaper);
+            g.textCentered('CLEAN RIDE  ' + Math.trunc(r.tally.perfect * n), 160, 135, arc, this.cGold);
+            g.textCentered(r.day === 6 ? 'NEXT: THE FRONT PAGE' : 'NEXT DAY - KEEP YOUR BIKES', 160, 160, PixelFont.Small, this.cDusk);
         } else if (r.p === Route9Sim.Phase.Crash) {
             g.textBox('CRASH!', 160, 70, dsp, 3, this.cPaper, this.cRed, this.cBg);
             const left = r.lives <= 0 ? 'NO BIKES LEFT' : r.lives === 1 ? 'LAST BIKE' : r.lives + ' BIKES LEFT';
@@ -376,9 +407,20 @@ export class Route9Renderer {
             g.textCentered(left, 160, 107, arc, r.lives <= 1 ? this.cRed : this.cPaper);
         } else if (r.p === Route9Sim.Phase.Card || r.p === Route9Sim.Phase.Over) {
             const won = r.roundWon;
+            if (won) {
+                g.plate(35, 53, 250, 144, this.cPaper, this.cDusk);
+                g.textCentered('THE ROUTE NINE POST', 160, 65, arc, this.cBg, 2);
+                g.line(44, 86, 275, 86, this.cBg);
+                g.textCentered('LOCAL RIDER MAKES GOOD', 160, 97, arc, this.cRed);
+                g.textCentered('SEVEN EDITIONS DELIVERED', 160, 115, arc, this.cBg);
+                g.textCentered('SCORE ' + d6(r.score), 160, 136, arc, this.cRoof, 2);
+                g.textCentered(r.totalDelivered + ' PAPERS / ' + r.lives + ' BIKES SPARE', 160, 160, arc, this.cBg);
+                g.textCentered('NORTHGATE SALUTES ITS RIDER', 160, 181, PixelFont.Small, this.cRoof);
+                return;
+            }
             g.textBox(won ? spec.roundWonText : spec.roundLostText, 160, 58, dsp, 3, won ? this.cGold : this.cDusk, won ? this.cGold : this.cRed, this.cBg);
             g.plate(64, 92, 192, 68, this.cBg, won ? this.cGold : this.cRed);
-            g.textCentered('DELIVERED ' + r.delivered + ' OF 12', 160, 100, arc, this.cPaper);
+            g.textCentered(won ? 'LOCAL RIDER MAKES GOOD!' : 'DAY ' + (r.day + 1) + ' / ' + Days[r.day][0], 160, 100, arc, this.cPaper);
             g.textCentered('SCORE ' + d6(r.score), 160, 114, arc, this.cGold, 2);
             const why = won ? (r.windows > 0 ? r.windows + ' WINDOWS  ' : '') + r.lives + (r.lives === 1 ? ' BIKE' : ' BIKES') + ' SPARE'
                              : r.endReason;

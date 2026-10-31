@@ -3,7 +3,7 @@
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap">
 <style>
   :root {
     color-scheme: dark;
@@ -56,10 +56,14 @@
   #prompt.on { opacity: 1; }
   .key { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 7px; border: 2px solid var(--amber);
     border-radius: 3px; font-size: 26px; line-height: 1; background: rgba(10, 7, 5, 0.55); box-shadow: inset 0 -3px 0 var(--amber-dim); }
-  #line { position: absolute; left: 50%; bottom: 21vh; transform: translateX(-50%); width: min(760px, calc(100% - 32px));
-    text-align: center; font-family: var(--type); font-size: 21px; color: #f3dcae; line-height: 1.4; opacity: 0; transition: opacity 0.5s; }
+  /* captions: bold, and sized by the screen's height (about 30 px at 1080, 29 at 1024, 20 at 720), so they still read on a TV at 1280x1024;
+     they sit at 29vh, above the gloves on the bars (batch 2: the hands reach up to ~27% from the bottom);
+     the box is wide enough that the longest line (about 80 characters) wraps to two lines at most */
+  #line { position: absolute; left: 50%; bottom: 29vh; transform: translateX(-50%); width: min(1120px, calc(100% - 32px));
+    text-align: center; font-family: var(--type); font-size: clamp(20px, 2.8vh, 34px); font-weight: 700; color: #f3dcae; line-height: 1.4; opacity: 0; transition: opacity 0.5s;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
   #line.on { opacity: 1; }
-  #line span { background: rgba(10, 7, 5, 0.62); padding: 3px 10px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  #line span { background: rgba(10, 7, 5, 0.62); padding: 0.1em 0.35em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   /* a sound from somewhere else (the walkie in the yard): quieter, in italics */
   #line.faint span { font-style: italic; color: #cdb993; background: rgba(10, 7, 5, 0.5); }
   /* the areaway door, while the yard is still on its way: a small pill of dots, then the door opens by itself */

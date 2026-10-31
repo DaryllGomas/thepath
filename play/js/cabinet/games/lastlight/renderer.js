@@ -13,6 +13,7 @@
 //   - under each silo its shots in display digits (OUT / RELOAD / -- when gone)
 //   - a fallen dome steps white -> grey -> rubble; the mercy shield is a cyan ring
 //   - WAVE n banners, WAVE n CLEAR, the bonus tally and the cards on double-framed plates
+import { STAGES } from './stages.js';
 import { roundEven, PixelFont, d6 } from '../../sdk/index.js';
 import { LastLightPalette, LastLightSpec, LastLightBomberSprite } from './spec.js';
 import { LastLightRound } from './round.js';
@@ -56,6 +57,7 @@ export class LastLightRenderer {
         const g = sim;
         if (g == null) return;
 
+        this.cRed = [LastLightPalette.get('red'), this.cYellow, this.cWhite, LastLightPalette.get('red')][Math.floor(g.subWave / 2)];
         s.clip(8, SkyTop, 304, 213 - SkyTop);
         for (let i = 0; i < starX.length; i++) s.setPixel(starX[i], starY[i], starBright[i] ? this.cDust : this.cDustDim);
         this._drawGround(s);
@@ -66,6 +68,28 @@ export class LastLightRenderer {
             this._drawMissiles(s, g);
             if (g.saucer != null && g.saucer.alive) s.blit(LastLightBomberSprite, R(g.saucer.x) - 7, R(g.saucer.y) - 3, LastLightPalette);
             this._drawBlasts(s, g);
+            const b = g.boss;
+            if (b && b.alive) {
+                const x = R(b.x), y = R(b.y), c = b.cooldown > 0.45 ? this.cWhite : this.cRed;
+                s.line(x - 24, y + 4, x - 15, y - 3, c); s.line(x + 24, y + 4, x + 15, y - 3, c);
+                s.rect(x - 15, y - 4, 31, 9, c); s.rect(x - 8, y - 8, 17, 4, this.cDust);
+                s.rect(x - 21, y + 5, 43, 2, this.cDustDim);
+                for (let i = -12; i <= 12; i += 6) s.rect(x + i, y, 3, 2, this.cBg);
+                s.frame(111, 33, 98, 6, this.cRed); s.rect(113, 35, b.hp * 8, 2, this.cYellow);
+            }
+            const shown = [];
+            for (const p of g.pops.slice(-4).reverse()) {
+                if (shown.some(q => Math.abs(q.x - p.x) < 45 && Math.abs(q.y - p.y) < 14)) continue;
+                shown.push(p);
+                const x = Math.max(48, Math.min(272, R(p.x))), y = Math.max(42, R(p.y - (1 - Math.min(1, p.life)) * 8));
+                const w = PixelFont.Arcade.measure(p.text) + 4;
+                s.rect(x - Math.floor(w / 2), y - 1, w, 9, this.cBg);
+                s.textCentered(p.text, x, y, PixelFont.Arcade, this.cYellow);
+                for (let i = 0; i < 6; i++) {
+                    const a = i * Math.PI / 3, r = (1 - Math.min(1, p.life)) * 22;
+                    s.setPixel(R(p.x + Math.cos(a) * r), R(p.y + Math.sin(a) * r), this.cDust);
+                }
+            }
         }
         if (g.p === Phase.Play || g.p === Phase.Banner || g.p === Phase.Clear) this._drawCrosshair(s, R(g.crossX), R(g.crossY));
 
@@ -173,6 +197,9 @@ export class LastLightRenderer {
         for (const m of g.missiles) {
             if (!m.alive) continue;
             const hx = R(m.x), hy = R(m.y);
+            if (m.satellite) { s.frame(hx - 4, hy - 3, 9, 7, this.cYellow); s.rect(hx - 12, hy - 2, 6, 5, this.cCyan); s.rect(hx + 7, hy - 2, 6, 5, this.cCyan); continue; }
+            if (m.decoy) { s.line(R(m.ox), R(m.oy), hx, hy, this.cDustDim); s.circle(hx, hy, 2, this.cDustDim, false); continue; }
+            if (m.k === Kind.Mirv) { s.line(hx - 3, hy - 4, hx, hy, this.cYellow); s.line(hx + 3, hy - 4, hx, hy, this.cYellow); }
             if (m.k === Kind.Smart) {
                 const tr = m.trail;
                 let px = R(m.ox), py = R(m.oy);
@@ -246,9 +273,9 @@ export class LastLightRenderer {
         s.text('1UP', 8, 13, arc, this.cDust);
         s.text(d6(g.score), 30, 10, dsp, this.cRed, 2);
         s.textCentered('WAVE', 172, 8, arc, this.cDust);
-        const allDone = g.p === Phase.Tally || (g.p >= Phase.Card && g.roundWon);
+        const allDone = g.p >= Phase.Card && g.roundWon;
         for (let i = 0; i < LastLightRound.SubWaves; i++) {
-            const x = 157 + i * 11, y = 18;
+            const x = 140 + i * 9, y = 18;
             const cleared = allDone || i < g.wavesCleared;
             if (cleared) s.rect(x, y, 8, 8, this.cCyan);
             else if (i === g.subWave) { s.frame(x, y, 8, 8, this.cYellow); s.frame(x + 1, y + 1, 6, 6, this.cYellow); s.rect(x + 3, y + 3, 2, 2, this.cYellow); }
@@ -266,10 +293,11 @@ export class LastLightRenderer {
         switch (g.p) {
             case Phase.Banner: {
                 s.textBox('WAVE ' + (g.subWave + 1), mid, 78, dsp, 3, this.cWhite, this.cCyan, this.cBg);
-                const line = g.subWave === 0 ? 'DEFEND THE DOMES' : g.subWave === 1 ? 'THEY COME FASTER' : 'FINAL WAVE';
+                const line = STAGES[g.subWave][0];
                 let y = 114;
                 this._plateLine(s, line, mid, y, g.subWave === 2 ? this.cRed : this.cYellow, this.cDustDim);
                 y += 18;
+                this._plateLine(s, STAGES[g.subWave][1], mid, y, this.cDust, this.cDustDim); y += 18;
                 if (g.mercyActive) { this._plateLine(s, 'THE LAST LIGHT WILL HOLD', mid, y, this.cCyan, this.cCyanDim); y += 18; }
                 else if (g.refillsLeft > 0 && g.subWave === 0) { this._plateLine(s, 'ONE RELOAD IN RESERVE', mid, y, this.cCyan, this.cCyanDim); y += 18; }
                 break;

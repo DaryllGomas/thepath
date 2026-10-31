@@ -1,5 +1,6 @@
 // THE NODE · world 1 · SHORT ORDER on the Cabinet Engine · THE ART: palette + sprites (data only).
-// Port of the ShortOrderArt class in ShortOrderRenderer.cs (Staging/Batch2/shortorder).
+// (From the ShortOrderArt class of the Unity port; the chili, the rival and the fries are new, and the palette
+// grew a green, an ice and a hot-red kitchen plus orange and the rival's purple.)
 // Its own file so spec.js (title art) and renderer.js (everything) read it without an import cycle.
 //
 // Sprites are authored with letter keys (K bg, l girder, L girderLt, C cream, T bun, t bunDk,
@@ -24,12 +25,22 @@ export const ShortOrderPalette = new Palette(
     ['skin', 0xF0B088],
     ['patty', 0x6A2C12],
     ['dim', 0x3A2848],
+    ['girderG', 0x1F5A3A],       // the side-orders kitchen's tiles
+    ['girderGLt', 0x56C98A],
+    ['girderR', 0x7A2A22],       // the rush-order kitchen's tiles
+    ['girderRLt', 0xE6705A],
+    ['orange', 0xFF8A1A],        // belts, the chili
+    ['ice', 0xA4DDF4],           // the dish pit's slick floor
+    ['iceDk', 0x2E6C8E],
+    ['purple', 0x9448D8],        // the rival
+    ['purpleDk', 0x4E1E80],
 ).roles('bg', 'cream', 'red', 'yellow', 'dim');
 
 const Keys = new Map([
     ['K', 'bg'], ['l', 'girder'], ['L', 'girderLt'], ['C', 'cream'], ['T', 'bun'], ['t', 'bunDk'],
     ['G', 'lettuce'], ['g', 'lettuceDk'], ['R', 'red'], ['r', 'redDk'], ['W', 'white'], ['B', 'blue'],
     ['Y', 'yellow'], ['S', 'skin'], ['P', 'patty'], ['D', 'dim'],
+    ['O', 'orange'], ['I', 'ice'], ['i', 'iceDk'], ['U', 'purple'], ['u', 'purpleDk'],
 ]);
 
 function make(...rows) {
@@ -208,14 +219,44 @@ const EggTop = [
     '...WWWWWWWWWW...',
     '.....WWWWWW.....',
 ];
+const ChiliTop = [
+    '.......gG.......',
+    '......gGG.......',
+    '.....OOOOOO.....',
+    '....OOOOOOOO....',
+    '....OWKOOWKO....',
+    '....OOOOOOOO....',
+    '....OWrWrWrO....',
+    '.....OOOOOO.....',
+    '.....OrOOOO.....',
+    '......OOOO......',
+    '......OrOO......',
+    '.......OO.......',
+    '.......OO.......',
+];
+const RivalTop = [
+    '.....UUUUUU.....',
+    '...UUUUUUUUUU...',
+    '..UUUUUUUUUUUU..',
+    '..UUUUUUUUUUUU..',
+    '...UUUUUUUUUU...',
+    '...uuuuuuuuuu...',
+    '....SSSSSSSS....',
+    '....SRKSSRKS....',
+    '....SuuuuuuS....',
+    '...UUUUSSUUUU...',
+    '..UUUUUUUUUUUU..',
+    '..UUCCUUUUCCUU..',
+    '...UUUUUUUUUU...',
+];
 const LegsA = ['.....{....{.....', '.....{....{.....', '....{{....{{....'];
 const LegsB = ['......{..{......', '.....{....{.....', '....{{.....{{...'];
 
 function buildFoes() {
-    const tops = [DogTop, PickleTop, EggTop];
-    const legs = ['r', 'g', 'Y'];
+    const tops = [DogTop, PickleTop, EggTop, ChiliTop, RivalTop];
+    const legs = ['r', 'g', 'Y', 'r', 'u'];
     const all = [];
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 5; k++) {
         all[k] = [];
         for (let fr = 0; fr < 2; fr++) {
             const src = fr === 0 ? LegsA : LegsB;
@@ -234,7 +275,21 @@ const Flat = [
     make('....rRRRRRRr....', '..TTRRRRRRRRTT..', '.TTRRKRRRRKRRTT.', '.TTTTTTTTTTTTTT.', '..rr........rr..'),
     make('.....gGGGGg.....', '...gGGGgGGGGg...', '..GGGKGGGGKGGG..', '...gGGGGGGGGg...', '..gg........gg..'),
     make('....WWWWWWWW....', '..WWWYYYYYYWWW..', '.WWWYKYYYYKYWWW.', '..WWWWWWWWWWWW..', '..YY........YY..'),
+    make('..gG..OOOOOO....', '.OOOOOOOOOOOOOO.', 'OOOWKOOOOOOWKOOO', '.rrOOOOOOOOOOrr.', '................'),
+    make('...UUUUUUUUU....', '..UUUUUUUUUUUU..', '.UUUSRKSSRKSUUU.', '.uuuuUUUUUUuuuu.', '..uu........uu..'),
 ];
+
+// the bonus plate: a paper cone of fries
+const Fries = make(
+    '..Y.YY.Y...',
+    '.YY.YY.YY..',
+    '.YYYYYYYY..',
+    '.YYYYYYYY..',
+    '..RRRRRR...',
+    '..RRCCRR...',
+    '..RRCCRR...',
+    '..RRRRRR...',
+    '...RRRR....');
 
 // ------------------------------------------------------------------ the title card
 function buildTitle() {
@@ -272,6 +327,7 @@ export const ShortOrderArt = Object.freeze({
     make,
     chefWalkA: ChefWalkA, chefWalkB: ChefWalkB, chefClimb: ChefClimb, chefCheer: ChefCheer, chefCaught: ChefCaught,
     lifeIcon: LifeIcon, shaker: Shaker,
+    fries: Fries,
     foe: Foe,                  // [kind][frame]
     flat: Flat,                // [kind]
     titleArt: buildTitle(),

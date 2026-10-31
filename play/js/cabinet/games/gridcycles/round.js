@@ -1,19 +1,13 @@
 // THE NODE · world 1 · GRID CYCLES '82 on the Cabinet Engine · THE ROUND (ICabinetSim).
-// Port of GridCyclesRound.cs from Staging/Batch1/gridcycles_tune (the 9/23 mercy tune).
+// Tournament build: the old C# parity is retired. The duel remains the cell-step foundation.
 //
-// A ROUND = best of three duels (first to two). Each duel: countdown 3-2-1-GO (countdownStep a
-// number, GO half that), the duel, 1.6 s of DEREZ, and after the deciding duel a 3 s card.
-// Score: 50 a second while a duel runs, +1000 for every rival derez. Speed ramps within a duel.
-// A draw (both into the same cell) replays the duel.
-//
-// MERCY: knobs (see spec.js) and CreditInfo.unlosable (credit 5): the rival is capped at 30% speed and
-// never steers, and the player's cycle steers itself off walls and never derezzes.
-// THE WALL ASSIST (credit 3+, `wallAssist` saves per round): just before your cycle steps, a turn into a
-// wall is refused if straight ahead is open, and a wall dead ahead is dodged to the open side with the
-// longer clear run. One-cell glance, no dice, only edits the turn queue. Each save emits Bonus.
-// The arena is 74 x 49 cells so the picture sits inside the 8 px safe area with a HUD band above it.
-import { f32, fmt, F32, roundEven, CabinetState, RoundResult, SoundCue, CueBuffer, Dir4 } from '../../sdk/index.js';
+// Six sectors, first to two rival derezzes in each. Lost duels spend a persistent cycle;
+// draws replay. Sector clears pay circuit, spare-cycle and speed bonuses. Only the
+// MASTER's clear ends the tournament. The fifth credit keeps the full wall assist.
+import { f32, fmt, F32, roundEven, CabinetState, RoundResult, SoundCue, CueBuffer, Dir4, Pad } from '../../sdk/index.js';
 import { GridCyclesDuel } from './duel.js';
+
+import { SECTORS } from './sectors.js';
 
 const Phase = Object.freeze({ Idle: 0, Countdown: 1, Running: 2, Derez: 3, Card: 4, Over: 5 });
 const O = GridCyclesDuel.Outcome;
@@ -22,13 +16,15 @@ export class GridCyclesRound {
     constructor() {
         // the machine's timing (not mercy knobs)
         this.countdownStep = f32(0.7);
-        this.derezSeconds = f32(1.6);
+        this.derezSeconds = f32(2.6);
         this.cardSeconds = f32(3.0);
         this.duelsToWin = 2;
         this.pointsPerSecond = 50;
         this.pointsPerDerez = 1000;
 
         // read-only state (C# public getters)
+        this.recordEvents = false; this.events = [];
+        this.sector = 0; this.stock = 3; this.extra = false; this.lastBonus = 0; this.boost = 0; this.charge = 1;
         this.duel = null;
         this.p = Phase.Idle;
         this.phaseTime = 0;
@@ -73,7 +69,9 @@ export class GridCyclesRound {
     }
     get result() { return this._result; }
     get score() { return this._score; }
-    get lives() { return Math.max(0, this.duelsToWin - this.rivalWins); }
+    get lives() { return this.stock; }
+    get sectorDef() { return SECTORS[this.sector]; }
+    _emit(kind, o = {}) { if (this.recordEvents) this.events.push({ ...o, kind }); }
     get time() { return this._time; }
     get cues() { return this._cues; }
 
@@ -84,6 +82,7 @@ export class GridCyclesRound {
 
     reset(seed, credit, k) {
         this.credit = credit;
+        this.sector = 0; this.stock = 3; this.extra = false; this.events.length = 0;
         this.baseSpeed = k.get('baseSpeed');
         this.rivalSpeed = f32(this.baseSpeed * k.get('rivalSpeed'));   // relative to the player; 30% cap on credit 5 is in the knob
         this._ramp = k.get('ramp');
@@ -111,7 +110,13 @@ export class GridCyclesRound {
     }
 
     _startDuel() {
-        this.duel.resetDuel(this.baseSpeed, this.rivalSpeed);
+        this.duel.resetDuel(this.baseSpeed, f32(this.rivalSpeed * (1 + this.sector * 0.035)));
+        const g = this.duel, def = this.sectorDef;
+        g.wrap = !!def.wrap; this.seal = 0; this.purge = 0; this.warn = -1;
+        for (const [x,y,w,h] of def.walls) for (let yy=y; yy<y+h; yy++) for (let xx=x; xx<x+w; xx++) g.cells[yy*g.W+xx] = 3;
+        this.charge = 1; this.boost = 0;
+        this._emit('stageStart', { sector: this.sector });
+        if (this.sector === 5) this._emit('boss');
         this.duelSeconds = 0; this.speedMul = 1;
         if (this._rivalInset >= 0) this._placeRival(this._rivalInset);
         this.p = Phase.Countdown; this.phaseTime = 0; this.countdownLeft = 3;
@@ -126,6 +131,9 @@ export class GridCyclesRound {
         this._time = f32(this._time + dt);
         this.phaseTime = f32(this.phaseTime + dt);
         this.sinceSave = f32(this.sinceSave + dt);
+        this.boost = Math.max(0, this.boost - dt);
+        this.charge = Math.min(1, this.charge + dt / 5);
+        if (!this.extra && this._score >= 12000) { this.extra = true; this.stock++; this._emit('extraLife'); }
 
         // turns are taken during the countdown too (Slice A did the same); two queued at most
         if (input != null && (this.p === Phase.Countdown || this.p === Phase.Running))
@@ -146,6 +154,27 @@ export class GridCyclesRound {
             case Phase.Running: {
                 this.duelSeconds = f32(this.duelSeconds + dt);
                 this.speedMul = Math.min(this._maxRamp, f32(1 + f32(this._ramp * this.duelSeconds)));
+                if (input && input.pressed(Pad.A) && this.charge >= 1) { this.charge = 0; this.boost = 0.65; this._emit('boost'); }
+                this.duel.player.speed = f32(this.baseSpeed * (this.boost > 0 ? 1.8 : 1));
+                const def = this.sectorDef;
+                const pulse = Math.floor(this.duelSeconds / 7);
+                if (def.boost) {
+                    const hot = this.duelSeconds % 7 > 5;
+                    this.duel.rival.speed = f32(this.rivalSpeed * (1 + this.sector * 0.035) * (hot ? 1.65 : 1));
+                    if (hot && this.warn !== pulse) { this.warn = pulse; this._emit('rivalBoost'); }
+                }
+                if (def.shrink) {
+                    const ring = Math.min(8, Math.floor(this.duelSeconds / 8));
+                    if (ring > this.seal) {
+                        this.seal = ring; this._emit('seal');
+                        for (let y=0;y<this.duel.H;y++) for(let x=0;x<this.duel.W;x++)
+                            if (x<ring || y<ring || x>=this.duel.W-ring || y>=this.duel.H-ring) this.duel.cells[y*this.duel.W+x]=3;
+                    }
+                }
+                if (def.purge && pulse > this.purge) {
+                    this.purge = pulse; this._emit('purge');
+                    for(let i=0;i<this.duel.cells.length;i++) if(this.duel.cells[i]===1 || this.duel.cells[i]===2) this.duel.cells[i]=0;
+                }
                 let o = O.None;
                 const g = this.duel;
                 if (this.assistLeft > 0) {
@@ -164,11 +193,14 @@ export class GridCyclesRound {
             }
             case Phase.Derez:
                 if (this.phaseTime >= this.derezSeconds) {
-                    if (this.playerWins >= this.duelsToWin || this.rivalWins >= this.duelsToWin) {
-                        this._result = this.playerWins >= this.duelsToWin ? RoundResult.Won : RoundResult.Lost;
+                    if (this.stock <= 0 || (this.playerWins >= this.duelsToWin && this.sector === SECTORS.length - 1)) {
+                        this._result = this.stock > 0 ? RoundResult.Won : RoundResult.Lost;
                         this.p = Phase.Card; this.phaseTime = 0;
-                        if (this._result === RoundResult.Won) this._cues.emit(SoundCue.Win);
-                    } else this._startDuel();
+                        if (this.roundWon) this._cues.emit(SoundCue.Win);
+                    } else {
+                        if (this.playerWins >= this.duelsToWin) { this.sector++; this.playerWins = this.rivalWins = 0; }
+                        this._startDuel();
+                    }
                 }
                 break;
             case Phase.Card:
@@ -227,10 +259,13 @@ export class GridCyclesRound {
     _endDuel(o) {
         this.derezWho = o === O.PlayerDerez ? 1 : o === O.RivalDerez ? 2 : 3;
         if (this.derezWho === 2) { this.playerWins++; this._score += this.pointsPerDerez; this._cues.emit(SoundCue.Hit); }
-        else if (this.derezWho === 1) { this.rivalWins++; this._cues.emit(SoundCue.Die); }
+        else if (this.derezWho === 1) { this.rivalWins++; if (!this.mercyActive) this.stock--; this._cues.emit(SoundCue.Die); }
         else { this.draws++; this._cues.emit(SoundCue.Miss); }
         this._log += (this.derezWho === 2 ? 'W' : this.derezWho === 1 ? 'L' : 'D') + fmt(this.duelSeconds, 1, F32) + 's ';
         this._duels++; this._duelSecSum += this.duelSeconds; this._stallSum += this.duel.playerStalls;
+        this._emit('crash', { who: this.derezWho });
+        this.lastBonus = 0;
+        if (this.playerWins >= this.duelsToWin) { this.lastBonus = 1500 + this.stock * 250 + Math.max(0, 1500 - Math.floor(this.duelSeconds * 20)); this._score += this.lastBonus; this._emit('stageClear'); }
         this.p = Phase.Derez; this.phaseTime = 0;
     }
 

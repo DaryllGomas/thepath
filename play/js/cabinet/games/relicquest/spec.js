@@ -1,13 +1,6 @@
 // THE NODE · world 1 · RELIC QUEST on the Cabinet Engine · the palette and the SPEC (data only).
-// Port of RelicQuestGame.cs / RelicQuestSim.cs (Slice B, 9/22). The look follows the cabinet's concept
-// play frames (rq_play_01..04): black corridors, chunky gold and green blocks with a dark mortar gap,
-// a silver-helmed knight, long bright-green snakes, a red relic.
-//
-// A ROUND = clear two mazes with three knights. Take every gem and the RELIC rises on its plinth;
-// touch it to clear the maze. SWORD (A) turns the snake in front of you to stone for a while, the
-// TORCH (B, one a maze) does it to them all. MERCY: the knobs below ease per lost round on this
-// cabinet; credit 5 = the snakes sleep and cannot bite (the round honours credit.unlosable).
-// JS bench (worst case, 3 seeds x 300 rounds): ~35 / 56 / 67 / 74 / 100 %, rounds 82-90 s.
+// Six temples, three knights, one relic quest. The cabinet keeps its gold and green stone,
+// silver helmet and bright snakes; the quest replaces the retired Unity single-round rules.
 import { Palette, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 import { TitleArt } from './sprites.js';
 
@@ -45,25 +38,26 @@ function buildSpec() {
         publisher: 'CASTLE COIN',
         year: 1982,
         palette: RelicQuestPalette,
-        tagline: 'TAKE THE RELIC. MIND THE SNAKES.',
+        tagline: 'SIX TEMPLES. ONE KNIGHTLY QUEST.',
         controls: ['ARROWS OR WASD  WALK', 'SPACE  SWORD    X  TORCH', 'EVERY GEM RAISES THE RELIC'],
-        roundWonText: 'ROUND WON',
+        roundWonText: 'QUEST WON',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [12000, 10000, 8000, 5000, 2500],
+        highScoreSeed: [65000, 40000, 22000, 12000, 6000],
         titleArt: TitleArt,
         titleArtScale: 2,
         knobs: [
-            Knob.fixed('lives', 3, 'knights per round'),
-            Knob.fixed('knightSpeed', 4.6, 'tiles per second'),
-            Knob.fixed('snakes', 4, 'snakes a maze at most (maze 1 has 3, maze 2 has 4)'),
+            Knob.fixed('lives', 3, 'knights per quest'),
+            Knob.fixed('knightSpeed', 3.45, 'tiles per second'),
+            Knob.fixed('snakes', 4, 'three snakes in the court, four in later temples'),
             Knob.fixed('torches', 1, 'torches a maze'),
             // THE MERCY TUNE: per lost round the snakes slow, hunt less, and stay stone longer
-            Knob.mul('snakeSpeed', 3.3, 0.935, 'snake tiles per second (Unity: 3.3)').clamp(2.0, 9),
+            Knob.mul('snakeSpeed', 2.4, 0.935, 'snake tiles per second').clamp(1.2, 9),
             Knob.add('snakeChase', 0.45, -0.025, 'chance a snake turns toward you at a junction').clamp(0.2, 1),
-            Knob.add('stunSeconds', 3.0, 0.5, 'a sword hit turns a snake to stone this long').clamp(1, 8),
-            Knob.add('torchSeconds', 4.0, 2.5, 'a torch turns every snake to stone this long (front-loaded)').clamp(1, 6.5),
+            Knob.add('stunSeconds', 4.0, 0.65, 'a sword hit turns a snake to stone this long').clamp(1, 8),
+            Knob.add('torchSeconds', 5.3, 2.5, 'a torch turns every snake to stone this long (front-loaded)').clamp(1, 6.5),
         ],
     });
+    s.hints = [['STICK','WALK'],['A','SWORD'],['B','TORCH']];
     s.phaseNames.set(CabinetState.Intro, 'ready');
     s.phaseNames.set(CabinetState.Playing, 'play');
     s.phaseNames.set(CabinetState.Interlude, 'interlude');     // a bite (BITTEN) or a cleared maze (LEVEL CLEAR)

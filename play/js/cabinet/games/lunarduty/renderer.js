@@ -14,7 +14,7 @@
 import { PixelFont, SurfaceDraw, d6, dn, roundEven } from '../../sdk/index.js';
 import * as Sprites from './sprites.js';
 import * as Scroll from './scroll.js';
-import { HazardKind, Checkpoints, Letters } from './course.js';
+import { HazardKind, Checkpoints, Letters, Sectors } from './course.js';
 import { LunarDutySim, DeathCause, craterDepth, craterWidth } from './sim.js';
 import { LunarDutySpec, LunarDutyPalette } from './spec.js';
 
@@ -29,6 +29,16 @@ export class LunarDutyRenderer {
         this.cCyan = pal.get('cyan'); this.cCyanDim = pal.get('cyanDim'); this.cRed = pal.get('red'); this.cRedDim = pal.get('redDim');
         this.cTan = pal.get('tan'); this.cTanDim = pal.get('tanDim'); this.cMag = pal.get('magenta'); this.cMagDim = pal.get('magentaDim');
         this.cWhite = pal.get('white');
+        this.ridge = new Uint8Array(16384); this.ridgeLit = new Uint8Array(16384); this.dunes = new Uint8Array(16384);
+        for (let i = 0; i < 16384; i++) {
+            const u = i - 1024;
+            this.ridge[i] = Scroll.mountainTop(u); this.ridgeLit[i] = Scroll.mountainLit(u) ? 1 : 0;
+            this.dunes[i] = Scroll.hillTop(u);
+        }
+        this.terrainTop = new Int16Array(304); this.terrainFace = new Array(304);
+        this.grit = new Uint8Array(256 * 32);
+        for (let y = 0; y < 32; y++) for (let x = 0; x < 256; x++)
+            this.grit[y * 256 + x] = Scroll.speck(x, Ground + y);
     }
 
     draw(sim, s, t) {
@@ -39,9 +49,9 @@ export class LunarDutyRenderer {
 
         s.clip(8, FieldTop, 304, FieldBottom - FieldTop);
         const cam = r.camX;
-        this._drawSky(s);
-        this._drawMountains(s, cam);
-        this._drawCity(s, cam);
+        this._drawSky(s, r);
+        this._drawMountains(s, cam, r.checkpoint);
+        if (r.checkpoint !== 4) this._drawCity(s, cam);
         this._drawHills(s, cam);
         this._drawGround(s, r, cam);
         this._drawPosts(s, cam);
@@ -51,6 +61,35 @@ export class LunarDutyRenderer {
         for (const u of r.ufos)
             s.blit(Sprites.Ufo[Math.trunc(t * 2) & 1], roundEven(u.sx), roundEven(u.sy), this.pal);
         this._drawBooms(s, r, cam);
+        const b = r.boss;
+        if (b && b.hp > 0) {
+            const bx = roundEven(b.x - cam), by = Ground - 38;
+            const c = b.hit > 0 ? this.cWhite : this.cMag;
+            s.rect(bx - 8, by, 55, 22, this.cMagDim); s.frame(bx - 8, by, 55, 22, c);
+            s.rect(bx + 7, by - 7, 26, 7, this.cMagDim); s.frame(bx + 7, by - 7, 26, 7, c);
+            s.rect(bx + 12, by - 5, 15, 3, this.cCyan);
+            for (let i = 0; i < 4; i++) { s.rect(bx - 3 + i * 12, by + 14, 8, 5, this.cDustDark); s.setPixel(bx - 2 + i * 12, by + 16, this.cRed); }
+            s.rect(bx + 38, by + 3, 5, 9, this.cTanDim);
+            s.rect(bx - 17, by + 27, 72, 4, this.cDustDark);
+            for (let i = 0; i < 3; i++) {
+                const leg = bx + i * 18;
+                s.line(leg, by + 22, leg - 5, Ground - 2, c);
+                s.rect(leg - 10, Ground - 3, 13, 3, this.cDust);
+            }
+            s.rect(bx - 22, by + 13, 22, 5, this.cDust);
+            s.rect(bx + 9, by + 6, 22, 5, b.t < 0.65 ? this.cRed : this.cCyan);
+            if (b.active) {
+                s.textCentered('BEACON WALKER', 160, 57, PixelFont.Arcade, this.cMag);
+                s.frame(105, 68, 110, 5, this.cDustDim);
+                s.rect(106, 69, Math.ceil(108 * b.hp / b.max), 3, this.cRed);
+                if (b.t < 0.65) s.textCentered('GUN CHARGING', 160, 79, PixelFont.Arcade, this.cRed);
+            }
+        }
+        for (const p of r.pops) s.textCentered(p.text, roundEven(p.x - cam), roundEven(Ground - p.h - p.t * 18), PixelFont.Arcade, this.cWhite);
+        if (r.checkpoint === 1) for (const o of r.obstacles) if (o.alive && o.x - r.x < 250) {
+            const ox = roundEven(o.center - cam);
+            s.line(ox - 3, Ground - 4, ox + 3, Ground - 8, this.cCyan);
+        }
         s.noClip();
 
         this._drawHud(s, r, t);
@@ -58,30 +97,47 @@ export class LunarDutyRenderer {
     }
 
     // ------------------------------------------------------------ backdrop
-    _drawSky(s) {
+    _drawSky(s, r) {
         for (let i = 0; i < Scroll.StarX.length; i++) {
             const c = Scroll.StarC[i];
             s.setPixel(Scroll.StarX[i], Scroll.StarY[i], c === 0 ? this.cWhite : c <= 2 ? this.cDust : this.cDustDim);
         }
         // the cratered moon over the left of the sky
-        const mx = 46, my = 80, mr = 14;
+        const mx = 46 + (r.checkpoint % 3) * 26, my = 80, mr = 14 + r.checkpoint * 2;
         s.circle(mx, my, mr, this.cDust, true);
         s.circle(mx + 5, my + 2, mr - 2, this.cDustDim, false);
         s.circle(mx - 5, my - 4, 3, this.cDustDim, true);
         s.circle(mx + 4, my + 5, 2, this.cDustDim, true);
         s.circle(mx - 3, my + 7, 2, this.cDustDim, true);
         s.circle(mx + 6, my - 6, 1, this.cDustDim, true);
+        if (r.checkpoint === 4) s.circle(mx + 6, my - 3, mr, this.cVoid, true);
         s.setPixel(mx - 7, my - 5, this.cWhite); s.setPixel(mx - 6, my - 6, this.cWhite);
     }
 
-    _drawMountains(s, cam) {
+    _drawMountains(s, cam, sector) {
         const off = cam * Scroll.MountainFactor;
+        const face = sector === 2 || sector === 5 ? this.cMagDim : sector === 0 || sector === 4 ? this.cDustDark : this.cCyanDim;
         for (let x = 8; x < 312; x++) {
-            const u = off + x;
-            const top = Scroll.mountainTop(u);
-            const lit = Scroll.mountainLit(u);
-            s.rect(x, top, 1, Ground - top, lit ? this.cCyanDim : this.cDustDark);
-            s.setPixel(x, top, lit ? this.cDustDim : this.cCyanDim);
+            const at = (Math.floor(off + x) + 1024) & 16383;
+            this.terrainTop[x - 8] = this.ridge[at];
+            this.terrainFace[x - 8] = this.ridgeLit[at] ? face : this.cDustDark;
+        }
+        this._terrain(s);
+        for (let x = 8; x < 312; x++) s.setPixel(x, this.terrainTop[x - 8], this.cDustDim);
+    }
+
+    // Horizontal spans avoid thousands of one-pixel-wide surface fills on each tube.
+    _terrain(s) {
+        let min = Ground;
+        for (const y of this.terrainTop) min = Math.min(min, y);
+        for (let y = min; y < Ground; y++) {
+            let start = 0, color = null;
+            for (let i = 0; i <= 304; i++) {
+                const next = i < 304 && y >= this.terrainTop[i] ? this.terrainFace[i] : null;
+                if (next === color) continue;
+                if (color) s.rect(start + 8, y, i - start, 1, color);
+                start = i; color = next;
+            }
         }
     }
 
@@ -145,17 +201,18 @@ export class LunarDutyRenderer {
     _drawHills(s, cam) {
         const off = cam * Scroll.HillFactor;
         for (let x = 8; x < 312; x++) {
-            const u = off + x;
-            const top = Scroll.hillTop(u);
-            s.rect(x, top, 1, Ground - top, this.cDustDark);
-            s.setPixel(x, top, this.cDustDim);
-            if ((Scroll.hash(Scroll.floor(u) * 31) & 15) === 0 && top + 3 < Ground) s.setPixel(x, top + 3, this.cDustDim);
+            this.terrainTop[x - 8] = this.dunes[(Math.floor(off + x) + 1024) & 16383];
+            this.terrainFace[x - 8] = this.cDustDark;
         }
+        this._terrain(s);
+        for (let x = 8; x < 312; x++) s.setPixel(x, this.terrainTop[x - 8], this.cDustDim);
     }
 
     _drawGround(s, r, cam) {
         let ci = 0;
         const craters = r.craters;
+        s.rect(8, Ground, 304, 2, this.cDust);
+        s.rect(8, Ground + 2, 304, FieldBottom - Ground - 2, this.cDustDim);
         for (let x = 8; x < 312; x++) {
             const wxf = cam + x;
             const wx = Scroll.floor(wxf);
@@ -173,20 +230,19 @@ export class LunarDutyRenderer {
             if (depth > 0) {
                 // the pit: black, a dark wall at the bottom
                 s.setPixel(x, surf, this.cDustDark);
-                s.rect(x, surf + 1, 1, FieldBottom - surf - 1, this.cDustDim);
+                s.rect(x, Ground, 1, surf - Ground, this.cVoid);
             } else {
                 const bump = lip || Scroll.bump(wxf);
                 if (bump) s.setPixel(x, Ground - 1, this.cDust);
-                s.rect(x, Ground, 1, 2, this.cDust);
-                s.rect(x, Ground + 2, 1, FieldBottom - Ground - 2, this.cDustDim);
+
             }
             for (let y = Math.max(surf + 2, Ground + 3); y < FieldBottom - 3; y++) {
-                const sp = Scroll.speck(wx, y);
+                const sp = this.grit[(y - Ground) * 256 + (wx & 255)];
                 if (sp === 1) s.setPixel(x, y, this.cDust);
                 else if (sp === 2) s.setPixel(x, y, this.cDustDark);
             }
-            s.rect(x, FieldBottom - 3, 1, 3, this.cDustDark);
         }
+        s.rect(8, FieldBottom - 3, 304, 3, this.cDustDark);
     }
 
     _drawPosts(s, cam) {
@@ -393,13 +449,24 @@ export class LunarDutyRenderer {
         const dsp = PixelFont.Display, arc = PixelFont.Arcade;
         const P = r.p;
         const letter = Letters[r.checkpoint];
+        if (r.extraT > 0) s.textCenteredShadow("EXTRA BUGGY!", 160, 172, arc, this.cTan, this.cVoid);
         if (P === LunarDutySim.Phase.Ready) {
-            s.textBox('POINT ' + letter, 160, 84, dsp, 3, this.cTan, this.cCyan, this.cVoid);
+            s.plate(30, 75, 260, 78, this.cVoid, this.cCyan);
+            s.textCentered('SECTOR ' + (r.checkpoint + 1) + ' / 6', 160, 83, arc, this.cTan);
+            s.textCentered(Sectors[r.checkpoint][0], 160, 98, dsp, this.cWhite, 2);
+            s.textCentered(Sectors[r.checkpoint][1], 160, 139, arc, this.cDust);
             const go = r.phaseTime >= r.readyLen - 0.5;
             s.textCenteredShadow(go ? 'GO!' : 'GET READY', 160, 118, dsp, go ? this.cWhite : this.cCyan, this.cVoid, 2);
-            if (r.mercyActive) s.textCenteredShadow('FREE RIDE  SHIELD ON', 160, 140, arc, this.cCyan, this.cVoid);
+            if (r.mercyActive) s.textCenteredShadow('SHIELD ON', 160, 159, arc, this.cCyan, this.cVoid);
             else if (r.checkpoint > 0 || r.lives < r.startLives)
-                s.textCenteredShadow(r.lives === 1 ? 'LAST BUGGY' : r.lives + ' BUGGIES LEFT', 160, 140, arc, this.cDust, this.cVoid);
+                s.textCenteredShadow(r.lives === 1 ? 'LAST BUGGY' : r.lives + ' BUGGIES LEFT', 160, 159, arc, this.cDust, this.cVoid);
+        } else if (P === LunarDutySim.Phase.Tally) {
+            s.plate(46, 76, 228, 80, this.cVoid, this.cCyan);
+            s.textCentered('SECTOR SECURED', 160, 85, dsp, this.cTan, 2);
+            const n = Math.min(1, r.phaseTime / 1.4);
+            s.textCentered('BEACON BONUS  500', 160, 108, arc, this.cWhite);
+            s.textCentered('TIME BONUS  ' + Math.floor(r.lastBonus * n), 160, 122, arc, this.cCyan);
+            s.textCentered(r.checkpoint === 6 ? 'ALL BEACONS ONLINE' : 'NEXT: ' + Sectors[r.checkpoint][0], 160, 141, arc, this.cDust);
         } else if (P === LunarDutySim.Phase.Crash && r.phaseTime > 0.5) {
             let why;
             switch (r.cause) {
@@ -424,10 +491,10 @@ export class LunarDutyRenderer {
         } else if (P === LunarDutySim.Phase.Card || P === LunarDutySim.Phase.Over) {
             const spec = LunarDutySpec;
             const won = r.roundWon;
-            s.textBox(won ? spec.roundWonText : spec.roundLostText, 160, 70, dsp, 3, won ? this.cCyan : this.cRed, this.cTan, this.cVoid);
+            s.textBox(won ? spec.roundWonText : spec.roundLostText, 160, 70, dsp, 2, won ? this.cCyan : this.cRed, this.cTan, this.cVoid);
             s.plate(76, 100, 168, 50, this.cVoid, this.cTan);
             s.textCentered('SCORE ' + d6(r.score), 160, 107, arc, this.cWhite, 2);
-            s.textCentered(won ? 'REACHED POINT E' : 'LAST POINT ' + letter, 160, 132, arc, won ? this.cTan : this.cDust);
+            s.textCentered(won ? 'ALL SIX BEACONS ONLINE' : 'LAST POINT ' + letter, 160, 132, arc, won ? this.cTan : this.cDust);
         }
     }
 }

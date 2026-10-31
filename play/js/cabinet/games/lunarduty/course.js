@@ -1,19 +1,6 @@
 // THE NODE · world 1 · LUNAR DUTY (Anvil & Sparks, 1982) on the Cabinet Engine · THE COURSE.
-// Port of LunarDutyCourse.cs.
-//
-// One fixed course, the same on every credit, like the real board: point A (the start) to point E
-// in four sections, 5650 px of moon at a 72 px/s cruise (about 78 s with no crash).
-//
-//   A-B  craters and rocks, one lone UFO                       (the gentle section)
-//   B-C  wider craters, stacked pairs, two UFO waves
-//   C-D  mines, three UFO waves, a tank guarding point D
-//   D-E  everything, a tank mid-section and a tank before E
-//
-// Every hazard carries a fixed RANK in 0..1. A round keeps the ones whose rank is under its
-// hazardDensity knob, so the mercy rule thins the same course (x0.9 per lost round) rather than
-// rolling a new one. Tanks are never thinned. UFOs are thinned per ship the same way.
-// The layout comes from LunarRng (xorshift), never SystemRandom, so it is identical on every
-// runtime (the Lab's node and a browser).
+// Expanded patrol routes; the original Unity parity is retired.
+// Each sector introduces a new road problem; ranks thin the same layout on later credits.
 import { f32, roundEven } from '../../sdk/index.js';
 
 export const HazardKind = Object.freeze({ Crater: 0, Rock: 1, BigRock: 2, Mine: 3, Tank: 4 });
@@ -66,19 +53,23 @@ export function hazardHeight(k) {
     }
 }
 
-const Sections = [
-    { gapMin: 105, gapMax: 165, crater: 0.45, rock: 0.35, big: 0.20, mine: 0, pair: 0, craterMin: 24, craterMax: 37,
-      waveAt: [640], waveCount: [1], tankAt: [], lead: 240 },
-    { gapMin: 95, gapMax: 150, crater: 0.38, rock: 0.22, big: 0.18, mine: 0, pair: 0.22, craterMin: 29, craterMax: 44,
-      waveAt: [160, 760], waveCount: [2, 2], tankAt: [], lead: 170 },
-    { gapMin: 90, gapMax: 140, crater: 0.28, rock: 0.18, big: 0.14, mine: 0.20, pair: 0.20, craterMin: 32, craterMax: 49,
-      waveAt: [180, 720, 1100], waveCount: [2, 3, 1], tankAt: [1250], lead: 170 },
-    { gapMin: 85, gapMax: 135, crater: 0.28, rock: 0.16, big: 0.14, mine: 0.20, pair: 0.22, craterMin: 34, craterMax: 54,
-      waveAt: [150, 620, 1060], waveCount: [2, 3, 2], tankAt: [700, 1340], lead: 170 },
+export const Sectors = [
+    ['DUST SCHOOL', 'A JUMP CRATERS / HOLD B FIRE'],
+    ['STONE RIVER', 'ROLLING STONES / SHOOT EARLY'],
+    ['MINE GARDEN', 'RED MINES MUST BE JUMPED'],
+    ['BOMB ALLEY', 'UP GUN STOPS BOMBS'],
+    ['BLACK CROSSING', 'WIDE PITS / RIGHT FOR SPEED'],
+    ['IRON HORIZON', 'BREAK THE WALKER / JUMP SHELLS'],
 ];
-
-export const Checkpoints = Object.freeze([0, 1300, 2700, 4150, 5650]);
-export const Letters = 'ABCDE';
+const Sections = Sectors.map((_, s) => ({
+    gapMin: 270 - s * 12, gapMax: 400 - s * 10,
+    crater: 0.40, rock: 0.32, big: 0.28, mine: s >= 2 ? 0.22 : 0,
+    pair: 0, craterMin: s === 4 ? 46 : 24, craterMax: s === 4 ? 58 : 36 + s * 2,
+    waveAt: s >= 3 ? [700, 1750] : [], waveCount: [2, 2],
+    tankAt: s === 3 ? [2400] : s === 5 ? [900, 2100] : [], lead: 260,
+}));
+export const Checkpoints = Object.freeze([0, 3000, 6000, 9000, 12000, 15000, 18000]);
+export const Letters = 'ABCDEFG';
 export const End = Checkpoints[Checkpoints.length - 1];
 const CourseSeed = 1982;
 

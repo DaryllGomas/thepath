@@ -1,10 +1,10 @@
 // THE NODE · world 1 · SHORT ORDER on the Cabinet Engine · THE PICTURE.
-// Port of ShortOrderRenderer.cs (Staging/Batch2/shortorder); the sprites live in art.js.
+// Extended from ShortOrderRenderer.cs for the five kitchens; the sprites live in art.js.
 //
 // Built for a curved tube seen from 0.8 m: every walker is a 16 x 16 sprite, the burger parts are
 // 48 px wide slabs, the floors run the whole safe area and the plates sit on its bottom edge.
 //   - HUD band y 8..29: 1UP + the score in display digits, the pepper shaker + shakes left in
-//     display digits, four burger pips (filled as they finish), chef heads for lives
+//     display digits, burger pips (filled as they finish), chefs, kitchen and ticket clock
 //   - the kitchen: blue girders with a bright top edge, ladders whose rails poke up through the
 //     floor above (so you can see where a ladder goes down), cream plates at the bottom
 //   - parts are drawn in three 16 px segments; a segment the chef has walked on sags 2 px
@@ -14,13 +14,13 @@
 //   - the pepper cloud is a ring of grains that grows to the stun radius in 0.45 s
 //   - score popups (500 rider, 100 crush, 1000 burger) rise from where they happened
 //   - plates: READY! (ON THE HOUSE on the mercy credit), CAUGHT!, 4 BURGERS UP, ORDER UP! /
-//     GAME OVER with the score
+//     GAME OVER with the score; kitchen cards, hints and the order tally
 // Everything is clipped to the 8 px safe area.
 import { f32, d6, idiv, roundEven, PixelFont, SurfaceDraw } from '../../sdk/index.js';
 import { ShortOrderSpec } from './spec.js';
 import { ShortOrderArt as A, ShortOrderPalette } from './art.js';
 import { ShortOrderMap as M } from './map.js';
-import { ShortOrderSim, PartKind, FoeMode, SoEvent } from './round.js';
+import { ShortOrderSim, PartKind, FoeMode, SoEvent, Fx } from './round.js';
 
 const PlayX = 8, PlayY = 8, PlayW = 304, PlayH = 224;
 const Phase = ShortOrderSim.Phase;
@@ -42,13 +42,14 @@ export class ShortOrderRenderer {
         t = f32(t);
         s.clip(PlayX, PlayY, PlayW, PlayH);
         this._drawHud(s, r);
-        this._drawPlates(s);
-        this._drawFloors(s);
-        this._drawLadders(s);
+        this._drawPlates(s, r);
+        this._drawFloors(s, r);
+        this._drawLadders(s, r);
         this._drawParts(s, r);
         this._drawFoes(s, r, t);
         this._drawChef(s, r, t);
         this._drawPepper(s, r);
+        this._drawExtras(s, r);
         this._drawPopups(s, r);
         this._drawOverlay(s, r, t);
         s.noClip();
@@ -63,9 +64,9 @@ export class ShortOrderRenderer {
         s.blit(A.shaker, 134, 10, pal);
         s.text(String(Math.min(99, r.peppers)), 146, 10, dsp, r.peppers > 0 ? this.cCream : this.cDim, 2);
         // four burger pips
-        for (let b = 0; b < M.Burgers; b++) {
+        for (let b = 0; b < r.k.Burgers; b++) {
             const x = 190 + b * 16, y = 12;
-            const done = r.stacked[b] >= M.PartsPerBurger;
+            const done = r.stacked[b] >= r.k.partsOf(b);
             if (done) {
                 s.rect(x + 2, y, 8, 2, this.cBun); s.rect(x + 1, y + 2, 10, 1, this.cBun);
                 s.rect(x, y + 3, 12, 2, this.cLet); s.rect(x, y + 5, 12, 2, this.cPatty); s.rect(x + 1, y + 7, 10, 2, this.cBun);
@@ -75,45 +76,59 @@ export class ShortOrderRenderer {
                 if (k > 0) s.rect(x + 1, y + 8 - k * 2, 10, k * 2, this.cBunDk);
             }
         }
-        // lives: chef heads, the lost ones dimmed
-        for (let i = 0; i < r.startLives; i++) {
-            const x = 302 - i * 13;
-            if (i < r.lives) s.blit(A.lifeIcon, x, 12, pal);
-            else s.blitTinted(A.lifeIcon, x, 12, this.cDim);
-        }
-        s.dottedRule(8, 312, 29, 3, this.cGirderLt);
+        // The life count includes chefs earned during the shift.
+        s.blit(A.lifeIcon, 274, 12, pal);
+        s.text('x' + r.lives, 286, 13, arc, this.cCream);
+        s.text('K' + (r.stage + 1) + '/5', 8, 24, arc, this.cBun);
+        s.text(r.k.name, 48, 24, arc, this.cCream);
+        if (r.k.ticket > 0) s.text('TIME ' + Math.ceil(r.ticket), 252, 24, arc, r.ticket < 30 ? this.cRed : this.cYellow);
+        s.dottedRule(8, 312, 33, 3, this.pal.get(r.k.girderLt));
     }
 
     // ------------------------------------------------------------------ the kitchen
-    _drawPlates(s) {
-        for (let b = 0; b < M.Burgers; b++) {
-            const x = M.burgerX0(b);
+    _drawPlates(s, r) {
+        for (let b = 0; b < r.k.Burgers; b++) {
+            const x = r.k.burgers[b].x0;
             s.rect(x - 6, M.PlateY, M.BurgerW + 12, 2, this.cCream);
             s.rect(x - 3, M.PlateY + 2, M.BurgerW + 6, 1, this.cCream);
             s.rect(x + 2, M.PlateY + 3, M.BurgerW - 4, 2, this.cDim);
         }
     }
 
-    _drawFloors(s) {
+    _drawFloors(s, r) {
         for (let f = 0; f < M.Floors; f++) {
             const y = M.floorY(f);
             for (let c = 0; c < M.Cols; c++) {
-                if (!M.walk(c, f)) continue;
+                if (!r.k.walk(c, f)) continue;
                 const x = M.OX + c * M.TilePx;
-                s.rect(x, y, 16, 4, this.cGirder);
-                s.rect(x, y, 16, 1, this.cGirderLt);
+                s.rect(x, y, 16, 4, this.pal.get(r.k.girder));
+                s.rect(x, y, 16, 1, this.pal.get(r.k.girderLt));
+                const belt = r.k.conv[f * M.Cols + c];
+                if (belt) {
+                    const dx = Math.trunc(r.time * 12) % 8;
+                    for (let i = 0; i < 2; i++) {
+                        const bx = x + (i * 8 + dx) % 16;
+                        s.setPixel(bx, y + 1, this.pal.get('orange'));
+                        s.setPixel(bx + belt, y + 2, this.pal.get('orange'));
+                        s.setPixel(bx, y + 3, this.pal.get('orange'));
+                    }
+                } else if (r.k.slick[f]) {
+                    s.rect(x, y, 16, 2, this.pal.get('iceDk'));
+                    s.rect(x + 2, y, 6, 1, this.pal.get('ice'));
+                    s.rect(x + 10, y + 1, 3, 1, this.pal.get('ice'));
+                }
                 s.setPixel(x + 3, y + 2, this.cGirderLt);
                 s.setPixel(x + 12, y + 2, this.cGirderLt);
-                if (!M.walk(c - 1, f)) s.rect(x, y, 1, 4, this.cGirderLt);
-                if (!M.walk(c + 1, f)) s.rect(x + 15, y, 1, 4, this.cGirderLt);
+                if (!r.k.walk(c - 1, f)) s.rect(x, y, 1, 4, this.cGirderLt);
+                if (!r.k.walk(c + 1, f)) s.rect(x + 15, y, 1, 4, this.cGirderLt);
             }
         }
     }
 
-    _drawLadders(s) {
+    _drawLadders(s, r) {
         for (let g = 0; g < M.Floors - 1; g++)
             for (let c = 0; c < M.Cols; c++) {
-                if (!M.ladderBelow(c, g)) continue;
+                if (!r.k.ladderBelow(c, g)) continue;
                 const cx = M.colX(c);
                 const top = M.floorY(g) - 7, bot = M.floorY(g + 1);
                 s.rect(cx - 7, top, 2, bot - top, this.cGirderLt);
@@ -130,7 +145,7 @@ export class ShortOrderRenderer {
     _drawParts(s, r) {
         for (let i = 0; i < r.parts.length; i++) {
             const p = r.parts[i];
-            const x0 = M.burgerX0(p.burger);
+            const x0 = r.k.burgers[p.burger].x0;
             const yb = roundEven(p.y);
             for (let k = 0; k < M.PartTiles; k++) {
                 const sag = p.resting && (p.stepped & (1 << k)) !== 0 ? 2 : 0;
@@ -168,6 +183,10 @@ export class ShortOrderRenderer {
                 for (let i = 3; i < 48; i += 9) { s.setPixel(x + i, y + 2, this.cLetDk); s.setPixel(x + i + 1, y + 3, this.cLetDk); }
                 s.rect(x, y + 4, 48, 1, this.cLetDk);
                 break;
+            case PartKind.Cheese:
+                s.rect(x, y, 48, 2, this.cYellow);
+                for (let i = 3; i < 48; i += 11) s.rect(x + i, y + 2, 5, 1, this.cBun);
+                break;
             case PartKind.Patty:
                 s.rect(x + 2, y, 44, 1, this.cBunDk);
                 s.rect(x + 1, y + 1, 46, 1, this.cPatty);
@@ -200,8 +219,18 @@ export class ShortOrderRenderer {
             const k = e.kind;
             const x = roundEven(e.x) - 8, yf = roundEven(e.y);
             const flip = e.m.facing < 0;
+            if (k === 4 && e.mode !== FoeMode.Waiting && e.mode !== FoeMode.Out) {
+                for (let hp = 0; hp < e.hp; hp++) s.rect(x + hp * 5, yf - 22, 4, 2, this.pal.get('purple'));
+                if (e.hurt > 0) s.frame(x - 1, yf - 17, 18, 18, this.cWhite);
+            }
             switch (e.mode) {
-                case FoeMode.Waiting: break;
+                case FoeMode.Waiting:
+                    if (e.pend >= 0) {
+                        const px = M.colX(r.k.SpawnC[e.pend]), py = M.floorY(r.k.SpawnF[e.pend]);
+                        s.frame(px - 7, py - 20, 14, 20, this.cRed);
+                        s.text('!', px - 2, py - 15, PixelFont.Arcade, this.cYellow);
+                    }
+                    break;
                 case FoeMode.Walking:
                     s.blit(A.foe[k][Math.trunc(f32(e.anim / 6)) & 1], x, yf - 16, pal, 1, flip);
                     break;
@@ -275,7 +304,9 @@ export class ShortOrderRenderer {
             let txt = null, c = this.cYellow;
             if (e.kind === SoEvent.Ride) txt = String(e.n * ShortOrderSim.PointsRide);
             else if (e.kind === SoEvent.Crush) { txt = String(ShortOrderSim.PointsCrush); c = this.cCream; }
-            else if (e.kind === SoEvent.Burger) txt = String(ShortOrderSim.PointsBurger);
+            else if (e.kind === SoEvent.Burger) txt = String(e.pts);
+            else if (e.kind === SoEvent.Eat) txt = '+2 PEPPER';
+            else if (e.kind === SoEvent.Knock) txt = String(e.pts);
             if (txt == null) continue;
             const w = arc.measure(txt, 1);
             const x = Math.max(10, Math.min(310 - w, Math.trunc(e.x) - idiv(w, 2)));
@@ -283,6 +314,22 @@ export class ShortOrderRenderer {
             s.rect(x - 1, y - 1, w + 2, 9, this.cBg);
             s.text(txt, x, y, arc, c);
         }
+    }
+
+    // Crumbs use their own deterministic dice in the sim; the picture only reads them.
+    _drawExtras(s, r) {
+        const colours = ['bun', 'lettuce', 'cream', 'red', 'yellow', 'white', 'patty', 'orange', 'purple', 'lettuce'];
+        for (const q of r.fx) s.rect(Math.trunc(q.x), Math.trunc(q.y), 2, 2, this.pal.get(colours[q.c]));
+        for (const it of r.food) {
+            const x = M.colX(it.c), y = M.floorY(it.f);
+            s.blit(A.fries, x - 5, y - 12, this.pal);
+            s.rect(x - 5, y - 15, Math.ceil(it.t / 9 * 10), 1, this.cYellow);
+        }
+        if (r.bannerT < 2.0) {
+            s.plate(86, 192, 148, 16, this.cBg, this.cYellow);
+            s.textCentered(r.banner, 160, 197, PixelFont.Arcade, this.cYellow);
+        }
+        if (r.flashT < 0.16) s.frame(8, 8, 304, 224, r.flashKind ? this.cYellow : this.cRed);
     }
 
     // ------------------------------------------------------------------ plates
@@ -294,7 +341,7 @@ export class ShortOrderRenderer {
                 s.textBox('READY!', midX, boxY, dsp, 3, this.cCream, this.cRed, this.cBg);
                 if (r.firstReady) {
                     s.plate(midX - 70, boxY + 24, 140, 16, this.cBg, this.cBun);
-                    s.textCentered('STACK 4 BURGERS', midX, boxY + 29, arc, this.cBun);
+                    s.textCentered(r.k.name, midX, boxY + 29, arc, this.cBun);
                 } else {
                     s.plate(midX - 50, boxY + 24, 100, 16, this.cBg, this.cBun);
                     s.textCentered(r.lives === 1 ? 'LAST CHEF' : r.lives + ' CHEFS', midX, boxY + 29, arc, this.cBun);
@@ -311,8 +358,20 @@ export class ShortOrderRenderer {
                 s.plate(midX - 56, boxY + 24, 112, 16, this.cBg, this.cRed);
                 s.textCentered(r.lives <= 0 ? 'NO CHEFS LEFT' : r.lives === 1 ? 'LAST CHEF' : r.lives + ' CHEFS LEFT', midX, boxY + 29, arc, this.cRed);
                 break;
+            case Phase.Stage:
+                s.textBox('KITCHEN ' + (r.stage + 1), midX, boxY, dsp, 3, this.cCream, this.cRed, this.cBg);
+                s.plate(midX - 90, boxY + 24, 180, 16, this.cBg, this.cBun);
+                s.textCentered(r.k.name, midX, boxY + 29, arc, this.cBun);
+                s.plate(20, boxY + 44, 280, 20, this.cBg, this.cDim);
+                s.textCentered(r.k.hint, midX, boxY + 50, arc, this.cCream);
+                break;
+            case Phase.Tally:
+                s.plate(34, 76, 252, 88, this.cBg, this.cBun);
+                s.textCentered('ORDER TALLY', midX, 81, arc, this.cCream);
+                for (let i = 0; i < r.tallyShown; i++) s.textCentered(r.tally[i].label + ' ' + r.tally[i].pts, midX, boxY + i * 10, arc, this.cYellow);
+                break;
             case Phase.Clear:
-                s.textBox('4 BURGERS UP', midX, boxY, dsp, 2, this.cYellow, this.cBun, this.cBg);
+                s.textBox('KITCHEN CLEAR', midX, boxY, dsp, 2, this.cYellow, this.cBun, this.cBg);
                 break;
             case Phase.Card:
             case Phase.Over: {
@@ -321,7 +380,7 @@ export class ShortOrderRenderer {
                 s.textBox(won ? spec.roundWonText : spec.roundLostText, midX, boxY - 8, dsp, 3, won ? this.cYellow : this.cRed, won ? this.cBun : this.cRed, this.cBg);
                 s.plate(midX - 84, boxY + 20, 168, 44, this.cBg, won ? this.cBun : this.cRed);
                 s.textCentered('SCORE ' + d6(r.score), midX, boxY + 26, arc, this.cCream, 2);
-                s.textCentered('BURGERS ' + r.burgersDone + ' OF 4', midX, boxY + 46, arc, won ? this.cYellow : this.cBun);
+                s.textCentered('KITCHEN ' + (r.stage + 1) + ' OF 5', midX, boxY + 46, arc, won ? this.cYellow : this.cBun);
                 break;
             }
         }

@@ -1,12 +1,5 @@
 // THE NODE · world 1 · LAST LIGHT (Anvil and Sparks, 1982) on the Cabinet Engine · palette + SPEC.
-// Port of LastLightCartridge.cs from Staging/Batch1/lastlight. Split from cartridge.js so the
-// renderer and the round can read it without an import cycle.
-//
-// Missile Command on a moon base: six glass domes and three interceptor silos (10 shots each, for
-// the whole round). MERCY: fallSpeed x0.9 per lost round (0.5 on the unlosable credit), and a
-// reserve of refill shots (+0.5 silo loads per loss, capped at 0.5) that reloads the first silo to
-// run dry once. Credit 5: missiles fall at half speed and the last dome cannot be destroyed (it
-// bursts on a shield instead).
+// Palette, title art and the siege knobs. Domes are lives; silos rearm at every watch.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 
 // index order matters for the title art / bomber sprite: '0'..'9'
@@ -103,34 +96,31 @@ function buildSpec() {
         publisher: 'ANVIL AND SPARKS',            // '&' is not in the Arcade font; spelled out
         year: 1982,
         palette: LastLightPalette,
-        tagline: 'SIX DOMES. THIRTY SHOTS. ONE NIGHT.',
-        controls: ['STICK  AIM      A  FIRE', 'NEAREST SILO FIRES. SAVE ONE DOME.'],
-        roundWonText: 'WAVE SURVIVED',
+        tagline: 'EIGHT WATCHES UNTIL THE DAWN.',
+        controls: ['STICK  AIM      A  FIRE', 'B  LOW SHIELD SHOT. SAVE ONE DOME.'],
+        roundWonText: 'DAWN RETURNS',
         roundLostText: 'THE END',
-        highScoreSeed: [2400, 2000, 1600, 1200, 900],
+        highScoreSeed: [16000, 11000, 7000, 4000, 2000],
         titleArt: TitleArt,
         titleArtScale: 2,
         knobs: [
-            Knob.mul('fallSpeed', 1.0, 0.9, 'enemy fall speed multiplier: 10% slower per lost round').setOnMercy(0.5),
-            Knob.fixed('baseFall', 28.5, 'warhead px/s in wave 1'),
-            Knob.fixed('waveRamp', 0.3, '+fall speed per sub-wave (x1.0, x1.3, x1.6)'),
-            Knob.fixed('missiles', 8, 'warheads launched in sub-wave 1'),
+            Knob.mul('fallSpeed', 1.0, 0.90, 'enemy fall speed multiplier: 10% slower per lost round').setOnMercy(0.5),
+            Knob.fixed('baseFall', 20, 'warhead px/s in wave 1'),
+            Knob.fixed('waveRamp', 0.10, '+10% base speed per watch'),
+            Knob.fixed('missiles', 12, 'warheads launched in sub-wave 1'),
             Knob.fixed('missileStep', 2, '+warheads per sub-wave'),
-            Knob.fixed('spawnWindow', 19, 'seconds a sub-wave launches over'),
-            Knob.fixed('mirvChance', 0.15, 'chance a warhead is a MIRV in sub-wave 1'),
-            Knob.fixed('mirvStep', 0.1, '+MIRV chance per sub-wave'),
-            Knob.fixed('smarts', 0, 'smart missiles in sub-wave 1'),
-            Knob.fixed('smartStep', 1, '+smart missiles per sub-wave'),
+            Knob.fixed('spawnWindow', 32, 'seconds a sub-wave launches over'),
+            Knob.fixed('mirvChance', 0.10, 'MIRV base chance, enabled from watch 2'),
+            Knob.fixed('mirvStep', 0.035, '+MIRV chance per sub-wave'),
             Knob.fixed('smartMul', 1.5, 'smart missile speed vs a warhead'),
-            Knob.fixed('bomberChance', 0.35, 'chance of a bomber pass in sub-wave 1'),
-            Knob.fixed('bomberStep', 0.35, '+bomber chance per sub-wave'),
-            Knob.fixed('shots', 10, 'interceptors per silo for the whole round'),
-            Knob.add('refills', 0, 0.5, 'mercy reserve in silo loads: the first silo to run dry reloads from it once').clamp(0, 0.5),
-            Knob.fixed('blastRadius', 15, 'interceptor blast radius, px'),
-            Knob.fixed('chainRadius', 9, 'blast radius of a destroyed warhead (chains)'),
+            Knob.fixed('shots', 18, 'interceptors per silo, replenished each watch'),
+            Knob.fixed('refills', 0.5, 'reserve silo loads per watch: first dry silo reloads'),
+            Knob.fixed('blastRadius', 19, 'interceptor blast radius, px'),
+            Knob.fixed('chainRadius', 11, 'blast radius of a destroyed warhead (chains)'),
             Knob.fixed('interceptorSpeed', 200, 'interceptor px/s (the centre silo x1.35)'),
         ],
     });
+    s.hints = [['STICK', 'AIM'], ['A', 'INTERCEPT'], ['B', 'LOW SHIELD']];
     s.phaseNames.set(CabinetState.Intro, 'wave_banner');
     s.phaseNames.set(CabinetState.Playing, 'play');
     s.phaseNames.set(CabinetState.Interlude, 'interlude');

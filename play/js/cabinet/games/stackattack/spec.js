@@ -1,18 +1,23 @@
 // THE NODE · world 1 · STACK ATTACK (Quicksilver Games, 1988) on the Cabinet Engine · the palette and
-// the SPEC (data only). Port of StackAttackCartridge.cs from Staging/Batch2/stackattack.
-// Split from cartridge.js so the renderer and the sim can read it without an import cycle.
+// the SPEC (data only). Began as a port of StackAttackCartridge.cs (Staging/Batch2/stackattack); built out
+// on 2026-10-18 into the six-stage climb (stages.js). Split from cartridge.js so the renderer and the sim
+// can read it without an import cycle.
 //
 // Palette: a navy well, four piece families in one cool neon range (cyan and magenta, plus violet and
 // azure between them), each with a light bevel and a dark edge; the row flash is white; the topped-out
-// stack turns to navy stone. Knobs (tune with --knob name=value):
-//   fallRate     rows/s at level 1: x0.9 per lost round; a walk (0.6) on the fifth credit
-//   ceilingRows  +2 rows of ceiling from the first loss (lifts the top-out line into the spawn rows)
-//   levelRamp    fall rate x this every 10 rows (the level)
+// stack turns to navy stone. The build-out adds the stage's things: steel JUNK (the flood and the dig),
+// riveted IRON (the squeeze walls), GOLD (the dig), the BOMB (a dark shell, a hot fuse), a warning red,
+// and one well tint per stage (the stage you are on reads at a glance).
+// Knobs (tune with --knob name=value; credit N = N-1 earlier losses on this cabinet):
+//   fallRate     rows/s on stage 1 (each stage steps it up, stages.js): x0.93 per lost round; a walk on credit 5
+//   ceilingRows  +1 row of ceiling per loss, up to 2 (lifts the top-out line into the spawn rows)
+//   floodPace    x the seconds between rising rows (stages 2 and 6): x1.12 per lost round; slow on credit 5
+//   stacks       stacks (lives) a coin buys: 3
 //   softDrop     rows/s with the stick held down; lockDelay: seconds a piece rests before it locks
-//   linesToWin   the round: 10 rows
+//   extraAt      the score of the first EXTRA STACK (then every extraEvery more)
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 
-export const FallRateBase = 4.0;
+export const FallRateBase = 3.0;
 
 export const StackAttackPalette = new Palette(
     ['bg', 0x05061A],
@@ -37,11 +42,31 @@ export const StackAttackPalette = new Palette(
     ['stone', 0x3C4470],
     ['stoneHi', 0x6A73A0],
     ['stoneLo', 0x20264A],
+    // ---- the build-out (2026-10-18): the stages' things
+    ['junk', 0x3E6878],        // 22: the flood's rows and the dig: steel
+    ['junkHi', 0x8CBCC8],
+    ['junkLo', 0x1C3440],
+    ['iron', 0x2A3458],        // 25: the squeeze walls: riveted iron
+    ['ironHi', 0x5A6890],
+    ['ironLo', 0x121830],
+    ['gold', 0xF0B020],        // 28: the dig's gold
+    ['goldHi', 0xFFF0A0],
+    ['goldLo', 0x8A5A08],
+    ['bomb', 0x241238],        // 31: the bomb's shell (its fuse burns goldHi / red)
+    ['red', 0xFF3C5A],         // 32: warnings: the flood, the danger line, the last stack
+    ['redLo', 0x6E1028],
+    ['well2', 0x082A44],       // 34: the well's tint per stage (1 is 'well')
+    ['well3', 0x1A0C42],
+    ['well4', 0x1E1830],
+    ['well5', 0x101C34],
+    ['well6', 0x240A36],
 ).roles('bg', 'hud', 'magenta', 'cyan', 'magentaLo');
 
-// each letter becomes a 4x4 bevelled block: c cyan, m magenta, v violet, a azure, w the white flash
+// each letter becomes a 4x4 bevelled block: c cyan, m magenta, v violet, a azure, w the white flash,
+// g gold, j junk, b a bomb
 const BlockTint = {
     c: [5, 6, 7], m: [8, 9, 10], v: [11, 12, 13], a: [14, 15, 16], w: [17, 17, 6],
+    g: [28, 29, 30], j: [22, 23, 24], b: [31, 12, 13],
 };
 
 function blockArt(...rows) {
@@ -63,14 +88,16 @@ function blockArt(...rows) {
     return s;
 }
 
-// the title card's picture: a T coming down into the notch while the row under it flashes white
+// the title card's picture: a T coming down into the notch while the row under it flashes white; a bomb
+// waits in the stack beside a gold block
 const TitleArt = blockArt(
     '.......mmm......',
     '........m.......',
     'cc.aa..........v',
-    'ccvaaavv.mmccavv',
+    'ccvaaagv.mmcbavv',
     'wwwwwwwwwwwwwwww');
 
+// the six stages' names are in stages.js; the attract card says the shape of the game
 function buildSpec() {
     const s = new CabinetGameSpec({
         id: 'stackattack',
@@ -78,25 +105,28 @@ function buildSpec() {
         publisher: 'QUICKSILVER GAMES',
         year: 1988,
         palette: StackAttackPalette,
-        tagline: 'CLEAR 10 LINES TO WIN',
-        controls: ['STICK  SLIDE     DOWN  DROP', 'A  TURN RIGHT   B  TURN LEFT', 'FILL THE WELL AND YOU LOSE'],
-        roundWonText: 'ROUND WON',
+        tagline: 'SIX STAGES TO THE TOP OF THE TOWER',
+        controls: ['STICK SLIDE    UP DROP    DOWN FAST', 'A TURN RIGHT       B TURN LEFT', 'TOP OUT AND YOU LOSE ONE STACK'],
+        hints: [['LR', 'SLIDE'], ['UP', 'DROP'], ['DOWN', 'FAST'], ['A', 'TURN'], ['B', 'TURN BACK']],
+        roundWonText: 'TOWER TOPPED',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [2600, 2200, 1900, 1600, 1200],
+        highScoreSeed: [100000, 70000, 45000, 25000, 12000],
         titleArt: TitleArt,
         titleArtScale: 2,
         knobs: [
-            Knob.mul('fallRate', FallRateBase, 0.9, 'rows/s at level 1').setOnMercy(0.6),
-            Knob.add('ceilingRows', 0, 2, 'rows of ceiling above the rim').clamp(0, 2),
-            Knob.fixed('levelRamp', 1.3, 'fall rate x this every 10 rows'),
+            Knob.mul('fallRate', FallRateBase, 0.93, 'rows/s on stage 1 (x the stage step)').setOnMercy(0.6),
+            Knob.add('ceilingRows', 0, 1, 'rows of ceiling above the rim').clamp(0, 2),
+            Knob.mul('floodPace', 1.0, 1.12, 'x the seconds between rising rows').clamp(1, 2).setOnMercy(1.8),
+            Knob.fixed('stacks', 3, 'stacks (lives) a coin buys'),
             Knob.fixed('softDrop', 20, 'rows/s with the stick held down'),
             Knob.fixed('lockDelay', 0.5, 'seconds a landed piece rests before it locks'),
-            Knob.fixed('linesToWin', 10, 'rows to clear for the round'),
+            Knob.fixed('extraAt', 20000, 'score of the first extra stack'),
+            Knob.fixed('extraEvery', 40000, 'score between the extra stacks after it'),
         ],
     });
-    s.phaseNames.set(CabinetState.Intro, 'ready');
+    s.phaseNames.set(CabinetState.Intro, 'card');
     s.phaseNames.set(CabinetState.Playing, 'play');
-    s.phaseNames.set(CabinetState.Interlude, 'topout');
+    s.phaseNames.set(CabinetState.Interlude, 'tally');
     return s;
 }
 

@@ -1,5 +1,5 @@
 // THE NODE · world 1 · CASTLE CRUSH · THE BOT: a modelled average player at the control panel.
-// Port of CastleCrushBot.cs from Staging/Batch1/castlecrush.
+// Began as a port of CastleCrushBot.cs; built out 2026-10-18 to play the whole six-castle campaign.
 //
 // It only ever pushes the stick (analogue X) and taps A, and its dice are its own.
 //   - WATCH: it re-reads the board every thinkEvery s. A stone it sees falling is followed to where
@@ -11,17 +11,22 @@
 //     (jittered) to notice; until then it keeps going for the old spot.
 //   - LAPSE: each time a stone starts down, a lapse chance the player looks away for a moment.
 //   - AIM: it lands the stone off-centre on the beam so the rebound heads for the biggest cluster of
-//     masonry still standing (up to aimMax of the half-beam), the way players "work" a wall.
-//   - DODGE: an arrow over the cart is dodged when the stones are high (nothing lands within
-//     dodgeWindow s), noticed with chance aware per arrow; it never rolls into an arrow level with
-//     the beam. With a stone coming down at about the same time it keeps the catch, and with
-//     chance edgeSave takes it on the far end of the beam, away from the arrow.
+//     masonry still standing (up to aimMax of the half-beam), the way players "work" a wall; on the
+//     River Keep it leaves the treasury be while the portcullis is down; on the Black Citadel it
+//     aims at the engine's furnace.
+//   - DODGE: anything coming down on the beam (an arrow, a ballista bolt, a hex, a firepot's burst:
+//     sim.impact says where and when) is dodged when the stones are high (nothing lands within
+//     dodgeWindow s), noticed with chance aware each; it never rolls into one level with the beam.
+//     With a stone coming down at about the same time it keeps the catch, and with chance edgeSave
+//     takes it on the far end of the beam, away from the threat.
+//   - FIRE: burning grass bars the cart (as it does a player): its goal is kept on its own side.
 //   - GREED: a falling power-up is chased while the stones are high, with chance greed per token.
-//   - SERVE: it lines up under the biggest cluster and taps A after a short, human pause.
+//   - SERVE: it lines up under its target and taps A after a short, human pause.
 import { f32, CabinetBotBase, InputFrame } from '../../sdk/index.js';
 import { CastleCrushRound } from './round.js';
 
-const Phase = CastleCrushRound.Phase;
+const R = CastleCrushRound;
+const Phase = R.Phase, Shot = R.Shot;
 
 export class CastleCrushBot extends CabinetBotBase {
     constructor() {
@@ -34,7 +39,7 @@ export class CastleCrushBot extends CabinetBotBase {
         this.highPull = f32(0.25);          // a rising stone's guessed landing is pulled this much toward the middle
         this.dodgeWindow = f32(0.55); this.aware = f32(0.9);
         this.greed = f32(0.7);
-        this.edgeSave = f32(0.6);           // chance to catch on the beam's far end when an arrow comes down on the catch
+        this.edgeSave = f32(0.6);           // chance to catch on the beam's far end when something comes down on the catch
 
         this._readErr = 0; this._thinkT = 0; this._frozenT = 0; this._reactT = 0; this._target = 0;
         this._stoneWant = 0; this._stoneLandX = 0; this._stoneLand = Number.MAX_VALUE; this._serveWait = -1;
@@ -115,10 +120,10 @@ export class CastleCrushBot extends CabinetBotBase {
     // where the cart should be for the stones alone; returns { want, tLand } (tLand = seconds until
     // the next one comes down)
     _stoneTarget(g) {
-        const lineY = f32(CastleCrushRound.CartTop - CastleCrushRound.StoneR);
+        const lineY = f32(R.CartTop - R.StoneR);
         const half = f32(g.cartW * 0.5);
-        const mid = f32((CastleCrushRound.FieldL + CastleCrushRound.FieldR) * 0.5);
-        const { cx: clusterX, cy: clusterY } = cluster(g);
+        const mid = f32((R.FieldL + R.FieldR) * 0.5);
+        const { cx: clusterX, cy: clusterY } = aimPoint(g);
         let tLand = Number.MAX_VALUE;
         if (g.serving) return { want: this._clamp(g, clusterX + this.range(-10, 10)), tLand };
 
@@ -126,7 +131,7 @@ export class CastleCrushBot extends CabinetBotBase {
         for (const st of g.stones) {
             if (st.attached) continue;
             if (st.vy > 0) {
-                const r = CastleCrushRound.predictX(st.x, st.y, st.vx, st.vy, lineY);
+                const r = R.predictX(st.x, st.y, st.vx, st.vy, lineY);
                 if (r.t < tLand) { tLand = r.t; threat = st; landX = r.x; }
             } else {
                 // rising: guess where it comes back down (off the first block it meets)
@@ -137,60 +142,71 @@ export class CastleCrushBot extends CabinetBotBase {
         if (threat != null) {
             const lx = landX + this._readErr * (this.noiseBase + this.noisePerSec * tLand) + this._gauss() * this.noiseBase * 0.5;
             this._stoneLandX = lx;
-            // aim the rebound at the biggest cluster
+            // aim the rebound at the biggest cluster (the furnace, on the citadel)
             const ang = Math.atan2(clusterX - lx, Math.max(20, lineY - clusterY));
-            let u = ang / CastleCrushRound.MaxAngle;
+            let u = ang / R.MaxAngle;
             if (u > this.aimMax) u = this.aimMax; else if (u < -this.aimMax) u = -this.aimMax;
             return { want: this._clamp(g, lx - u * half), tLand };
         }
         if (high != null) {
-            // a rough read: the guess is loose, and pulled toward the middle
+            // a rough read: the guess is loose, and pulled toward the middle; its return time still
+            // matters, so a short rising bounce cannot be mistaken for time to chase a token
             const gx = highX + this._readErr * (this.noiseBase + this.noisePerSec * 1.5 * Math.min(2, highT));
-            return { want: this._clamp(g, gx * (1 - this.highPull) + mid * this.highPull), tLand };
+            return { want: this._clamp(g, gx * (1 - this.highPull) + mid * this.highPull), tLand: highT };
         }
         return { want: mid, tLand };
     }
 
-    // arrows and power-ups, re-read at every think
+    // missiles, fire and power-ups, re-read at every think
     _adjust(g, want, tLand) {
         const half = f32(g.cartW * 0.5);
         const stonesHigh = tLand > this.dodgeWindow;
         if (stonesHigh)
             for (const tk of g.tokens) {
-                const tt = (CastleCrushRound.CartTop - tk.y) / g.tokenFall;
+                const tt = (R.CartTop - tk.y) / g.tokenFall;
                 if (tt < 0 || tt > 2.5 || tt + 0.25 > tLand) continue;
                 if (!this._decidedFor(tk, this.greed)) continue;
                 if (Math.abs(tk.x - g.cartX) / g.cartSpeed < tt + 0.1) { want = tk.x; break; }
             }
-        for (const ar of g.arrows) {
-            if (ar.y > CastleCrushRound.CartTop + CastleCrushRound.ArrowBite) continue;   // below the beam: harmless
-            const ta = (CastleCrushRound.CartTop - ar.y) / g.arrowSpeed;    // < 0: level with the cart now
+        for (const m of g.shots) {
+            const tipY = m.kind === Shot.Hex ? m.y + 3 : m.y;
+            if (m.kind !== Shot.Pot && tipY > R.CartTop + R.ArrowBite) continue;   // below the beam: harmless
+            const imp = R.impact(m);
+            const ta = imp.t, ax = imp.x;                                       // ta < 0: level with the cart now
             if (ta > 1.2) continue;
-            if (!this._decidedFor(ar, this.aware)) continue;
-            const margin = half + 4;
-            const cartLeft = g.cartX < ar.x;
-            const near = cartLeft ? ar.x - margin : ar.x + margin;
+            if (!this._decidedFor(m, this.aware)) continue;
+            const margin = half + 4 + imp.r;
+            const cartLeft = g.cartX < ax;
+            const near = cartLeft ? ax - margin : ax + margin;
             if (ta <= 0) {
                 // it is passing the cart's height: never roll into it
-                if (cartLeft) want = Math.min(want, ar.x - margin); else want = Math.max(want, ar.x + margin);
+                if (cartLeft) want = Math.min(want, ax - margin); else want = Math.max(want, ax + margin);
                 continue;
             }
             if (!stonesHigh && ta >= tLand - 0.35) {
-                // a stone comes down just before (or with) an arrow: catch it on the end of the beam
-                // away from the arrow, if there is room -- or take the catch and the chance
-                if (ta <= tLand + 0.7 && Math.abs(ar.x - this._stoneLandX) > 4 && this._decidedEdge(ar)) {
-                    const c = this._stoneLandX + Math.sign(this._stoneLandX - ar.x) * (half - 2);
-                    if (Math.abs(ar.x - c) > half + 1) want = c;
+                // a stone comes down just before (or with) it: catch it on the end of the beam away
+                // from the threat, if there is room -- or take the catch and the chance
+                if (ta <= tLand + 0.7 && Math.abs(ax - this._stoneLandX) > 4 && this._decidedEdge(m)) {
+                    const c = this._stoneLandX + Math.sign(this._stoneLandX - ax) * (half - 2);
+                    if (Math.abs(ax - c) > half + imp.r) want = c;
                 }
                 continue;
             }
-            const cross = (Math.abs(ar.x - g.cartX) + margin) / g.cartSpeed;
-            const wantPast = (want < ar.x) !== cartLeft;
-            if (Math.abs(want - ar.x) < margin || (wantPast && cross + 0.08 > ta)) {
-                const nearOk = near - half > CastleCrushRound.FieldL && near + half < CastleCrushRound.FieldR;
-                want = nearOk ? near : (cartLeft ? ar.x + margin : ar.x - margin);
+            const cross = (Math.abs(ax - g.cartX) + margin) / g.cartSpeed;
+            const wantPast = (want < ax) !== cartLeft;
+            if (Math.abs(want - ax) < margin || (wantPast && cross + 0.08 > ta)) {
+                const nearOk = near - half > R.FieldL && near + half < R.FieldR;
+                want = nearOk ? near : (cartLeft ? ax + margin : ax - margin);
             }
         }
+        // burning grass: the cart cannot roll through it, so the goal stays this side of it
+        let lo = R.FieldL + half, hi = R.FieldR - half;
+        for (const fl of g.flames) {
+            const l = fl.x - fl.w * 0.5, r = fl.x + fl.w * 0.5;
+            if (l >= g.cartX) hi = Math.min(hi, Math.max(g.cartX, l - half));
+            else if (r <= g.cartX) lo = Math.max(lo, Math.min(g.cartX, r + half));
+        }
+        if (want < lo) want = lo; else if (want > hi) want = hi;
         return this._clamp(g, want);
     }
 
@@ -208,37 +224,48 @@ export class CastleCrushBot extends CabinetBotBase {
 
     _clamp(g, x) {
         const half = f32(g.cartW * 0.5);
-        if (x < CastleCrushRound.FieldL + half) x = CastleCrushRound.FieldL + half;
-        if (x > CastleCrushRound.FieldR - half) x = CastleCrushRound.FieldR - half;
+        if (x < R.FieldL + half) x = R.FieldL + half;
+        if (x > R.FieldR - half) x = R.FieldR - half;
         return x;
     }
 }
 
-// the largest 4-connected cluster of standing blocks (by hit points); its centroid
+// what the player works at: the furnace on the citadel, else the biggest cluster of masonry
+function aimPoint(g) {
+    const B = g.boss;
+    if (B != null && !B.dead) return { cx: B.x, cy: R.EngineBot };
+    return cluster(g);
+}
+
+// the largest 4-connected cluster of standing masonry (by hit points; rock is not masonry); its
+// centroid. A cluster sealed behind the shut portcullis is left for later.
 function cluster(g) {
-    const n = CastleCrushRound.Rows * CastleCrushRound.Cols;
+    const n = R.Rows * R.Cols;
     const seen = new Array(n).fill(false);
     const stack = [];
+    const G = g.gate, sealed = G != null && G.f > 0.5;
     let bestHp = -1, cx = 160, cy = 90;
     for (let i = 0; i < n; i++) {
         const b0 = g.blocks[i];
-        if (seen[i] || b0 == null || !b0.alive) continue;
+        if (seen[i] || b0 == null || b0.hp <= 0) continue;
         let hp = 0, sx = 0, sy = 0, cnt = 0;
         stack.push(i); seen[i] = true;
         while (stack.length > 0) {
             const k = stack.pop();
             const b = g.blocks[k];
-            hp += b.hp; sx += b.x0 + CastleCrushRound.CellW * 0.5; sy += b.y0 + CastleCrushRound.CellH; cnt++;
-            const c = k % CastleCrushRound.Cols, r = Math.trunc(k / CastleCrushRound.Cols);
+            hp += b.hp; sx += b.x0 + R.CellW * 0.5; sy += b.y0 + R.CellH; cnt++;
+            const c = k % R.Cols, r = Math.trunc(k / R.Cols);
             for (let d = 0; d < 4; d++) {
                 const nc = c + (d === 0 ? 1 : d === 1 ? -1 : 0), nr = r + (d === 2 ? 1 : d === 3 ? -1 : 0);
-                if (nc < 0 || nr < 0 || nc >= CastleCrushRound.Cols || nr >= CastleCrushRound.Rows) continue;
-                const nk = nr * CastleCrushRound.Cols + nc;
-                if (seen[nk] || g.blocks[nk] == null || !g.blocks[nk].alive) continue;
+                if (nc < 0 || nr < 0 || nc >= R.Cols || nr >= R.Rows) continue;
+                const nk = nr * R.Cols + nc;
+                if (seen[nk] || g.blocks[nk] == null || g.blocks[nk].hp <= 0) continue;
                 seen[nk] = true; stack.push(nk);
             }
         }
-        if (hp > bestHp) { bestHp = hp; cx = sx / cnt; cy = sy / cnt; }
+        const x = sx / cnt, y = sy / cnt;
+        if (sealed && x >= G.x0 && x <= G.x1 && y <= G.y1) hp = Math.min(hp, 0.5);
+        if (hp > bestHp) { bestHp = hp; cx = x; cy = y; }
     }
     return { cx, cy };
 }

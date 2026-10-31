@@ -1,9 +1,12 @@
 // THE NODE · world 1 · LANE JUMPER on the Cabinet Engine · THE SPRITES and the title card's picture.
-// The static part of LaneJumperRenderer.cs (its static constructor, the sprite makers and BuildTitleArt),
-// split out so spec.js (title art) and renderer.js can both read it without an import cycle.
+// Grown from the static part of LaneJumperRenderer.cs (its static constructor, the sprite makers and
+// BuildTitleArt), split out so spec.js (title art) and renderer.js can both read it without an import cycle.
+// The build-out added the motorbike, the train, the ferry, the mudjaw (shut, burning, open), the snake, the dog,
+// the bonus stamp and the parcel.
 //
 // Palette indices (spec.js): 0 bg, 1 asphaltDark, 2 asphalt, 3 asphaltLight, 4 yellow, 5 amber, 6 teal,
-// 7 tealDark, 8 tealLight, 9 white, a cream, b green, c greenDark, d brown, e brownDark, f red.
+// 7 tealDark, 8 tealLight, 9 white, a cream, b green, c greenDark, d brown, e brownDark, f red, g night,
+// h navy, i orange, j maroon.
 import { PixelSprite, Dir4 } from '../../sdk/index.js';
 
 export function idx(c) { const k = c.charCodeAt(0); return k >= 48 && k <= 57 ? k - 48 : 10 + k - 97; }
@@ -117,6 +120,128 @@ function makeBus() {
     return s;
 }
 
+// a motorbike and rider from above, facing right: tyres end on, the tank, the bars, a white helmet
+function makeMoto(body, jacket) {
+    const s = new PixelSprite(16, 12);
+    fill(s, 0, 5, 4, 2, '0'); fill(s, 12, 5, 4, 2, '0');           // tyres
+    fill(s, 0, 5, 1, 2, 'f'); fill(s, 15, 5, 1, 2, 'a');           // tail light, headlamp
+    fill(s, 3, 4, 9, 4, '0');
+    fill(s, 4, 5, 7, 2, body);                                      // tank and seat
+    fill(s, 11, 1, 1, 10, '3');                                     // the bars
+    fill(s, 11, 0, 1, 2, '0'); fill(s, 11, 10, 1, 2, '0');          // grips
+    fill(s, 4, 2, 5, 8, '0');
+    fill(s, 5, 3, 3, 6, jacket);                                    // the rider's back
+    fill(s, 8, 2, 3, 1, jacket); fill(s, 8, 9, 3, 1, jacket);       // arms to the grips
+    fill(s, 6, 4, 3, 4, '9'); fill(s, 8, 5, 1, 2, '1');             // helmet and visor
+    return s;
+}
+
+// the train from above, heading right: four maroon coaches (side windows, roof vents) and the red engine
+// with its hazard-striped nose and headlamp
+function makeTrain() {
+    const s = new PixelSprite(176, 14);
+    for (let c = 0; c < 4; c++) {
+        const x = c * 36;
+        box(s, x, 0, 34, 14, 'j');
+        fill(s, x + 2, 3, 30, 1, '3'); fill(s, x + 2, 10, 30, 1, '3');     // roof edges
+        for (let k = 0; k < 5; k++) { fill(s, x + 3 + k * 6, 1, 4, 1, 'a'); fill(s, x + 3 + k * 6, 12, 4, 1, 'a'); }   // windows
+        fill(s, x + 8, 5, 5, 4, '1'); fill(s, x + 21, 5, 5, 4, '1');        // roof vents
+        fill(s, x + 9, 6, 3, 2, '3'); fill(s, x + 22, 6, 3, 2, '3');
+        fill(s, x + 34, 5, 2, 4, '1');                                     // the coupling
+    }
+    fill(s, 0, 2, 1, 2, 'f'); fill(s, 0, 10, 1, 2, 'f');                     // tail lamps
+    box(s, 144, 0, 32, 14, 'f');                                           // the engine
+    fill(s, 146, 4, 16, 6, 'j');                                           // the roof grille
+    for (let k = 0; k < 4; k++) fill(s, 147 + k * 4, 5, 2, 4, '1');
+    fill(s, 163, 2, 3, 10, '1'); fill(s, 164, 3, 1, 3, '3');               // the cab glass
+    fill(s, 167, 1, 8, 12, '4');                                           // the nose: hazard stripes
+    for (let k = 0; k < 4; k++) fill(s, 168 + k * 2, 1 + k * 3, 2, 3, '0');
+    fill(s, 174, 6, 2, 2, 'a');                                            // the headlamp
+    return s;
+}
+
+// the ferry from above, bow to the right: white hull, red rubbing strakes, cream deck, the yellow wheelhouse
+// and its red funnel
+function makeFerry(len) {
+    const s = new PixelSprite(len, 14);
+    box(s, 0, 0, len - 6, 14, '9');
+    for (let k = 0; k < 6; k++) { fill(s, len - 6 + k, k + 1, 1, 12 - 2 * k, '0'); if (k < 5) fill(s, len - 6 + k, k + 2, 1, 10 - 2 * k, '9'); }
+    fill(s, 1, 1, len - 7, 1, 'f'); fill(s, 1, 12, len - 7, 1, 'f');        // the strakes
+    fill(s, 2, 3, len - 10, 8, 'a');                                       // the deck
+    for (let x = 6; x < len - 10; x += 8) fill(s, x, 3, 1, 8, '3');        // planks
+    const cx = (len >> 1) - 10;
+    box(s, cx, 4, 20, 6, '4');                                             // the wheelhouse roof
+    fill(s, cx + 14, 5, 2, 4, '1');
+    fill(s, cx + 5, 5, 4, 4, 'f'); fill(s, cx + 6, 6, 2, 2, '0');          // the funnel
+    fill(s, 3, 6, 2, 2, '1'); fill(s, len - 12, 6, 2, 2, '1');             // bollards
+    return s;
+}
+
+// THE MUDJAW from above, heading right: a forked tail, a long muddy back with a green ridge and dark scales,
+// and the head (the last 20 px). st: 0 jaws shut (yellow eye), 1 the eyes burn red and the jaw creaks open
+// (the telegraph), 2 open: the maroon mouth and white teeth (the head bites)
+function makeBeast(st) {
+    const s = new PixelSprite(80, 14);
+    fill(s, 0, 1, 4, 4, '0'); fill(s, 0, 9, 4, 4, '0'); fill(s, 3, 3, 8, 8, '0');
+    fill(s, 1, 2, 2, 2, 'c'); fill(s, 1, 10, 2, 2, 'c'); fill(s, 3, 4, 7, 6, 'c');      // the forked tail
+    fill(s, 28, 0, 8, 1, '0'); fill(s, 28, 13, 8, 1, '0');                               // fins
+    box(s, 8, 1, 54, 12, 'c');
+    fill(s, 10, 3, 50, 2, 'b');                                                          // the ridge
+    for (let k = 0; k < 6; k++) { fill(s, 12 + k * 8, 7, 3, 2, '7'); fill(s, 16 + k * 8, 9, 2, 1, '7'); }
+    fill(s, 10, 10, 50, 1, '5');                                                         // the belly's edge
+    if (st < 2) {
+        box(s, 60, 2, 18, 10, 'c');
+        fill(s, 77, 4, 3, 6, '0'); fill(s, 77, 5, 2, 4, 'c');                            // the snout
+        fill(s, 62, 4, 14, 1, 'b');
+        fill(s, 64, 2, 3, 2, st === 1 ? 'f' : '4'); fill(s, 64, 10, 3, 2, st === 1 ? 'f' : '4');   // the eyes
+        fill(s, 65, 2, 1, 1, '0'); fill(s, 65, 11, 1, 1, '0');
+        fill(s, 63, 7, 15, 1, '0');                                                      // the jaw line
+        if (st === 1) { fill(s, 64, 6, 13, 1, 'j'); for (let x = 66; x < 77; x += 3) fill(s, x, 6, 1, 1, '9'); }
+        fill(s, 76, 5, 1, 1, '0'); fill(s, 76, 8, 1, 1, '0');                            // nostrils
+    }
+    else {
+        // the jaws splay open: upper and lower jaw out to the sides, the mouth between, teeth on both rims
+        fill(s, 60, 0, 20, 4, '0'); fill(s, 61, 1, 18, 2, 'c');
+        fill(s, 60, 10, 20, 4, '0'); fill(s, 61, 11, 18, 2, 'c');
+        fill(s, 60, 4, 20, 6, 'j'); fill(s, 60, 4, 2, 6, 'c');
+        for (let x = 63; x < 80; x += 3) { fill(s, x, 4, 2, 1, '9'); fill(s, x + 1, 9, 2, 1, '9'); }
+        fill(s, 62, 6, 15, 2, 'f');                                                      // the tongue
+        fill(s, 63, 1, 3, 1, 'f'); fill(s, 63, 12, 3, 1, 'f');                           // eyes, burning
+    }
+    return s;
+}
+
+// the SNAKE, heading right: a green body in an S, yellow bands, the head and a red tongue (two frames)
+function makeSnake(frame) {
+    const body = new PixelSprite(30, 8);
+    for (let x = 0; x < 25; x++) {
+        const y = 3 + Math.round(Math.sin((x + frame * 3) * 0.5) * 2 * Math.min(1, (x + 2) / 8));
+        const c = x % 6 < 2 ? '4' : 'b';
+        body.set(x, y, idx(c)); body.set(x, y + 1, idx(x % 6 < 2 ? '4' : 'c'));
+    }
+    fill(body, 24, 2, 5, 4, 'b'); fill(body, 25, 2, 3, 1, 'c');                         // the head
+    body.set(27, 3, idx('0')); body.set(27, 4, idx('0'));
+    const s = outline(body);
+    s.set(31, 4, idx('f')); s.set(31, 3, idx(frame ? 'f' : '0'));                        // the tongue
+    return s;
+}
+
+// THE DOG from above, heading right: orange coat with a brown saddle, ears, a wagging tail; frame 0/1 trot,
+// frame 2 the crouch before a chase (ears flat, legs set)
+function makeDog(frame) {
+    const b = new PixelSprite(18, 10);
+    fill(b, 2, 2, 11, 6, 'i');                                                          // the body
+    fill(b, 5, 3, 5, 4, 'd');                                                           // the saddle
+    fill(b, 12, 1, 5, 8, 'i'); fill(b, 17, 4, 1, 2, '0');                               // the head, the nose
+    fill(b, 15, 3, 1, 1, '0'); fill(b, 15, 6, 1, 1, '0');                               // eyes
+    if (frame === 2) { fill(b, 12, 0, 3, 1, 'e'); fill(b, 12, 9, 3, 1, 'e'); }          // ears flat
+    else { fill(b, 13, 0, 2, 2, 'e'); fill(b, 13, 8, 2, 2, 'e'); }
+    fill(b, 0, frame === 1 ? 3 : 5, 3, 2, 'i');                                         // the tail
+    const legs = frame === 0 ? [[3, 0], [10, 0], [5, 8], [12, 8]] : frame === 1 ? [[5, 0], [12, 0], [3, 8], [10, 8]] : [[2, 0], [10, 0], [2, 8], [10, 8]];
+    for (const [x, y] of legs) fill(b, x, y, 2, 2, 'e');
+    return outline(b);
+}
+
 // ------------------------------------------------------------------ the sprites
 // the courier from above, riding up the screen: tyres, bars and gloves, a white helmet with
 // a red stripe, the safety-yellow jacket with a reflective band, the red mail bag; then a
@@ -159,6 +284,13 @@ export const Cars = [], Vans = [], Sports = [], Trucks = [];
     }
 }
 export const Bus = makeBus();
+export const Motos = [makeMoto('f', 'e'), makeMoto('6', '1'), makeMoto('4', 'e'), makeMoto('9', 'j')];
+export const Train = makeTrain();
+export const WeaverCar = makeCar('i', true);         // THE WEAVER: the orange sports car
+export const Ferry = makeFerry(80);
+export const Beast = [makeBeast(0), makeBeast(1), makeBeast(2)];
+export const Snake = [makeSnake(0), makeSnake(1)];
+export const Dog = [makeDog(0), makeDog(1), makeDog(2)];
 
 export const TurtleUp = PixelSprite.fromRows(
     '...cc.....cc....',
@@ -190,19 +322,32 @@ export const TurtleSink = PixelSprite.fromRows(
     '....77777777....',
     '................',
     '................');
-export const Fly = PixelSprite.fromRows(
-    '....f..f....',
-    '.99.bbbb.99.',
-    '9aa9bbbb9aa9',
-    '9aaa9bb9aaa9',
-    '.9aa9bb9aa9.',
-    '..99bbbb99..',
-    '....bccb....',
-    '...bbccbb...',
-    '...bccccb...',
-    '....bccb....',
-    '.....bb.....',
-    '............');
+// the bonus STAMP that sits in an empty slot now and then: perforated edges, a red frame, a gold sun
+export const Stamp = PixelSprite.fromRows(
+    '.9.9.9.9.9.9',
+    '999999999999',
+    '.9ffffffff9.',
+    '99f444444f99',
+    '.9f4a44a4f9.',
+    '99f44aa44f99',
+    '.9f44aa44f9.',
+    '99f4a44a4f99',
+    '.9f444444f99',
+    '99ffffffff9.',
+    '999999999999',
+    '.9.9.9.9.9.9');
+// the PARCEL: a brown box tied with cream string and a red knot
+export const Parcel = PixelSprite.fromRows(
+    '000000000000',
+    '0ddddaaddde0',
+    '0ddddaaddde0',
+    '0ddddaaddde0',
+    '0aaaaffaaaa0',
+    '0aaaaffaaaa0',
+    '0ddddaaddde0',
+    '0ddddaaddde0',
+    '0eeeeaaeeee0',
+    '000000000000');
 export const Envelope = PixelSprite.fromRows(
     '00000000000000',
     '09999999999990',

@@ -1,11 +1,13 @@
 // THE NODE · world 1 · IRONWORKS (Ironclad Amusements, 1981) on the Cabinet Engine · THE CARTRIDGE:
-// spec + factories (port of IronworksCartridge.cs from Staging/Batch3/ironworks; the data lives in spec.js).
+// spec + factories (port of IronworksCartridge.cs from Staging/Batch3/ironworks; the data lives in spec.js,
+// the five boards in boards.js).
 import { CabinetCartridge } from '../../sdk/index.js';
 import { IronworksSpec, IronworksPalette, DrumSpeedBase } from './spec.js';
 import { IronworksSim } from './sim.js';
 import { IronworksRenderer } from './renderer.js';
 import { IronworksBot } from './bot.js';
-import { IronworksLevel, Girder, Ladder, HammerSpot } from './level.js';
+import { Board, Girder, Ladder, HammerSpot, Pickup, Bolt } from './level.js';
+import { BOARDS } from './boards.js';
 import { IronworksSprites } from './sprites.js';
 
 export const IronworksCartridge = new CabinetCartridge(
@@ -13,5 +15,5 @@ export const IronworksCartridge = new CabinetCartridge(
 
 export {
     IronworksSpec, IronworksPalette, DrumSpeedBase, IronworksSim, IronworksRenderer, IronworksBot,
-    IronworksLevel, Girder, Ladder, HammerSpot, IronworksSprites,
+    Board, BOARDS, Girder, Ladder, HammerSpot, Pickup, Bolt, IronworksSprites,
 };

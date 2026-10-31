@@ -4,12 +4,8 @@
 // Palette: asphalt grey, lawn green, dusk orange, paper white, the house pastels and a red bike,
 // plus the few supporting inks a dusk street needs (roofs, glass, hedges, skin, shadow).
 //
-// Knobs (Lab-tuned):
-//   hazardsOff     one hazard type is kept off the route per lost round, in sim.js's RemovalOrder
-//                  (cross traffic, dogs, parked cars, the mower, the trike, potholes); all six on the
-//                  mercy credit, which also makes the bike uncrashable and the papers home in
-//   potholeMargin  the pothole hitbox shrinks 10% per lost round
-//   winMisses      misses still allowed on a won route. 0 = "deliver to every subscriber" (the brief)
+// Mercy removes traffic, parked cars and dogs in turn, softens potholes, and forgives more
+// missed subscriptions per bike. The fifth credit is a harmless, homing-paper free ride.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 import * as Art from './art.js';
 
@@ -76,26 +72,27 @@ function buildSpec() {
         publisher: 'NORTHGATE NOVELTY CO.',
         year: 1985,
         palette: Route9Palette,
-        tagline: 'DELIVER TO ALL 12 SUBSCRIBERS',
-        controls: ['STICK  CHANGE LANE / SPEED', 'BUTTON A  THROW A PAPER LEFT'],
-        roundWonText: 'ROUTE DONE',
+        tagline: 'SEVEN DAYS TO MAKE THE FRONT PAGE',
+        controls: ['STICK  CHANGE LANE / SPEED', 'A  THROW LEFT   B  BUNNY HOP'],
+        roundWonText: 'WEEK DONE',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [3600, 3100, 2600, 2000, 1400],
+        highScoreSeed: [30000, 23000, 17000, 11000, 6500],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
-            Knob.fixed('cruiseSpeed', 32, 'px/s the bike rolls with the stick centred (x1.6 up, x0.5 down)'),
+            Knob.add('forgiveness', 2, 1, 'misses per bike lost').clamp(2, 5),
+            Knob.fixed('cruiseSpeed', 36, 'px/s the bike rolls with the stick centred (x1.6 up, x0.5 down)'),
             Knob.add('hazardsOff', 0, 1, 'hazard types kept off the route (sim.js RemovalOrder)').clamp(0, 6).setOnMercy(6),
-            Knob.add('potholeMargin', 0, 0.10, 'fraction the pothole hitbox shrinks').clamp(0, 0.5),
-            Knob.fixed('winMisses', 0, 'misses allowed on a won route (0 = every subscriber)'),
-            Knob.fixed('hazardDensity', 1, 'x the hazard counts (8 potholes, 5 cars, 4 dogs, 2 trikes, 2 mowers)'),
+            Knob.add('potholeMargin', 0, 0.025, 'fraction the pothole hitbox shrinks').clamp(0, 0.5),
+            Knob.fixed('hazardDensity', 1.65, 'x the hazard counts (8 potholes, 2 cars, 4 dogs, 2 trikes, 2 mowers)'),
             Knob.fixed('dogTrigger', 88, 'px ahead of a dog when it runs out'),
             Knob.fixed('dogSpeed', 72, 'px/s a dog runs'),
             Knob.fixed('carSpeed', 110, 'px/s cross traffic (+-10% per crossing)'),
-            Knob.fixed('trafficGap', 3.0, 's between cars in a crossing lane (plus up to 45% jitter)'),
+            Knob.fixed('trafficGap', 4.0, 's between cars in a crossing lane (plus up to 45% jitter)'),
             Knob.fixed('mailboxWindow', 6, 'px either side of a mailbox a paper still goes in'),
         ],
     });
+    s.hints = [['LR', 'LANE'], ['UD', 'SPEED'], ['A', 'THROW'], ['B', 'HOP']];
     s.phaseNames.set(CabinetState.Intro, 'start');
     s.phaseNames.set(CabinetState.Playing, 'ride');
     s.phaseNames.set(CabinetState.Interlude, 'crash');

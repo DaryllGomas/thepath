@@ -1,14 +1,18 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.3",
- "updated": "2026-10-17",
+ "version": "v0.5",
+ "updated": "2026-10-31",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
   "The worlds beyond the first chapter are being planned. No dates yet; we’d rather get them right."
  ],
  "ask": [
+  {
+   "q": "Does the ride downtown feel like 1982 now?",
+   "hint": "The house, the hill road, main street: anything that looks off or out of place, tell us where."
+  },
   {
    "q": "After you woke in the basement, did you know where to go?",
    "hint": "If you got stuck anywhere, tell us where."
@@ -29,6 +33,60 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.5",
+   "date": "2026-10-31",
+   "title": "The ride downtown, rebuilt",
+   "items": [
+    {
+     "h": "Your house and yard",
+     "t": "A real house now: a shingle roof with a brick chimney and a TV antenna, siding, lit windows, a back door with a porch light, and a garage. A white picket fence, a mailbox with a red flag, and grass and dirt underfoot that you can actually see at dusk."
+    },
+    {
+     "h": "The bike",
+     "t": "Chrome BMX bars with a crossbar pad, ribbed grips and a brake lever, with your gloved hands on the grips. The walkie-talkie hangs under the bar instead of blocking the road. The bars turn as you steer, and you lean into the turns."
+    },
+    {
+     "h": "The hill road",
+     "t": "Worn asphalt with a faded yellow line and gravel edges, tall grass, weeds and rocks along the verge, curve signs and a guard rail on the bend, and telephone poles carrying their wires down to town. Dusk falls slowly all the way down, and the streetlights glow 1982 amber."
+    },
+    {
+     "h": "Main street",
+     "t": "Parked cars at the curb, telephone poles, real kerbs and sidewalks, shop fronts with striped awnings and lit windows, a fire hydrant, newspaper boxes and a phone booth, and rooftops on the town behind."
+    },
+    {
+     "h": "Easier to read",
+     "t": "Captions are bigger and bold and sit above the bike, and the walkie hint moved to the top of the screen. The steps out of the basement are poured concrete now."
+    },
+    {
+     "h": "Fixes",
+     "t": "You can no longer fall out of the world off the edge of the yard or back through the basement door, and pressing Esc on the first screen when you come back no longer freezes it."
+    }
+   ]
+  },
+  {
+   "version": "v0.4",
+   "date": "2026-10-19",
+   "title": "THE JUNCTION's floor, rebuilt",
+   "items": [
+    {
+     "h": "Every machine is a whole game",
+     "t": "Each game on the floor now has 5 to 8 stages, each with something new, and a final boss or finale that wins it: lives and an extra life, a card before each stage and a bonus count after it. Castle Crush has six castles, Short Order five kitchens and a rush order, Mud & Metal six tracks and a cup, Route 9 a week of papers, Grid Cycles six sectors to the Master Program, and the other fifteen are rebuilt the same way."
+    },
+    {
+     "h": "The machines make sound",
+     "t": "Each one has its own chip-sound voice, played from its own screen, and the jukebox turns down while you play."
+    },
+    {
+     "h": "Clearer cabinets",
+     "t": "The hint bar under each screen shows that game's own controls, as keys or pad buttons, and the side art no longer reads backwards."
+    },
+    {
+     "h": "Every floor game on its own page",
+     "t": "play.html runs any of the floor games on its own, with keys, a controller and sound."
+    }
+   ]
+  },
   {
    "version": "v0.3",
    "date": "2026-10-17",

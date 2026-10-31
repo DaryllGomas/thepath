@@ -2,15 +2,7 @@
 // Port of SporeFieldCartridge.cs from Staging/Batch1/sporefield. Split from cartridge.js so the
 // renderer and the round can read it without an import cycle.
 //
-// Knobs (tuned on the Lab bench, 200 rounds per credit; see NOTES.md):
-//   borerSpeed    cells a second the borer walks
-//   mushrooms     the field planted at the start: x0.9 per lost round (the field thins 10%)
-//   spiderSpeed   the spider's bounce speed (its sideways speed is spiderCross x this):
-//                 x0.65 per lost round (the spider slows). THE mercy lever that moves the curve.
-//   spiderDelay   mean seconds between spiders
-//   shotSpeed     the strongest difficulty knob
-//   segmentHit / playerSpeed / fleaSpeed / fleaThreshold   the machine's feel, fixed
-//   fragile       1 on the unlosable credit: the borer cannot survive a mushroom hit
+// Mercy thins the garden, slows the spider, strengthens shots and adds starting wands.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
 import { Shroom, BodyA, BodyB, HeadA, SpiderA, stamp } from './sprites.js';
 
@@ -45,20 +37,21 @@ function buildSpec() {
         publisher: 'BRIGHT SPARK INC.',
         year: 1981,
         palette: SporeFieldPalette,
-        tagline: 'SPLIT IT. SHOOT EVERY PIECE.',
-        controls: ['STICK  MOVE YOUR WAND', 'BUTTON A  FIRE'],
-        roundWonText: 'ROUND WON',
+        tagline: 'SIX GARDENS. ONE HUNGRY QUEEN.',
+        controls: ['STICK  MOVE YOUR WAND', 'BUTTON A  FIRE', 'BUTTON B  SPORE BURST'],
+        roundWonText: 'FIELD SAVED',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [6000, 4800, 3900, 3000, 2200],
+        highScoreSeed: [50000, 40000, 25000, 15000, 8000],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
-            Knob.fixed('borerSpeed', 9.5, 'cells a second the borer walks'),
+            Knob.mul('wands', 3, 1.14, 'starting wands; more room to learn each lost coin'),
+            Knob.fixed('borerSpeed', 8.5, 'cells a second the borer walks'),
             Knob.mul('mushrooms', 120, 0.9, 'mushrooms planted; the field thins 10% per loss').clamp(20, 200),
-            Knob.mul('spiderSpeed', 20, 0.65, 'spider bounce cells/s; slows 35% per loss').clamp(2.5, 40),
+            Knob.mul('spiderSpeed', 15, 0.80, 'spider bounce cells/s; slows 35% per loss').clamp(2.5, 40),
             Knob.fixed('spiderDelay', 2.0, 'mean seconds between spiders'),
             Knob.fixed('spiderCross', 0.4, 'spider sideways speed as a share of its bounce speed'),
-            Knob.fixed('shotSpeed', 20, 'shot cells/s'),
+            Knob.mul('shotSpeed', 28, 1.06, 'shot cells/s'),
             Knob.fixed('segmentHit', 0.35, 'how near (cells) a shot must pass a segment\'s centre to hit it'),
             Knob.fixed('playerSpeed', 12, 'wand cells/s'),
             Knob.fixed('fleaSpeed', 14, 'flea fall cells/s (doubles when hit once)'),
@@ -66,6 +59,7 @@ function buildSpec() {
             Knob.fixed('fragile', 0, '1 = the borer cannot survive a mushroom hit').setOnMercy(1),
         ],
     });
+    s.hints = [['STICK', 'MOVE'], ['A', 'FIRE'], ['B', 'SPORE BURST']];
     s.phaseNames.set(CabinetState.Intro, 'ready');
     s.phaseNames.set(CabinetState.Playing, 'play');
     s.phaseNames.set(CabinetState.Interlude, 'hit');

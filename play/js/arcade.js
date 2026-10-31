@@ -26,6 +26,9 @@ function art(game, part) {
   if (!texCache.has(key)) {
     const t = texLoader.load('assets/cab/' + key + '.jpg', undefined, undefined, () => {});
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    // the kit's side panels are UV-mirrored on both sides (u runs right to left as you face either one: measured 2026-10-18), so the
+    // side art read backwards (Daryll: "the wrong images ... just reversed"); flip it back. The marquee and the panel read true.
+    if (part === 'side') { t.repeat.x = -1; t.offset.x = 1; }
     texCache.set(key, t);
   }
   return texCache.get(key);

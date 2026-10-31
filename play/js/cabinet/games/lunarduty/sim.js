@@ -1,39 +1,13 @@
 // THE NODE · world 1 · LUNAR DUTY (Anvil & Sparks, 1982) on the Cabinet Engine · THE ROUND (ICabinetSim).
-// Port of LunarDutySim.cs.
-//
-// The moon patrol. A six-wheeled buggy rolls right on its own at 72 px/s; the stick eases it
-// 25 % slower or faster. A jumps (one fixed arc: 40 px high, 1.0 s in the air). B fires BOTH guns
-// at once: a missile straight up (UFOs and their bombs) and a short-range cannon shot straight
-// ahead (rocks, tanks, shells; it flies over mines).
-//
-//   craters   jump them (a fall costs a buggy)
-//   rocks     shoot them (50) or jump them; the big ones are taller
-//   mines     jump them (the cannon flies over them)
-//   UFOs      shoot them (100); their bombs kill, and a bomb that reaches the ground digs a NEW crater
-//   tanks     sit ahead and shell the buggy from the right (from 250 px out until it is 90 px
-//             away); one cannon hit (200). Shells can be shot or jumped
-//
-// The course is fixed (course.js): point A to point E, a progress strip in the HUD. Each
-// checkpoint pays 500 + a time bonus (100 per whole second under the section's par). A hit or a
-// fall costs one of three buggies and restarts the section at the last checkpoint reached. The
-// ROUND IS WON AT POINT E; it is lost when the third buggy goes. Never on the clock.
-//
-// MERCY: the hazardDensity knob thins the course (x0.9 per lost round) and craterWidth narrows the
-// craters (x0.92). On the unlosable credit the UFOs never bomb (bombRate = 0) and the buggy wears
-// a SHIELD: whatever it hits breaks on it, and it hops a crater by itself. It still has to drive
-// all the way to point E.
-//
-// Phases -> CabinetState: Ready = Intro, Drive = Playing, Crash/Finish = Interlude, Card, Over.
-// Cues: Tick = the ready beat and every volley of the guns, Start = GO, Hit = anything shot,
-// Miss = a bomb lands and digs a crater, Die = a crash or a fall, Bonus = a checkpoint,
-// Win = the point E card. (The jump has no slot of its own.)
+// Six sectors, checkpoint tallies and a walker guarding the final beacon.
+// The original fixed-arc buggy and twin guns remain the heart of the patrol.
 import { f32, roundEven, fmt, F32, dn, CabinetState, RoundResult, SoundCue, CueBuffer, Pad } from '../../sdk/index.js';
 import { HazardKind, hazardHeight, Hazards, Waves, Checkpoints, Letters, End as CourseEnd, LunarRng } from './course.js';
 
 export const DeathCause = Object.freeze({ None: 0, Crater: 1, Rock: 2, Mine: 3, Tank: 4, Shell: 5, Bomb: 6 });
 const DeathCauseNames = ['none', 'crater', 'rock', 'mine', 'tank', 'shell', 'bomb'];
 
-const Phase = Object.freeze({ Idle: 0, Ready: 1, Drive: 2, Crash: 3, Finish: 4, Card: 5, Over: 6 });
+const Phase = Object.freeze({ Idle: 0, Ready: 1, Drive: 2, Crash: 3, Finish: 4, Card: 5, Over: 6, Tally: 7 });
 
 export function craterWidth(c) { return f32(c.x1 - c.x0); }
 function makeCrater(x0, x1, dug = false) { return { x0: f32(x0), x1: f32(x1), dug, age: 0 }; }
@@ -71,6 +45,8 @@ export class LunarDutySim {
         this.digClear = 40;
 
         // ------------------------------------------------------------ read-only state
+        this.recordEvents = false; this.events = []; this.pops = [];
+        this.extra = false; this.extraT = 0; this.boss = null;
         this.p = Phase.Idle;
         this.phaseTime = 0;
         this.x = 0; this.h = 0; this.vh = 0; this.grounded = false;
@@ -106,7 +82,7 @@ export class LunarDutySim {
         switch (this.p) {
             case Phase.Ready: return CabinetState.Intro;
             case Phase.Drive: return CabinetState.Playing;
-            case Phase.Crash: case Phase.Finish: return CabinetState.Interlude;
+            case Phase.Tally: case Phase.Crash: case Phase.Finish: return CabinetState.Interlude;
             case Phase.Card: return CabinetState.Card;
             case Phase.Over: return CabinetState.Over;
             default: return CabinetState.Idle;
@@ -129,7 +105,10 @@ export class LunarDutySim {
         return s;
     }
 
+    _emit(kind, o = {}) { if (this.recordEvents) this.events.push({ ...o, kind }); }
+
     reset(seed, credit, k) {
+        this.events.length = 0; this.pops.length = 0; this.extra = false; this.extraT = 0; this.boss = null;
         this.credit = credit;
         this.baseSpeed = k.get('speed');
         this.hazardDensity = k.get('hazardDensity');
@@ -141,7 +120,7 @@ export class LunarDutySim {
 
         this._score = 0; this._lives = this.startLives; this._time = 0;
         this._result = RoundResult.None;
-        this.checkpoint = 0; this.sectionTime = 0; this.bannerT = 99; this.lastBonus = 0;
+        this.checkpoint = this.isDemo ? (seed >>> 2) % 6 : 0; this.sectionTime = 0; this.bannerT = 99; this.lastBonus = 0;
         this._deaths = this._jumps = this._rocksShot = this._ufosShot = this._tanksShot = 0;
         this._bombsDropped = this._cratersDug = this._shellsFired = this._shieldHits = 0;
         this._deathBy.fill(0);
@@ -163,7 +142,7 @@ export class LunarDutySim {
         this.bombs.length = 0; this.missiles.length = 0; this.ufos.length = 0; this.booms.length = 0;
         this.fwdShot = null;
         for (const c of Hazards) {
-            if (c.x < from + 20) continue;
+            if (c.x < from + 20 || c.x >= Checkpoints[this.checkpoint + 1]) continue;
             if (c.kind !== HazardKind.Tank && c.rank >= this.hazardDensity) continue;
             if (c.kind === HazardKind.Crater) {
                 const w = Math.max(8, f32(c.w * this.craterScale)), mid = f32(c.x + f32(c.w * 0.5));
@@ -175,7 +154,8 @@ export class LunarDutySim {
         this._nextWave = 0;
         while (this._nextWave < Waves.length && Waves[this._nextWave].triggerX <= from + 1) this._nextWave++;
         this.p = Phase.Ready; this.phaseTime = 0; this.readyLen = ready; this._goCued = false;
-        this._cues.emit(SoundCue.Tick);
+        this._cues.emit(SoundCue.Tick); this._emit('stageStart', { stage: this.checkpoint + 1 });
+        this.boss = this.checkpoint === 5 ? { x: 17840, hp: 18, max: 18, t: 1.8, hit: 0, active: false } : null;
     }
 
     step(dt, input) {
@@ -184,6 +164,9 @@ export class LunarDutySim {
         if (dt > 0.1) dt = 0.1;
         if (dt <= 0) return;
         this._time = f32(this._time + dt); this.phaseTime = f32(this.phaseTime + dt);
+        this.extraT = Math.max(0, this.extraT - dt);
+        for (let i = this.pops.length - 1; i >= 0; i--) { this.pops[i].t += dt; if (this.pops[i].t > 1.2) this.pops.splice(i, 1); }
+        if (!this.extra && this.score >= 4000) { this.extra = true; this._lives++; this.extraT = 3; this._emit('extraLife'); }
         this.bannerT = f32(this.bannerT + dt); this.shieldT = f32(this.shieldT + dt); this.landT = f32(this.landT + dt);
         for (let i = this.booms.length - 1; i >= 0; i--) {
             this.booms[i].t = f32(this.booms[i].t + dt);
@@ -217,6 +200,12 @@ export class LunarDutySim {
                 }
                 break;
 
+            case Phase.Tally:
+                if (this.phaseTime >= 2.8) {
+                    if (this.checkpoint === 6) { this.p = Phase.Finish; this.phaseTime = 0; }
+                    else this._startSection(this.readySeconds);
+                }
+                break;
             case Phase.Finish:
                 // past point E: the buggy rolls on, the UFOs peel away
                 this.speed = this.baseSpeed;
@@ -254,10 +243,10 @@ export class LunarDutySim {
         this.speed = f32(this.baseSpeed * f32(1 + f32(this.stickSpeedKnob * this.stickSmooth)));
 
         if (input != null && input.pressed(Pad.A) && this.grounded) {
-            this.grounded = false; this.vh = this.jumpV; this.h = 0.01; this._jumps++;
+            this.grounded = false; this.vh = this.jumpV; this.h = 0.01; this._jumps++; this._emit('jump');
         }
         this._fireCool = f32(this._fireCool - dt);
-        if (input != null && input.pressed(Pad.B) && this._fireCool <= 0) {
+        if (input != null && input.held(Pad.B) && this._fireCool <= 0) {
             this._fireCool = this.fireCooldown;
             let fired = false;
             if (this.missiles.length < this.maxMissiles) {
@@ -269,15 +258,22 @@ export class LunarDutySim {
                 this.fwdShot = makeShot(start, f32(this.h + this.cannonH), f32(this.speed + this.shotSpeed), start);
                 fired = true;
             }
-            if (fired) this._cues.emit(SoundCue.Tick);
+            if (fired) this._emit('fire');
         }
 
         this.x = f32(this.x + f32(this.speed * dt));
         this._air(dt);
         this.camX = f32(this.x - this.screenX);
 
+        // Rolling boulders keep their collision bounds with their art.
+        if (this.checkpoint === 1) for (const o of this.obstacles) {
+            if (!o.alive || o.kind === HazardKind.Mine || o.x - this.x > 300) continue;
+            o.x = f32(o.x - 14 * dt); o.far = f32(o.x + o.w); o.center = f32(o.x + o.w / 2);
+        }
+        this._updateBoss(dt);
+
         // UFO waves
-        while (this._nextWave < Waves.length && Waves[this._nextWave].triggerX <= this.x) {
+        while (this._nextWave < Waves.length && Waves[this._nextWave].triggerX <= this.x && Waves[this._nextWave].section === this.checkpoint) {
             this._spawnWave(Waves[this._nextWave]);
             this._nextWave++;
         }
@@ -321,11 +317,11 @@ export class LunarDutySim {
         const bonus = Math.max(0, Math.floor(f32(par - this.sectionTime))) * this.pointsPerBonusSecond;
         this._score += this.pointsCheckpoint + bonus;
         this.lastBonus = bonus;
-        this.checkpoint = i;
+        this.checkpoint = i; this.p = Phase.Tally; this.phaseTime = 0; this._emit('stageClear');
         this.bannerT = 0;
         this.sectionTime = 0;
         this._cues.emit(SoundCue.Bonus);
-        if (i === Checkpoints.length - 1) { this.p = Phase.Finish; this.phaseTime = 0; }
+
     }
 
     // ------------------------------------------------------------ the world
@@ -380,7 +376,7 @@ export class LunarDutySim {
                         const aimed = this._rng.chance(this.bombAim);
                         if ((aimed && lead > -8 && lead < 8) || (!aimed && lead > 40 && lead < 150)) {
                             this.bombs.push(makeBomb(bsx, f32(this.camX + bsx), bh));
-                            this._bombsDropped++;
+                            this._bombsDropped++; this._emit('bomb');
                             u.bombT = this._rng.range(1.7, 2.8);
                         } else u.bombT = 0.2;
                     }
@@ -403,7 +399,7 @@ export class LunarDutySim {
                     const ux = f32(f32(this.camX + u.sx) + 8), uh = f32(f32(this.groundY - u.sy) - 4);
                     if (Math.abs(m.x - ux) < 9 && Math.abs(m.h - uh) < 7) {
                         this.booms.push(makeBoom(ux, uh, 1));
-                        this.ufos.splice(j, 1); gone = true;
+                        this.ufos.splice(j, 1); gone = true; this._emit('explosion');
                         if (this.p === Phase.Drive) { this._score += this.pointsUfo; this._ufosShot++; this._cues.emit(SoundCue.Hit); }
                         break;
                     }
@@ -420,6 +416,11 @@ export class LunarDutySim {
         }
 
         const s = this.fwdShot;
+        if (s && this.boss && this.boss.hp > 0 && s.x >= this.boss.x && s.h < 38) {
+            this.boss.hp--; this.boss.hit = 0.12; this.fwdShot = null; this._emit('bossHit');
+            if (!this.boss.hp) { this._score += 3000; this._emit('bossDown'); this.booms.push(makeBoom(this.boss.x, 24, 5)); }
+            return;
+        }
         if (s !== null) {
             s.x = f32(s.x + f32(s.vx * dt));
             let gone = f32(s.x - s.start) > this.shotRange;
@@ -429,9 +430,9 @@ export class LunarDutySim {
                     if (o.x > s.x + 4) break;
                     if (s.x + 3 > o.x && s.x - 3 < o.far && s.h - 1 < o.hgt) {
                         gone = true;
-                        o.hp--; o.hitT = 0;
+                        o.hp--; o.hitT = 0; this._emit('hit');
                         if (o.hp <= 0) {
-                            o.alive = false;
+                            o.alive = false; this._emit('explosion'); this.pops.push({ x: o.center, h: o.hgt + 12, text: o.kind === HazardKind.Tank ? '200' : '50', t: 0 });
                             this.booms.push(makeBoom(o.center, f32(o.hgt * 0.5), o.kind === HazardKind.Tank ? 5 : 0));
                             if (this.p === Phase.Drive) {
                                 if (o.kind === HazardKind.Tank) { this._score += this.pointsTank; this._tanksShot++; }
@@ -454,6 +455,15 @@ export class LunarDutySim {
         }
     }
 
+    _updateBoss(dt) {
+        const b = this.boss;
+        if (!b || b.hp <= 0 || b.x - this.x > 250) return;
+        if (!b.active) { b.active = true; this._emit('boss'); }
+        if (this.x > b.x - 100) { this.x = b.x - 100; this.camX = f32(this.x - this.screenX); }
+        b.hit = Math.max(0, b.hit - dt); b.t -= dt;
+        if (b.t <= 0) { this.shells.push(makeShell(b.x, 7)); b.t = this.tankInterval; this._emit('enemyFire'); }
+    }
+
     _updateTanks(dt) {
         for (const o of this.obstacles) {
             if (o.kind !== HazardKind.Tank) continue;
@@ -465,7 +475,7 @@ export class LunarDutySim {
             o.fireT = f32(o.fireT - dt);
             if (o.fireT <= 0 && ahead > this.tankQuiet) {
                 this.shells.push(makeShell(f32(o.x - 4), 7));
-                this._shellsFired++;
+                this._shellsFired++; this._emit('enemyFire');
                 o.fireT = f32(this.tankInterval * this._rng.range(0.85, 1.15));
             }
         }
@@ -506,7 +516,7 @@ export class LunarDutySim {
         let at = 0;
         while (at < this.craters.length && this.craters[at].x0 < x0) at++;
         this.craters.splice(at, 0, makeCrater(x0, x1, true));
-        this._cratersDug++;
+        this._cratersDug++; this._emit('dig');
         this._cues.emit(SoundCue.Miss);
     }
 
@@ -556,7 +566,7 @@ export class LunarDutySim {
     }
 
     _die(cause, depth) {
-        this.cause = cause; this.causeDepth = depth;
+        this._emit('crash'); this.cause = cause; this.causeDepth = depth;
         this.p = Phase.Crash; this.phaseTime = 0;
         this._lives--; this._deaths++; this._deathBy[cause]++;
         this.fwdShot = null;

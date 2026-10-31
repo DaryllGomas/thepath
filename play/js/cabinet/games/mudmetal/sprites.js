@@ -2,7 +2,8 @@
 //
 // Authored as palette-index text rows (PixelSprite), one bike at 24 x 20 px: rider in the attack
 // crouch, knobby wheels (9 px, two spoke frames), red fenders, white side plate, orange shock.
-// Rivals are the same bike with the red swapped for dusk blue.
+// Rivals are the same bike with the red swapped for a jersey: blue (the slow riders), orange, green,
+// or tan (the stadium pack and the championship field). Also: the hay bale, the tries helmet, the cup.
 //
 // The 1984 board had a handful of pre-drawn pitch frames; so do we, made once at start-up by a
 // RotSprite-style rotation: the sprite is scaled x8 with EPX (Scale2x) three times, then sampled
@@ -13,6 +14,7 @@
 // Palette indices (spec.js's MudMetalPalette):
 //   0 bg  1 night  2 dusk  3 sky  4 mudDark  5 mud  6 tanDark  7 tan  8 tanLight
 //   9 chromeDim  a chrome  b orangeDim  c orange  d redDim  e red  f steel
+//   g water  h foam  i grass  j grassDark
 import { PixelSprite, roundEven } from '../../sdk/index.js';
 
 export const BikeW = 24, BikeH = 20;
@@ -75,6 +77,48 @@ const Tumble = [
     "...aa..aa...",
     "...00..00...",
     "............",
+];
+
+// a hay bale, standing in a lane (12 x 9): straw, two orange twines, the shaded end
+const BaleRows = [
+    ".8888888888.",
+    "878b8888b878",
+    "877b7777b776",
+    "777b7777b776",
+    "767b7676b766",
+    "777b7777b776",
+    "676b6767b766",
+    "666b6666b666",
+    ".6666666666.",
+];
+
+// the tries left, a helmet each (7 x 6)
+const HelmetRows = [
+    "..eeee.",
+    ".eeeeee",
+    "eeea000",
+    "eeeeeee",
+    "ddddde.",
+    ".dddd..",
+];
+
+// the championship cup (16 x 15)
+const CupRows = [
+    "..cccccccccccc..",
+    "cc.c8888ccccc.cc",
+    "c..c8ccccccbc..c",
+    "c..c8ccccccbc..c",
+    ".c.cc8cccccbc.c.",
+    "..ccccccccbbcc..",
+    "....ccccccbc....",
+    ".....ccccbc.....",
+    "......cbbc......",
+    "......ccbc......",
+    ".....cccbcc.....",
+    "....aaaaaaaa....",
+    "....9aaaaaa9....",
+    "...ffffffffff...",
+    "...ffffffffff...",
 ];
 
 // ------------------------------------------------------------ building
@@ -192,19 +236,30 @@ function buildTitleArt(bike) {
 
 // ------------------------------------------------------------ build once at module load
 export const Player = [[], []];      // [spoke frame][angle]
-export const Rival = [[], []];
+export const Rival = [];             // [jersey][spoke frame][angle]: 0 blue, 1 orange, 2 green, 3 tan
 export const Wreck = [];             // every 45 deg, pivot at the centre
 export const Rider = [];
+export const Bale = PixelSprite.fromRows(...BaleRows);
+export const Helmet = PixelSprite.fromRows(...HelmetRows);
+export const Cup = PixelSprite.fromRows(...CupRows);
+export const Jerseys = 4;
 export let TitleArt;
 
 {
+    const jersey = [[0xe, 0x3, 0xd, 0x2], [0xe, 0xc, 0xd, 0xb], [0xe, 0x12, 0xd, 0x13], [0xe, 0x8, 0xd, 0x6]];
+    for (let j = 0; j < Jerseys; j++) Rival.push([[], []]);
     for (let f = 0; f < 2; f++) {
         const bike = compose(Body, f === 0 ? WheelA : WheelB);
-        const rival = swap(bike, 0xe, 0x3, 0xd, 0x2);
         for (let a = 0; a < AngleCount; a++) {
             const deg = (a - Math.trunc(AngleCount / 2)) * AngleStep;
             Player[f][a] = rotate(bike, deg, 12, 20, FrameSize, FramePivot, FramePivot);
-            Rival[f][a] = rotate(rival, deg, 12, 20, FrameSize, FramePivot, FramePivot);
+        }
+        for (let j = 0; j < Jerseys; j++) {
+            const rival = swap(bike, ...jersey[j]);
+            for (let a = 0; a < AngleCount; a++) {
+                const deg = (a - Math.trunc(AngleCount / 2)) * AngleStep;
+                Rival[j][f][a] = rotate(rival, deg, 12, 20, FrameSize, FramePivot, FramePivot);
+            }
         }
     }
     const wreck = compose(BikeOnly, WheelA);

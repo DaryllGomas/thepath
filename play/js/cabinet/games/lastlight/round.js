@@ -1,37 +1,12 @@
 // THE NODE · world 1 · LAST LIGHT on the Cabinet Engine · THE ROUND (ICabinetSim).
-// Port of LastLightSim.cs from Staging/Batch1/lastlight.
-//
-// Missile Command on a moon base. Six glass domes along the ground and three interceptor silos
-// (left, centre, right; `shots` each, for the WHOLE round: silos do not restock between waves).
-// A ROUND is one wave of three escalating sub-waves (WAVE 1-3 on the HUD):
-//   Banner (Intro) -> Play (Playing) -> Clear (Interlude) -> Banner ... -> Play (wave 3)
-//   -> Tally (Interlude: bonus count-up) -> Card (WON) -> Over
-//   or, the moment the last dome goes: Fallen (Interlude, the fires burn out) -> Card (LOST) -> Over
-//
-// Enemies fall from the top as glowing lines toward domes and silos, in volleys of 2-3 (3-4 in the
-// last sub-wave) that fan out from one patch of sky, so an early blast can take a whole volley:
-//   warhead  a straight line at the sub-wave's fall speed
-//   mirv     looks like a warhead, splits into 2-3 warheads when its head passes splitY
-//   smart    faster (smartMul), steers around live blasts, commits in the last 40 px
-//   bomber   a saucer crossing the sky that drops 2-3 more warheads; worth a shot of its own
-// The player moves a crosshair (stick, with acceleration) and fires with A from the NEAREST silo
-// that still has shots; the interceptor flies to the crosshair point and bursts into an expanding
-// then shrinking blast that destroys anything it touches. A destroyed warhead bursts too (a
-// smaller chain blast) so a good shot can clear a volley. A hit dome or silo is gone for the round.
-//
-// Scoring: warhead 25, MIRV (before it splits) 50, smart 125, bomber 100; the won-round tally pays
-// 100 a standing dome and 5 an unused shot.
-//
-// MERCY: knobs (see spec.js) and credit.unlosable (credit 5): the rival^H^H^H the last dome cannot
-// be destroyed (a strike bursts on a shield instead), and one silo refills from a reserve. THE
-// RESULT COMES FROM THE GAME, NEVER FROM THE CLOCK: the wave still has to be seen through to its end.
+// Eight watches of the lunar siege. Domes are lives; the last watch ends only when the carrier falls.
 import { f32, roundEven, fmt, F32, SoundCue, CueBuffer, CabinetState, RoundResult, Pad, SystemRandom } from '../../sdk/index.js';
 
 const Phase = Object.freeze({ Idle: 0, Banner: 1, Play: 2, Clear: 3, Fallen: 4, Tally: 5, Card: 6, Over: 7 });
 const Kind = Object.freeze({ Warhead: 0, Mirv: 1, Smart: 2 });
 
 // ------------------------------------------------------------------ the board (screen px, y down)
-const SubWaves = 3, Domes = 6, Silos = 3;
+const SubWaves = 8, Domes = 6, Silos = 3;
 const TopY = f32(31), GroundY = f32(206), SiloLaunchY = f32(193);
 const CrossMinX = f32(12), CrossMaxX = f32(308), CrossMinY = f32(36), CrossMaxY = f32(186);
 const SiloX = [f32(36), f32(160), f32(284)];
@@ -138,8 +113,11 @@ export class LastLightRound {
         this._mirvChance = 0; this._mirvStep = 0; this._smarts0 = 0; this._smartStep = 0; this._smartMul = 1;
         this._bomberChance = 0; this._bomberStep = 0; this._missiles0 = 0; this._missileStep = 0;
 
+        this.recordEvents = false; this.events = []; this.pops = []; this.nextLife = 1200; this.boss = null;
         this._resetEvents();
     }
+
+    _emit(kind, o = {}) { if (this.recordEvents) this.events.push({ ...o, kind }); }
 
     _resetEvents() {
         this.firstMissileT = this.firstBlastT = this.firstShotT = this.firstKillT = -1;
@@ -186,7 +164,7 @@ export class LastLightRound {
     reset(seed, credit, k) {
         this.credit = credit;
         this._rng = seed === 0 ? new SystemRandom() : new SystemRandom(seed);
-        this._fallMul = k.get('fallSpeed');
+        this._fallMul = k.get('fallSpeed'); this._refillLoads = k.get('refills');
         this._baseFall = k.get('baseFall');
         this._waveRamp = k.get('waveRamp');
         this._spawnWindow = k.get('spawnWindow');
@@ -194,11 +172,7 @@ export class LastLightRound {
         this._missileStep = Math.trunc(roundEven(k.get('missileStep')));
         this._mirvChance = k.get('mirvChance');
         this._mirvStep = k.get('mirvStep');
-        this._smarts0 = Math.trunc(roundEven(k.get('smarts')));
-        this._smartStep = Math.trunc(roundEven(k.get('smartStep')));
         this._smartMul = k.get('smartMul');
-        this._bomberChance = k.get('bomberChance');
-        this._bomberStep = k.get('bomberStep');
         this.shotsPerSilo = Math.trunc(roundEven(k.get('shots')));
         this.reserveShots = Math.trunc(roundEven(f32(clamp01(k.get('refills')) * this.shotsPerSilo)));
         this.blastRadius = k.get('blastRadius');
@@ -219,13 +193,21 @@ export class LastLightRound {
         this._log = '';
         this._resetEvents();
         this._cues.resetTotals();
-        this.subWave = 0;
+        this.events.length = 0; this.pops = []; this.nextLife = 1200; this.boss = null;
+        this.subWave = this.isDemo ? 3 : 0;
         this._startBanner();
     }
 
     _startBanner() {
         this.p = Phase.Banner; this.phaseTime = 0; this.waveTime = 0; this.bannerAt[this.subWave] = this._time;
         this.waveSpeed = f32(f32(this._baseFall * this._fallMul) * f32(1 + f32(this._waveRamp * this.subWave)));
+        this.siloAlive.fill(true); this.silosLeft = Silos; this.shots.fill(this.shotsPerSilo); this.reload.fill(0);
+        this.reserveShots = this.credit.unlosable ? 999 : Math.round(this.shotsPerSilo * this._refillLoads);
+        this.missiles = []; this.blasts = []; this.interceptors = []; this.saucer = null;
+        this.tallyDomes = 0; this.tallyShots = 0; this.tallyBonus = 0;
+        this.boss = this.subWave === 7 ? { x: 160, y: 52, vx: 20, hp: 12, maxHp: 12, cooldown: 0, drop: 3, alive: true } : null;
+        this._emit('stageStart', { stage: this.subWave + 1 });
+        if (this.boss) this._emit('boss');
         this._buildSchedule(this.subWave);
         this._cues.emit(SoundCue.Tick);
     }
@@ -233,7 +215,7 @@ export class LastLightRound {
     _buildSchedule(w) {
         this._schedule.length = 0; this._next = 0;
         const n = Math.max(1, this._missiles0 + this._missileStep * w);
-        const mirv = clamp01(f32(this._mirvChance + f32(this._mirvStep * w)));
+        const mirv = w < 1 ? 0 : Math.min(0.35, this._mirvChance + this._mirvStep * w);
         let t = f32(0.6);
         let placed = 0;
         while (placed < n) {
@@ -251,7 +233,7 @@ export class LastLightRound {
             const gap = f32(f32(this._spawnWindow * v) / n);
             t = f32(t + f32(gap * f32(0.75 + f32(0.5 * this._rng.nextDouble()))));
         }
-        const smarts = Math.max(0, this._smarts0 + this._smartStep * w);
+        const smarts = w < 3 ? 0 : w - 2;
         for (let i = 0; i < smarts; i++) {
             const sp = new Spawn();
             sp.t = f32(this._spawnWindow * f32(0.3 + f32(0.6 * this._rng.nextDouble())));
@@ -259,12 +241,17 @@ export class LastLightRound {
             sp.what = 2;
             this._schedule.push(sp);
         }
-        if (this._rng.nextDouble() < f32(this._bomberChance + f32(this._bomberStep * w))) {
+        if (w >= 2) {
             const sp = new Spawn();
             sp.t = f32(this._spawnWindow * f32(0.15 + f32(0.45 * this._rng.nextDouble())));
             sp.what = 3;
             this._schedule.push(sp);
         }
+        if (w >= 4) for (let i = 0; i < 3 + w; i++) {
+            const sp = new Spawn(); sp.t = 3 + i * this._spawnWindow / (4 + w); sp.x = 20 + this._rng.next(280);
+            sp.what = w === 5 && i % 2 === 0 ? 5 : 4; this._schedule.push(sp);
+        }
+        if (w === 6) for (let i = 0; i < 3; i++) { const sp = new Spawn(); sp.t = 6 + i * 10; sp.what = 6; this._schedule.push(sp); }
         this._schedule.sort((a, b) => a.t - b.t);
     }
 
@@ -276,6 +263,12 @@ export class LastLightRound {
         if (dt <= 0) return;
         this._time = f32(this._time + dt);
         this.phaseTime = f32(this.phaseTime + dt);
+        this.pops = this.pops.filter(p => (p.life -= dt) > 0);
+        if (this._score >= this.nextLife && this.domesLeft > 0) {
+            this.nextLife += 1200;
+            const i = this.domeAlive.indexOf(false);
+            if (i >= 0) { this.domeAlive[i] = true; this.domesLeft++; this.pops.push({ x: DomeX[i], y: 176, text: 'DOME REBUILT', life: 2 }); this._emit('extraLife'); }
+        }
 
         if (this.p === Phase.Banner || this.p === Phase.Play || this.p === Phase.Clear) this._moveCrosshair(dt, input);
 
@@ -287,6 +280,7 @@ export class LastLightRound {
             case Phase.Play: {
                 this.waveTime = f32(this.waveTime + dt);
                 if (input != null && input.pressed(Pad.A)) this._fire();
+                if (input != null && input.pressed(Pad.B)) { const y = this.crossY; this.crossY = 166; this._fire(); this.crossY = y; }
                 this._spawnDue();
                 this._updateWorld(dt);
                 if (this.domesLeft <= 0) {
@@ -295,14 +289,10 @@ export class LastLightRound {
                 } else if (this._next >= this._schedule.length && this._quiet()) {
                     this.wavesCleared++;
                     this._log += 'clear' + (this.subWave + 1) + '@' + fmt(this._time, 1, F32) + ' ';
-                    if (this.subWave < SubWaves - 1) {
-                        this.p = Phase.Clear; this.phaseTime = 0;
-                        if (this.firstClearT < 0) this.firstClearT = this._time;
-                        this._cues.emit(SoundCue.Bonus);
-                    } else {
-                        this.p = Phase.Tally; this.phaseTime = 0; this.tallyT = this._time;
-                        this.tallyShotsTotal = this.shotsLeft;
-                    }
+                    this._emit('stageClear');
+                    this.p = Phase.Tally; this.phaseTime = 0; this.tallyT = this._time;
+                    this.tallyShotsTotal = this.shotsLeft;
+                    if (this.firstClearT < 0) this.firstClearT = this._time;
                 }
                 break;
             }
@@ -346,10 +336,11 @@ export class LastLightRound {
         let end = f32(this.tallyLead + f32(this.domesLeft * this.tallyDomeStep));
         end = f32(end + f32(this.tallyShotsTotal * this.tallyShotStep));
         end = f32(end + this.tallyHold);
-        if (this.phaseTime >= end) this._enterCard(RoundResult.Won);
+        if (this.phaseTime >= end) { if (this.subWave === SubWaves - 1) this._enterCard(RoundResult.Won); else { this.subWave++; this._startBanner(); } }
     }
 
     _quiet() {
+        if (this.boss && this.boss.alive) return false;
         for (const m of this.missiles) if (m.alive) return false;
         for (const c of this.interceptors) if (c.alive) return false;
         for (const b of this.blasts) if (b.alive) return false;
@@ -384,8 +375,8 @@ export class LastLightRound {
 
     _fire() {
         const s = this.firingSilo(this.crossX);
-        if (s < 0 || this.interceptorsInFlight >= MaxInterceptors) { this._dryFires++; this._cues.emit(SoundCue.Miss); return; }
-        this.shots[s]--;
+        if (s < 0 || this.interceptorsInFlight >= MaxInterceptors) { this._dryFires++; this._emit('dry'); this._cues.emit(SoundCue.Miss); return; }
+        this.shots[s]--; this._emit('fire', { silo: s });
         this.shotsFired++;
         if (this.firstShotT < 0) this.firstShotT = this._time;
         const sx = SiloX[s], sy = SiloLaunchY;
@@ -405,6 +396,8 @@ export class LastLightRound {
     _spawnDue() {
         while (this._next < this._schedule.length && this._schedule[this._next].t <= this.waveTime) {
             const sp = this._schedule[this._next++];
+            if (sp.what === 6) { const m = this._launch(Kind.Warhead, sp.x || 160, 60, this._pickTarget(), this.waveSpeed); m.satellite = true; m.drop = 1.5; m.vx = 24; m.vy = 0; m.ty = 999; continue; }
+            if (sp.what === 4 || sp.what === 5) { const m = this._launch(Kind.Warhead, sp.x, TopY, this._pickTarget(), this.waveSpeed * 1.75); m.decoy = sp.what === 5; m.streak = true; continue; }
             if (sp.what === 3) { this._spawnBomber(); continue; }
             const x = sp.x;
             if (sp.what === 2) {
@@ -432,7 +425,7 @@ export class LastLightRound {
             const fr = f32(f32(i + f32(0.3 + f32(0.4 * this._rng.nextDouble()))) / drops);
             b.dropX[i] = fromLeft ? f32(40 + f32(240 * fr)) : f32(280 - f32(240 * fr));
         }
-        this.saucer = b;
+        this.saucer = b; this._emit('bomber');
         if (this.firstBomberT < 0) this.firstBomberT = this._time;
     }
 
@@ -477,6 +470,18 @@ export class LastLightRound {
     }
 
     _updateWorld(dt) {
+        const boss = this.boss;
+        if (boss && boss.alive) {
+            boss.x = f32(boss.x + boss.vx * dt); if (boss.x > 278 || boss.x < 42) boss.vx = -boss.vx;
+            boss.cooldown = Math.max(0, boss.cooldown - dt); boss.drop -= dt;
+            if (boss.drop <= 0) { boss.drop = 2.8; this._launch(Kind.Warhead, boss.x, boss.y + 8, this._pickTarget(), this.waveSpeed); this._emit('enemyFire'); }
+            for (const bl of this.blasts) if (bl.alive && !bl.enemy && !bl.shield && boss.cooldown <= 0 && Math.hypot(boss.x - bl.x, boss.y - bl.y) < bl.r + 16) {
+                boss.hp--; boss.cooldown = 0.65; this._emit('bossHit'); this.pops.push({ x: boss.x, y: 70, text: 'HULL HIT', life: 0.5 });
+                if (boss.hp <= 0) { boss.alive = false; this._score += 2500; this._addBlast(boss.x, boss.y, 35, false); this._emit('bossDown'); }
+            }
+            // Emergency reserve keeps the guaranteed credit armed until the hull is broken.
+            if (this.credit.unlosable && this.shotsLeft < 6) { this.siloAlive.fill(true); this.silosLeft = 3; this.shots.fill(this.shotsPerSilo); }
+        }
         // reloads (mercy)
         for (let i = 0; i < Silos; i++) {
             if (this.reload[i] > 0) {
@@ -484,7 +489,7 @@ export class LastLightRound {
                 if (this.reload[i] <= 0) {
                     this.reload[i] = 0;
                     const load = Math.min(this.reserveShots, this.shotsPerSilo);
-                    if (this.siloAlive[i] && load > 0) { this.shots[i] = load; this.reserveShots -= load; this._cues.emit(SoundCue.Bonus); }
+                    if (this.siloAlive[i] && load > 0) { this.shots[i] = load; this.reserveShots -= load; this._emit('reload'); this._cues.emit(SoundCue.Bonus); }
                 }
             }
         }
@@ -506,6 +511,12 @@ export class LastLightRound {
             const m = this.missiles[i];
             if (!m.alive) continue;
             m.age = f32(m.age + dt);
+            if (m.satellite) {
+                m.x += m.vx * dt; if (m.x > 295 || m.x < 25) m.vx = -m.vx;
+                m.drop -= dt; if (m.drop <= 0) { m.drop = 3; this._launch(Kind.Warhead, m.x, m.y, this._pickTarget(), this.waveSpeed); this._emit('enemyFire'); }
+                if (m.age > 14) m.alive = false;
+                continue;
+            }
             if (m.k === Kind.Smart) this._steerSmart(m, dt);
             else { m.x = f32(m.x + f32(m.vx * dt)); m.y = f32(m.y + f32(m.vy * dt)); }
             if (m.k === Kind.Mirv && m.y >= m.splitY && this.p === Phase.Play) { this._split(m); continue; }
@@ -549,7 +560,7 @@ export class LastLightRound {
             if (sb != null && sb.alive) {
                 const dx = f32(sb.x - bl.x), dy = f32(sb.y - bl.y), rr = f32(bl.r + 4);
                 if (f32(f32(dx * dx) + f32(dy * dy)) <= f32(rr * rr)) {
-                    sb.alive = false; this._bomberKills++; this._score += PtsBomber; this._cues.emit(SoundCue.Bonus);
+                    sb.alive = false; this._emit('bomberDown'); this._bomberKills++; this._score += PtsBomber; this._cues.emit(SoundCue.Bonus);
                     this._addBlast(sb.x, sb.y, f32(this.blastRadius * 0.8), false);
                     if (this.firstBomberDownT < 0) this.firstBomberDownT = this._time;
                 }
@@ -594,7 +605,7 @@ export class LastLightRound {
 
     _split(m) {
         m.alive = false;
-        this._splits++;
+        this._splits++; this._emit('split');
         if (this.firstSplitT < 0) this.firstSplitT = this._time;
         const kids = 2 + (this._rng.nextDouble() < 0.35 ? 1 : 0);
         for (let i = 0; i < kids; i++) {
@@ -607,12 +618,13 @@ export class LastLightRound {
     _impact(m) {
         m.alive = false;
         m.y = m.ty;
+        if (m.decoy) { this._emit('decoy'); return; }
         const tg = m.target;
         const onTarget = m.k !== Kind.Smart || Math.abs(f32(m.x - m.tx)) <= 8;
         if (onTarget && tg < Domes && this.domeAlive[tg]) {
             if (this.credit.unlosable && this.domesLeft <= 1) {
                 // mercy: the last light holds
-                this._shields++;
+                this._shields++; this._emit('shield');
                 if (this.firstShieldT < 0) this.firstShieldT = this._time;
                 const bl = new Blast();
                 bl.x = DomeX[tg]; bl.y = GroundY; bl.maxR = f32(DomeRadius + 5); bl.shield = true;
@@ -621,13 +633,13 @@ export class LastLightRound {
                 this._cues.emit(SoundCue.Miss);
                 return;
             }
-            this.domeAlive[tg] = false; this.domesLeft--; this.domeLostAt[tg] = this._time;
+            this._emit('domeLost'); this.domeAlive[tg] = false; this.domesLeft--; this.domeLostAt[tg] = this._time;
             if (this.shotsLeft > 0) this._hitsArmed++; else this._hitsDry++;
             if (this.firstDomeLostT < 0) this.firstDomeLostT = this._time;
             this._cues.emit(SoundCue.Die);
         } else if (onTarget && tg >= Domes && this.siloAlive[tg - Domes]) {
             const s = tg - Domes;
-            this.siloAlive[s] = false; this.silosLeft--; this._silosLost++; this.siloLostAt[s] = this._time;
+            this._emit('siloLost'); this.siloAlive[s] = false; this.silosLeft--; this._silosLost++; this.siloLostAt[s] = this._time;
             this.shots[s] = 0;
             if (this.reload[s] > 0) { this.reload[s] = 0; this._refillsUsed--; }   // the reserve waits for the next dry silo
             this._cues.emit(SoundCue.Die);
@@ -637,7 +649,8 @@ export class LastLightRound {
 
     _kill(m) {
         m.alive = false;
-        this.kills++;
+        this.kills++; this._emit('hit', { type: m.k });
+        this.pops.push({ x: m.x, y: m.y, text: '+' + (m.k === Kind.Smart ? 125 : m.k === Kind.Mirv ? 50 : 25), life: 0.65 });
         const pts = m.k === Kind.Smart ? PtsSmart : m.k === Kind.Mirv ? PtsMirv : PtsWarhead;
         if (m.k === Kind.Smart) this._smartKills++;
         this._score += pts;
@@ -651,7 +664,7 @@ export class LastLightRound {
         b.x = x; b.y = y; b.maxR = r; b.enemy = enemy;
         if (enemy) { b.grow = f32(0.22); b.hold = f32(0.18); b.shrink = f32(0.5); }
         else { b.grow = f32(0.42); b.hold = f32(0.25); b.shrink = f32(0.55); }
-        this.blasts.push(b);
+        this.blasts.push(b); this._emit(enemy ? 'impact' : 'explosion');
     }
 
     // ------------------------------------------------------------------ stats

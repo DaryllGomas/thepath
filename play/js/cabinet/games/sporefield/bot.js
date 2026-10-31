@@ -49,6 +49,7 @@ export class SporeFieldBot extends CabinetBotBase {
     }
 
     think(sim, dt) {
+        dt *= 0.78;
         const s = sim;
         if (s == null || s.p !== Phase.Playing) {
             this._readT = 0; this._watchT = this.range(0, this.watchMax); this._dodgeT = 0; this._unstickT = 0;
@@ -78,6 +79,7 @@ export class SporeFieldBot extends CabinetBotBase {
 
         const f = InputFrame.stick(dir);
         f.a = true;
+        f.b = s.burstCooldown <= 0 && (s.spider.active && Math.abs(s.spider.x - s.playerX) < 7 || s.chains.some(c => c.segs.some(g => s.segY(g) > 22)));
         return f;
     }
 

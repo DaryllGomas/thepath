@@ -1,11 +1,15 @@
 // THE NODE · world 1 · IRON DOJO (Ironclad Amusements, 1985) · THE SPRITES (data only).
-// Port of the IronDojoSprites class at the bottom of IronDojoRenderer.cs (Staging/Batch3/irondojo).
-// The pose rows were converted from the C# source by script, character for character.
+// The first floor's cast is the port of the IronDojoSprites class at the bottom of IronDojoRenderer.cs
+// (Staging/Batch3/irondojo), converted from the C# source by script, character for character. The floors above it
+// (2026-10-18) add the pots and what is in them, the mirror ghosts, the blades, and four more masters: the ring dancer
+// (the thrower's cut in violet), the giant (drawn fresh, blitted at x3), twin blades (the hero's own cut in navy) and
+// the iron master (the stick master's robe in white, his hair gone white).
 // Split into its own module so spec.js (the title art) and renderer.js both read it with no import cycle.
 //
 // Authored facing RIGHT as palette-index rows (see IronDojoPalette in spec.js):
 //   0 shadow  1 shadowRed  2 dojoRed  3 red  4 woodDark  5 tanDark  6 tan  7 white  8 grey
-//   9 goldDark  a gold      ('.' = transparent)
+//   9 goldDark  a gold  b night  c navy  d steel  e moon  f bambooDark  g bamboo  h jade  i plum  j violet  k orange
+//   ('.' = transparent)
 // ax = the body's centre column: the sprite stands on that column at the character's x.
 import { PixelSprite } from '../../sdk/index.js';
 
@@ -13,6 +17,19 @@ export class Pose {
     constructor(s, ax) { this.s = s; this.ax = ax; }        // C# Pose(PixelSprite s, int ax)
     static rows(ax, ...rows) { return new Pose(PixelSprite.fromRows(...rows), ax); }   // C# Pose(int ax, params string[] rows)
 }
+
+// a pose in other clothes: map = { fromIndex: toIndex (-1 = clear) }, on rows y0..y1 only
+function recolor(p, map, y0 = 0, y1 = 999) {
+    const s = p.s, r = new PixelSprite(s.width, s.height);
+    for (let y = 0; y < s.height; y++)
+        for (let x = 0; x < s.width; x++) {
+            const v = s.at(x, y);
+            r.set(x, y, y >= y0 && y <= y1 && v >= 0 && map[v] !== undefined ? map[v] : v);
+        }
+    return new Pose(r, p.ax);
+}
+
+function chain(p, ...steps) { for (const [map, y0, y1] of steps) p = recolor(p, map, y0, y1); return p; }
 
 // quarter turns clockwise (square sprites)
 function rotate(src, quarters) {
@@ -598,6 +615,263 @@ const LifeHead = PixelSprite.fromRows(
     ".06606.",
     "..666..");
 
+// ---- the lantern hall: a clay pot on a rope (tanDark, a red band), and the bowl of tea a broken one may leave
+const Pot = Pose.rows(3,
+    "..4444..",
+    "...55...",
+    "..5555..",
+    ".556655.",
+    ".533335.",
+    ".556655.",
+    ".555555.",
+    "..5555..",
+    "...44...");
+
+const Tea = Pose.rows(3,
+    "7777777",
+    ".7aaa7.",
+    "..777..");
+
+// the snake: a wave of bamboo green, darker beneath, a head with an eye and a red tongue. Two frames of a slither.
+function snakeFrame(ph) {
+    const W = [3, 2, 2, 3, 4, 4, 3, 2, 2, 3];
+    const s = new PixelSprite(14, 6);
+    for (let c = 0; c < 10; c++) {
+        const y = W[(c + ph * 2) % 10];
+        s.set(c, y, 16); s.set(c, y + 1, 15);
+    }
+    s.set(0, W[(ph * 2) % 10], 15);
+    const hy = W[(9 + ph * 2) % 10] - 1;
+    s.set(10, hy, 16); s.set(11, hy, 16); s.set(12, hy, 16); s.set(10, hy + 1, 16); s.set(11, hy + 1, 17); s.set(12, hy + 1, 17);
+    s.set(11, hy, 0); s.set(13, hy + 1, 3);
+    return new Pose(s, 6);
+}
+const SnakeA = snakeFrame(0), SnakeB = snakeFrame(1);
+
+// the fire-lizard: orange, a gold head, red wings up then down
+const LizardA = Pose.rows(5,
+    "....3.......",
+    "...333......",
+    "..3333......",
+    "k.kkkkkkaaa.",
+    ".kkkkkkka0aa",
+    "...a...a....");
+const LizardB = Pose.rows(5,
+    "............",
+    "............",
+    "............",
+    "k.kkkkkkaaa.",
+    ".kkkkkkka0aa",
+    "..3333.a....",
+    "...333......");
+
+// the flying blade, a quarter turn apart
+const BladeA = Pose.rows(3,
+    "...e...",
+    "...d...",
+    "..ddd..",
+    "edd0dde",
+    "..ddd..",
+    "...d...",
+    "...e...");
+const BladeB = Pose.rows(3,
+    "e.....e",
+    ".d...d.",
+    "..ddd..",
+    "..d0d..",
+    "..ddd..",
+    ".d...d.",
+    "e.....e");
+
+// ---- the mirror ghost: the hero's own cut in moonlight (white > moon, folds and band > steel, hair and belt > navy)
+const GhostMap = { 7: 14, 8: 13, 3: 13, 6: 14, 0: 12 };
+const GhostStand = recolor(FighterStand, GhostMap);
+const GhostWalk1 = recolor(FighterWalk1, GhostMap);
+const GhostWalk2 = recolor(FighterWalk2, GhostMap);
+const GhostWindup = recolor(FighterChamber, GhostMap);
+const GhostStrike = recolor(FighterPunch, GhostMap);
+
+// ---- THE RING DANCER: the thrower's cut, a violet robe with a gold clasp, plum trousers. His ring is drawn by the
+// renderer (in his hand, or flying), so the thrower's knife is cleared from the poses.
+const RingMap = [[{ 3: 19, 8: 10, 7: -1 }, 0, 99], [{ 0: 18 }, 9, 15]];
+const RingStand = chain(ThrowerStand, ...RingMap);
+const RingStep = chain(ThrowerWalk2, ...RingMap);
+const RingHigh = chain(ThrowerHigh, ...RingMap);
+const RingLow = chain(ThrowerLow, ...RingMap);
+const RingHurt = chain(ThrowerHit, ...RingMap);
+const RingDown = recolor(FighterDown, { 7: 19, 3: 18 });
+
+// ---- TWIN BLADES: the hero's own cut in navy (folds night), a red headband. His two blades are drawn by the renderer.
+const TwinMap = { 7: 12, 8: 11 };
+const TwinStand = recolor(FighterStand, TwinMap);
+const TwinStep = recolor(FighterWalk1, TwinMap);
+const TwinRaise = recolor(FighterChamber, TwinMap);
+const TwinSlash = recolor(FighterPunch, TwinMap);
+const TwinHurt = recolor(FighterFlinch, TwinMap);
+const TwinDown = recolor(FighterDown, TwinMap);
+
+// ---- THE IRON MASTER: the stick master's robe in white (folds grey), a red sash, his topknot and beard gone white
+const MasterMap = [[{ 10: 7, 9: 8 }, 0, 99], [{ 0: 14 }, 0, 5], [{ 0: 3 }, 10, 10]];
+const MasterStand = chain(BossStand, ...MasterMap);
+const MasterStep = chain(BossStep, ...MasterMap);
+const MasterRaise = chain(BossRaise, ...MasterMap);
+const MasterStrike = chain(BossStrike, ...MasterMap);
+const MasterHurt = chain(BossHurt, ...MasterMap);
+const MasterDown = recolor(BossDown, { 10: 7, 9: 8 });
+
+// ---- THE GIANT (blitted at x3, 48 x 54 px): a topknot, a great belly, a red belt with a gold knot
+const GiantStand = Pose.rows(8,
+    ".......00.......",
+    "......0000......",
+    ".....066660.....",
+    ".....666066.....",
+    ".....666666.....",
+    "......5665......",
+    "...5666666665...",
+    "..566666666666..",
+    "..665666666566..",
+    "..66.66666666.66",
+    "..66.66666666.66",
+    ".666.22222222666",
+    "....2222a2222...",
+    "....666.2.666...",
+    "....666...666...",
+    "...6666...6666..",
+    "...666.....666..",
+    "...555.....555..");
+
+const GiantStep = Pose.rows(8,
+    ".......00.......",
+    "......0000......",
+    ".....066660.....",
+    ".....666066.....",
+    ".....666666.....",
+    "......5665......",
+    "...5666666665...",
+    "..566666666666..",
+    "..665666666566..",
+    "..66.66666666.66",
+    "..66.66666666.66",
+    ".666.22222222666",
+    "....2222a2222...",
+    ".....666.666....",
+    ".....666.666....",
+    "....6666.666....",
+    "....666..6666...",
+    "....555..555....");
+
+// the SLAM tell: both fists overhead
+const GiantRaise = Pose.rows(8,
+    "..66........66..",
+    "..66...00...66..",
+    "..66..0000..66..",
+    "..66.066660.66..",
+    "...6.666066.6...",
+    "...6.666666.6...",
+    "...66.5665.66...",
+    "....66666666....",
+    "...5666666665...",
+    "..566666666666..",
+    "..66666666666...",
+    "....22222222....",
+    "....2222a2222...",
+    "....666.2.666...",
+    "....666...666...",
+    "...6666...6666..",
+    "...666.....666..",
+    "...555.....555..");
+
+// the SLAM: down on one knee, both fists on the boards
+const GiantSlam = Pose.rows(8,
+    "................",
+    "................",
+    "................",
+    ".......00.......",
+    "......0000......",
+    ".....066660.....",
+    ".....666066.....",
+    ".....666666.....",
+    "...56665665.....",
+    "..56666666665...",
+    "..666666666666..",
+    "..66666666666.66",
+    "..6622222222a.66",
+    ".66.2222a222..66",
+    ".66..666..666.66",
+    "666..666...6666.",
+    "666.6666...666..",
+    "....555....555..");
+
+// the SWAT tell: the front arm drawn back behind his head
+const GiantDraw = Pose.rows(8,
+    "...66...........",
+    "...666.00.......",
+    "....6600000.....",
+    ".....066660.....",
+    ".....666066.....",
+    ".....666666.....",
+    "......5665......",
+    "...5666666665...",
+    "..566666666666..",
+    "..665666666566..",
+    "..66.666666666..",
+    ".666.22222222...",
+    "....2222a2222...",
+    "....666.2.666...",
+    "....666...666...",
+    "...6666...6666..",
+    "...666.....666..",
+    "...555.....555..");
+
+// the SWAT: the arm swept out level (it reaches past his body)
+const GiantSwat = Pose.rows(8,
+    ".......00...........",
+    "......0000..........",
+    ".....066660.........",
+    ".....666066.........",
+    ".....666666.........",
+    "......5665..........",
+    "...5666666665.......",
+    "..56666666666666666.",
+    "..66566666666666666.",
+    "..66.666666666...66.",
+    "..66.66666666.......",
+    ".666.22222222.......",
+    "....2222a2222.......",
+    "....666.2.666.......",
+    "....666...666.......",
+    "...6666...6666......",
+    "...666.....666......",
+    "...555.....555......");
+
+const GiantHurt = Pose.rows(9,
+    "......00........",
+    ".....0000.......",
+    "....066660......",
+    "....660606......",
+    "....666666......",
+    ".....5665.......",
+    "..5666666665....",
+    ".566666666666...",
+    ".665666666566...",
+    "66..66666666.66.",
+    "66..66666666..66",
+    "....22222222....",
+    "....2222a2222...",
+    "....666.2.666...",
+    "....666...666...",
+    "...6666...6666..",
+    "...666.....666..",
+    "...555.....555..");
+
+const GiantDown = Pose.rows(13,
+    "..........666666..........",
+    "....55...66666666.........",
+    ".00666..6666666666..2.....",
+    "0066066.66666666662a2.6655",
+    "0066666666666666662226666.",
+    ".066666.666666666622.6655.");
+
 // the title card: a flying kick meets a grabber under the pagoda's eave
 function buildTitleArt() {
     const W = 136, H = 23;
@@ -626,4 +900,10 @@ const TitleArt = buildTitleArt();
 
 export const IronDojoSprites = Object.freeze({
     FighterStand, FighterWalk1, FighterWalk2, FighterPunch, FighterChamber, FighterKick, FighterDuck, FighterDuckPunch, FighterDuckKick, FighterJump, FighterJumpKick, FighterFlinch, FighterStruggle1, FighterStruggle2, FighterDown, GrabberWalk1, GrabberWalk2, GrabberHold, GrabberHit, ThrowerStand, ThrowerWalk1, ThrowerWalk2, ThrowerHigh, ThrowerLow, ThrowerHit, DwarfRoll, DwarfHop, BossStand, BossStep, BossRaise, BossStrike, BossHurt, BossDown, Knife, LifeHead, TitleArt,
+    Pot, Tea, SnakeA, SnakeB, LizardA, LizardB, BladeA, BladeB,
+    GhostStand, GhostWalk1, GhostWalk2, GhostWindup, GhostStrike,
+    RingStand, RingStep, RingHigh, RingLow, RingHurt, RingDown,
+    TwinStand, TwinStep, TwinRaise, TwinSlash, TwinHurt, TwinDown,
+    MasterStand, MasterStep, MasterRaise, MasterStrike, MasterHurt, MasterDown,
+    GiantStand, GiantStep, GiantRaise, GiantSlam, GiantDraw, GiantSwat, GiantHurt, GiantDown,
 });

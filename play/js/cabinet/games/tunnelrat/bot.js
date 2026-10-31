@@ -12,10 +12,13 @@
 //      drifting in: back off sometimes (ghostWary)
 //   6. rock drop: a rock with a pest below it in the same open column: dig the tile under the rock
 //      from the side, step back out, wait for it to drop
-//   7. the carrot if it is close, else the nearest pest by the cheapest dug-or-diggable route
+//   7. the carrot if it is close, else the last pest running for the sky, else a spot in line with the
+//      queen (two or three tiles off), else the nearest pest by the cheapest dug-or-diggable route
 //      (Dial's shortest path over tiles: open 4, part-dug 5, earth 7; rocks are walls)
+// The build-out (2026-10-18) added the queen (pumped through her own tunnel, held on with queenBrave),
+// shades in the earth counted as ghosts, and a scorcher's longer fire line.
 import { f32, roundEven, CabinetBotBase, InputFrame, Dir4 } from '../../sdk/index.js';
-import { TunnelRatSim, TunnelField, RockState } from './sim.js';
+import { TunnelRatSim, TunnelField, RockState, PestKind } from './sim.js';
 
 const T = TunnelField.Tile, W = TunnelField.W, H = TunnelField.H;
 const Phase = TunnelRatSim.Phase, HoseState = TunnelRatSim.HoseState;
@@ -53,6 +56,7 @@ export class TunnelRatBot extends CabinetBotBase {
         this.square = f32(3);               // px off a tile line it will square up from to pump
         this.ambush = f32(44);              // px (Manhattan): a live pest this near and not in line, it waits
         this.ambushMax = f32(1.2);          // seconds it waits before it goes on digging
+        this.queenBrave = f32(0.6);         // chance it keeps pumping the queen with a pest closing in
 
         this.hold = InputFrame.neutral;
         this.wait = 0; this.stuckT = 0;
@@ -97,7 +101,13 @@ export class TunnelRatBot extends CabinetBotBase {
     _decide(r) {
         const dx = r.dx, dy = r.dy;
 
-        // 1. a pest on the hose: keep pumping
+        // 1. a pest (or the queen) on the hose: keep pumping
+        const q = r.queen != null && r.queen.alive ? r.queen : null;
+        if (r.hose === HoseState.Hooked && r.hookedQueen && q != null) {
+            const th = nearest(r, p => p.dangerous);
+            if (th != null && dist(th, dx, dy) < this.close - 6 && this.chance(this.notice) && !this.chance(this.queenBrave)) return this._flee(r, th.x, th.y);
+            return new InputFrame(0, 0, true, false, false);
+        }
         if (r.hose === HoseState.Hooked && r.hookedPest != null && r.hookedPest.alive) {
             const th = nearest(r, p => p.dangerous && p !== r.hookedPest);
             if (th != null && dist(th, dx, dy) < this.close && this.chance(this.notice) && !this.chance(this.brave)) return this._flee(r, th.x, th.y);
@@ -137,6 +147,10 @@ export class TunnelRatBot extends CabinetBotBase {
                 const dd = dist(p, dx, dy);
                 if (dd < bd) { bd = dd; best = p; bestDir = d; }
             }
+            if (q != null) {
+                const d = this._pumpDirQ(r, q, dx, dy);
+                if (d >= 0) { const dd = Math.abs(q.x + 8 - dx) + Math.abs(q.y + 8 - dy); if (dd < bd) { bd = dd; best = q; bestDir = d; } }
+            }
             if (best != null) {
                 const horiz = bestDir === Dir4.Left || bestDir === Dir4.Right;
                 const square = horiz ? TunnelRatSim.aligned(dy) : TunnelRatSim.aligned(dx);
@@ -151,7 +165,8 @@ export class TunnelRatBot extends CabinetBotBase {
             const th = nearest(r, p => p.dangerous);
             const td = th != null ? dist(th, dx, dy) : Number.MAX_VALUE;
             if (td < this.close && this.chance(this.notice)) return this._flee(r, th.x, th.y);
-            const gh = nearest(r, p => p.alive && p.ghost);
+            if (q != null && q.dangerous && Math.abs(q.x + 8 - dx) + Math.abs(q.y + 8 - dy) < 44 && this.chance(this.notice)) return this._flee(r, q.x + 8, q.y + 8);
+            const gh = nearest(r, p => p.alive && (p.ghost || (p.kind === PestKind.Shade && !p.open)));
             if (gh != null && dist(gh, dx, dy) < 40 && this.chance(this.ghostWary)) return this._flee(r, gh.x, gh.y);
             // near but not in line: hold still a moment and let it come into the hose's line
             if (td < this.ambush && this.ambushT < this.ambushMax) { this.ambushT = f32(this.ambushT + this.wait); return InputFrame.neutral; }
@@ -173,6 +188,8 @@ export class TunnelRatBot extends CabinetBotBase {
             const vt = r.StartRow * W + r.StartCol;
             if (this.dist[vt] <= 40) goal = vt;
         }
+        if (goal < 0 && r.fleeing != null && r.fleeing.alive && r.fleeing.solid) goal = tileOf(r.fleeing.x, r.fleeing.y);
+        if (goal < 0 && q != null) goal = this._queenSpot(r, q);
         if (goal < 0) {
             let bestCost = Number.MAX_VALUE;
             for (const p of r.pests) {
@@ -314,9 +331,43 @@ export class TunnelRatBot extends CabinetBotBase {
         return d;
     }
 
+    // the direction to pump the queen in, or -1: her 32 px body across the hose's line, open tunnel between
+    _pumpDirQ(r, q, dx, dy) {
+        const lx = roundEven(dx / T) * T, ly = roundEven(dy / T) * T;
+        const onRow = Math.abs(dy - ly) <= this.square, onCol = Math.abs(dx - lx) <= this.square;
+        let d = -1, gap = 0, ox = dx, oy = dy;
+        if (onRow && ly + 5 < q.y + 30 && q.y + 2 < ly + 11) {
+            if (q.x >= dx) { d = Dir4.Right; gap = q.x + 2 - (dx + T); } else { d = Dir4.Left; gap = dx - (q.x + 30); }
+            oy = ly;
+        } else if (onCol && lx + 5 < q.x + 30 && q.x + 2 < lx + 11) {
+            if (q.y >= dy) { d = Dir4.Down; gap = q.y + 2 - (dy + T); } else { d = Dir4.Up; gap = dy - (q.y + 30); }
+            ox = lx;
+        } else return -1;
+        if (gap > r.hoseRange - 4) return -1;
+        if (gap > 0 && r.field.openRun(ox, oy, d, r.hoseRange) < gap) return -1;
+        return d;
+    }
+
+    // where to wait for the queen: the cheapest tile in line with her, a little way off, in her tunnel or ours
+    _queenSpot(r, q) {
+        const qc = Math.trunc(roundEven(q.x / T)), qr = Math.trunc(roundEven(q.y / T));
+        let best = -1, bc = Number.MAX_VALUE;
+        const consider = (c, rr) => {
+            if (c < 0 || rr < 0 || c >= W || rr >= H) return;
+            const t = rr * W + c;
+            const cost = this.dist[t] + (r.field.tileDug(c, rr) ? 0 : 6);
+            if (cost < bc) { bc = cost; best = t; }
+        };
+        for (const k of [2, 3]) for (const o of [0, 1]) {
+            consider(qc - k, qr + o); consider(qc + 1 + k, qr + o);
+            consider(qc + o, qr - k); consider(qc + o, qr + 1 + k);
+        }
+        return best;
+    }
+
     _inFireLine(r, p, dx, dy) {
         if (Math.abs(dy - p.y) >= 13) return false;
-        const reach = r.fireRange + 10;
+        const reach = (p.kind === PestKind.Scorcher ? r.scorchMax(p) : r.fireRange) + 10;
         if (p.face === Dir4.Right) return dx + T > p.x + T - 2 && dx < p.x + T + reach;
         return dx < p.x + 2 && dx + T > p.x - reach;
     }

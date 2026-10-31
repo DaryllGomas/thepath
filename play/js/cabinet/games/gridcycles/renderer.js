@@ -1,15 +1,7 @@
 // THE NODE · world 1 · GRID CYCLES '82 on the Cabinet Engine · THE PICTURE.
-// Port of GridCyclesRenderer.cs from Staging/Batch1/gridcycles_tune (with the ASSIST lamp).
-//
-//   - HUD band y 8..27: 1UP + the score in big display-font digits, the duel pips in the middle, the
-//     ASSIST lamp from credit 3 (lit while wall-assist saves remain, one white pulse per save, dark when
-//     spent), the rival's speed on the right, a magenta dotted rule under it all
-//   - the arena 74 x 49 cells x 4 px at (12, 32): faint grid every 2 cells, bright every 4, a magenta
-//     edge; walls are a bright core in a coloured tube, joined along the trail
-//   - DEREZ the palette way: one grid flash, the dying trail blinks white at 2.5 Hz (under the 3 Hz
-//     strobe floor), then steps down through two darker palette entries
-//   - countdown in display digits at scale 5; DEREZZED / ROUND WON / GAME OVER on double-framed plates;
-//     FREE RIDE on the mercy credit; a YOU tag over your cycle during the countdown
+// Cyan and orange tubes over the original blue lattice. Pink blocks are solid;
+// warning frames show the next lockdown ring before it seals. Cards leave the
+// arena visible, and every drawing stays within the cabinet's eight-pixel margin.
 import { f32, d6, roundEven, PixelFont, SurfaceDraw } from '../../sdk/index.js';
 import { GridCyclesPalette, GridCyclesSpec } from './spec.js';
 import { GridCyclesRound } from './round.js';
@@ -62,6 +54,7 @@ export class GridCyclesRenderer {
             for (let x = 0; x < W; x++) {
                 const v = cells[y * W + x];
                 if (v === 0) continue;
+                if (v === 3) { s.rect(OX+x*4, OY+y*4, 4,4,this.cEdgeDim); s.rect(OX+x*4+1,OY+y*4+1,2,2,this.cEdge); continue; }
                 const dying = derez && ((v === 1 && (who & 1) !== 0) || (v === 2 && (who & 2) !== 0));
                 col.edge = v === 1 ? this.cCyan : this.cOrange; col.core = v === 1 ? this.cCyanCore : this.cOrangeCore;
                 if (dying) this._dyingColours(v, P, pt, col);
@@ -87,6 +80,13 @@ export class GridCyclesRenderer {
         s.rect(OX - 2, OY - 2, AW + 4, 2, e); s.rect(OX - 2, OY + AH, AW + 4, 2, e);
         s.rect(OX - 2, OY - 2, 2, AH + 4, e); s.rect(OX + AW, OY - 2, 2, AH + 4, e);
 
+        if (r.sectorDef.shrink && r.duelSeconds % 8 > 6 && r.seal < 8) {
+            const n=r.seal+1; s.frame(OX+n*4,OY+n*4,AW-n*8,AH-n*8,this.cWhite);
+            s.textCenteredShadow('SEAL INCOMING',160,36,PixelFont.Small,this.cOrange,this.cBg);
+        }
+        if (r.sectorDef.boost && r.duelSeconds % 7 > 4 && r.duelSeconds % 7 < 5)
+            s.textCenteredShadow('RIVAL CHARGING',160,36,PixelFont.Small,this.cOrange,this.cBg);
+        if (r.extra && r.score < 12600) s.textCenteredShadow('EXTRA CYCLE',160,51,PixelFont.Arcade,this.cHud,this.cBg);
         this._drawHud(s, r);
 
         // ---- overlays
@@ -95,8 +95,12 @@ export class GridCyclesRenderer {
         if (P === Phase.Countdown) {
             const n = r.countdownLeft > 0 ? String(r.countdownLeft) : 'GO';
             s.textCenteredShadow(n, midX, midY - 32, dsp, this.cHud, this.cBg, 5);
-            s.textCenteredShadow('DUEL ' + r.duelNumber, midX, midY + 14, dsp, this.cEdge, this.cBg, 2);
-            if (r.mercyActive) s.textCenteredShadow('FREE RIDE', midX, midY + 36, arc, this.cHud, this.cBg);
+            s.plate(35, midY+8,250,62,this.cBg,this.cEdge);
+            s.textCentered('SECTOR '+(r.sector+1)+' / '+r.sectorDef.rival,160,midY+14,arc,this.cOrange);
+            s.textCentered(r.sectorDef.name,160,midY+29,arc,this.cCyan,1);
+            s.textCentered(r.sectorDef.hint,160,midY+46,PixelFont.Small,this.cHud);
+            for(let i=0;i<6;i++) { s.frame(118+i*14,midY+58,9,5,this.cEdgeDim); if(i<=r.sector) s.rect(119+i*14,midY+59,7,3,i===r.sector?this.cWhite:this.cCyan); }
+            
             // which one is you
             const hx = OX + g.player.x * CellPx + 2, hy = OY + g.player.y * CellPx - 12;
             if (SurfaceDraw.blink(t, 1)) s.textCenteredShadow('YOU', hx, hy, arc, this.cCyan, this.cBg);
@@ -106,10 +110,15 @@ export class GridCyclesRenderer {
             s.textBox('DEREZZED', midX, midY - 14, dsp, 3, this.cWhite, c, this.cBg);
             s.plate(midX - 46, midY + 16, 92, 22, this.cBg, c);
             s.textCentered(name, midX, midY + 20, dsp, c, 2);
+            if (r.lastBonus) {
+                s.plate(40,midY+45,240,38,this.cBg,this.cEdge);
+                s.textCentered('SECTOR CLEAR  +'+Math.floor(r.lastBonus*Math.min(1,pt/1.5)),160,midY+51,arc,this.cHud);
+                s.textCentered('CIRCUIT 1500  CYCLES '+(r.stock*250)+'  SPEED '+(r.lastBonus-1500-r.stock*250),160,midY+66,PixelFont.Small,this.cCyan);
+            }
         } else if (P === Phase.Card || P === Phase.Over) {
             const spec = GridCyclesSpec;
             const won = r.roundWon;
-            s.textBox(won ? spec.roundWonText : spec.roundLostText, midX, midY - 26, dsp, 3, won ? this.cCyan : this.cOrange, this.cEdge, this.cBg);
+            s.textBox(won ? spec.roundWonText : spec.roundLostText, midX, midY - 26, dsp, 2, won ? this.cCyan : this.cOrange, this.cEdge, this.cBg);
             s.plate(midX - 84, midY + 6, 168, 46, this.cBg, this.cEdge);
             s.textCentered('SCORE ' + d6(r.score), midX, midY + 12, arc, this.cHud, 2);
             s.textCentered(r.playerWins + ' - ' + r.rivalWins, midX, midY + 32, dsp, this.cWhite, 2);
@@ -159,18 +168,9 @@ export class GridCyclesRenderer {
             if (i < r.rivalWins) s.rect(xr, 11, 10, 10, this.cOrange); else { s.frame(xr, 11, 10, 10, this.cOrange); s.frame(xr + 1, 12, 8, 8, this.cOrange); }
         }
         s.textCentered('VS', 160, 14, PixelFont.Small, this.cEdge);
-        // the ASSIST lamp (credit 3 on): a small framed tag between the pips and the rival
-        if (r.assistShown) {
-            const pulse = r.sinceSave < f32(0.4);                 // one pulse per save, never a strobe
-            const txt = pulse ? this.cWhite : r.assistLit ? this.cCyan : this.cCyanDim;
-            const rim = pulse ? this.cCyan : r.assistLit ? this.cCyanDim : this.cGridMinor;
-            s.frame(212, 10, 41, 13, rim);
-            s.text('ASSIST', 215, 13, arc, txt);
-        }
-        // right: the rival and its speed in cells/s against the first credit's (100, 95, 90, 86, then 25)
-        s.textRight('RIVAL', 312, 8, arc, this.cOrange);
-        const spd = 'SPD ' + roundEven(f32(f32(100 * r.rivalSpeed) / Math.max(f32(0.01), this.refSpeed)));
-        s.textRight(spd, 312, 18, arc, this.cOrange);
+        s.textRight('S'+(r.sector+1)+' LIFE '+r.lives,310,9,arc,this.cHud);
+        s.frame(218,20,90,4,this.cCyanDim);
+        s.rect(219,21,Math.floor(88*r.charge),2,r.boost>0?this.cWhite:this.cCyan);
         s.dottedRule(8, 312, 27, 3, this.cEdge);
     }
 }

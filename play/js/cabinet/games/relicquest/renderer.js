@@ -14,7 +14,7 @@
 //   - nothing strobes: blinks are 1 Hz, the tongue and a stun's last second 2 Hz, a bite is ONE red frame
 import { f32, d6, PixelFont, SurfaceDraw } from '../../sdk/index.js';
 import { RelicQuestPalette, RelicQuestSpec } from './spec.js';
-import { GW, GH, RelicQuestMaze as M, Up, Right, Down, Left } from './maze.js';
+import { GW, GH, Temples, RelicQuestMaze as M, Up, Right, Down, Left } from './maze.js';
 import { RelicQuestRound } from './round.js';
 import { Knight, KnightDazed, HelmetFly, SnakeHeadSide, SnakeHeadTop, Gem, Relic, RelicGhost, Plinth, LifeIcon, TorchIcon } from './sprites.js';
 
@@ -62,11 +62,29 @@ export class RelicQuestRenderer {
         s.clip(OX, OY, MW, MH);
         const held = P === Phase.Clear || ((P === Phase.Card || P === Phase.Over) && r.roundWon);   // the knight has it
         this._drawRelic(s, m, t, held);
-        for (const sn of m.snakes) this._drawSnake(s, m, sn, t);
+        for (const sn of m.snakes) {
+            this._drawSnake(s, m, sn, t);
+            if(sn.guardian) {
+                const x=Math.round(OX+M.px(sn)*T+8), y=Math.round(OY+M.py(sn)*T+8);
+                s.circle(x,y,11,m.levelTime%5<1.2?this.cRedHi:this.cGoldHi,false);
+                s.rect(x-5,y-13,10,3,this.cGold); s.rect(x-5,y-16,2,4,this.cGoldHi); s.rect(x-1,y-18,2,5,this.cGoldHi); s.rect(x+3,y-16,2,4,this.cGoldHi);
+            }
+        }
         this._drawKnight(s, r, m, P, pt, t);
         this._drawTorchFlare(s, m);
+        if(m.invuln > 0 || m.hitFlash > 0) s.circle(Math.round(OX+M.px(m.knight)*T+8),Math.round(OY+M.py(m.knight)*T+8),12,m.hitFlash>0?this.cWhite:this.cGoldHi,false);
+        s.clip(OX, OY, MW, MH);
+        for(const f of m.fx) {
+            const x = Math.round(OX+f.x*T+8), y=Math.round(OY+f.y*T-12*f.age);
+            s.textCenteredShadow(f.text,x,y,PixelFont.Arcade,this.cHud,this.cBg);
+            for(let j=0;j<4;j++) s.rect(Math.round(x+Math.cos(j*1.57)*f.age*18),Math.round(y+Math.sin(j*1.57)*f.age*18),2,2,this.cGoldHi);
+        }
         s.noClip();
         this._drawHud(s, r, m, t);
+        if(m.level === 6 && P === Phase.Running) {
+            s.plate(88,213,144,16,this.cBg,this.cGreen);
+            s.textCentered(m.bossHp ? 'GUARDIAN  SEALS '+m.bossHp : 'GUARDIAN BOUND',160,217,PixelFont.Arcade,this.cHud);
+        }
         this._drawOverlay(s, r, m, P, pt, t);
     }
 
@@ -99,6 +117,23 @@ export class RelicQuestRenderer {
         for (let y = 0; y < GH; y++)
             for (let x = 0; x < GW; x++) {
                 const px0 = OX + x * T, py0 = OY + y * T;
+                if(m.level === 5 && m.torchAge > 6 && Math.abs(x-M.px(m.knight))+Math.abs(y-M.py(m.knight))>4) {
+                    if(m.wall[y*GW+x]) s.rect(px0+3,py0+3,10,10,this.cGreenLo);
+                    continue;
+                }
+                if(m.seals.has(y*GW+x)) s.circle(px0+8,py0+8,7,this.cGoldHi,false);
+                if(m.webs.has(y*GW+x)) {
+                    s.line(px0+2,py0+2,px0+14,py0+14,this.cSteelLo);
+                    s.line(px0+14,py0+2,px0+2,py0+14,this.cSteelLo);
+                    s.circle(px0+8,py0+8,4,this.cSteelLo,false);
+                }
+                if(!m.key && x===m.keyX && y===m.keyY) {
+                    s.circle(px0+5,py0+6,3,this.cGoldHi,false); s.rect(px0+7,py0+6,7,2,this.cGoldHi); s.rect(px0+12,py0+7,2,4,this.cGoldHi);
+                }
+                if(m.wall[y*GW+x] === 2) {
+                    for(let j=2;j<15;j+=4) s.rect(px0+j,py0+1,2,14,this.cGoldHi);
+                    continue;
+                }
                 if (m.wall[y * GW + x]) this._drawBlock(s, px0, py0, x, y);
                 else if (m.gem[y * GW + x]) this._drawGem(s, px0, py0, x, y, t);
             }
@@ -403,7 +438,10 @@ export class RelicQuestRenderer {
         const k = m.knight;
         if (P === Phase.Countdown || P === Phase.Ready) {
             if (P === Phase.Countdown) {
-                s.textBox('MAZE ' + m.level, midX, midY - 42, dsp, 2, this.cHud, this.cGold, this.cBg);
+                s.textBox('TEMPLE ' + m.level + ' OF 6', midX, midY - 62, arc, 1, this.cHud, this.cGold, this.cBg);
+                s.textBox(Temples[m.level-1][0],midX,midY-42,arc,1,this.cGoldHi,this.cGreen,this.cBg);
+                s.textBox(Temples[m.level-1][1],midX,midY+20,arc,1,this.cCream,this.cGreen,this.cBg);
+                for(let i=0;i<6;i++) s.rect(106+i*18,midY+44,10,6,i<m.level?this.cGoldHi:this.cGreenLo);
                 const n = r.countdownLeft > 0 ? String(r.countdownLeft) : 'GO';
                 s.textCenteredShadow(n, midX, midY - 14, dsp, this.cWhite, this.cBg, 4);
             } else {
@@ -413,7 +451,7 @@ export class RelicQuestRenderer {
             if (r.mercyActive) s.textBox('THE SNAKES SLEEP', midX, midY + 30, arc, 1, this.cSnake, this.cGreen, this.cBg);
             // which one is you: an arrow and YOU just right of the knight
             if (SurfaceDraw.blink(t, 1)) {
-                const ax = OX + k.x * T + 18, ay = OY + k.y * T + 7;
+                const ax = Math.min(278, OX + k.x * T + 18), ay = OY + k.y * T + 7;
                 s.plate(ax - 1, ay - 5, 30, 11, this.cBg, this.cHud);
                 for (let i = 0; i < 4; i++) s.rect(ax + 2 + i, ay - i, 1, 2 * i + 1, this.cHud);
                 s.text('YOU', ax + 8, ay - 3, arc, this.cHud);
@@ -428,7 +466,8 @@ export class RelicQuestRenderer {
             if (pt >= f32(0.4)) {
                 s.plate(midX - 70, OY + MH - 46, 140, 34, this.cBg, this.cGold);
                 s.textCentered('RELIC BONUS', midX, OY + MH - 41, dsp, this.cCream, 1);
-                s.textCentered(String(r.lastBonus), midX, OY + MH - 30, dsp, this.cHud, 2);
+                s.textCentered(String(Math.floor(r.lastBonus*Math.min(1,pt/1.2))), midX, OY + MH - 30, dsp, this.cHud, 2);
+                s.textCentered('GEMS '+m.gemsTotal+'  TIME +'+r.timeBonus,midX,OY+MH-10,arc,this.cCream);
             }
         } else if (P === Phase.Card || P === Phase.Over) {
             const won = r.roundWon;

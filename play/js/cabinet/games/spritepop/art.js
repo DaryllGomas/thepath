@@ -1,11 +1,13 @@
 // THE NODE · world 1 · SPRITE POP (Wavecrest Interactive, 1986) on the Cabinet Engine · THE ART.
-// Port of the SpritePopArt class in SpritePopRenderer.cs (Staging/Batch2/spritepop), split out so the
-// spec (title art) and the renderer can both use it without an import cycle. Takes the palette as an
-// argument, never imports spec.js.
+// Began as the port of the SpritePopArt class in SpritePopRenderer.cs (Staging/Batch2/spritepop), split out so
+// the spec (title art) and the renderer can both use it without an import cycle. Takes the palette as an
+// argument, never imports spec.js. The 2026-10-18 build-out added the hopper, the corker, the wisp, the
+// bouncer, the alarm, the Tin King and his gears, the cork, and four sweets after the fruit.
 //
 // Sprites are text rows of SYMBOLS mapped to palette colour NAMES (not the SDK's 0-9a-z indices):
-//   K bg  S shadow  P pink  p pinkLight  D pinkDark  B blue  b blueDark  W white  C green  c greenDark
-//   G cub  g cubDark  Y yellow  O orange  R red  r redDark      (anything else = transparent)
+//   K bg  S shadow  P pink  p pinkLight  D pinkDark  B blue  b blueDark  L blueLight  W white
+//   C green  c greenDark  G cub  g cubDark  Y yellow  O orange  N brown  R red  r redDark  E rose
+//   V violet  v violetLight  U violetDark  T steel  t steelLight  d steelDark      (anything else = transparent)
 // Every sprite faces RIGHT; the renderer mirrors for facing.
 import { PixelSprite, idiv } from '../../sdk/index.js';
 
@@ -14,6 +16,8 @@ const Map_ = new Map([
     ['K', 'bg'], ['S', 'shadow'], ['P', 'pink'], ['p', 'pinkLight'], ['D', 'pinkDark'],
     ['B', 'blue'], ['b', 'blueDark'], ['W', 'white'], ['C', 'green'], ['c', 'greenDark'],
     ['G', 'cub'], ['g', 'cubDark'], ['Y', 'yellow'], ['O', 'orange'], ['R', 'red'], ['r', 'redDark'],
+    ['L', 'blueLight'], ['E', 'rose'], ['N', 'brown'], ['V', 'violet'], ['v', 'violetLight'], ['U', 'violetDark'],
+    ['T', 'steel'], ['t', 'steelLight'], ['d', 'steelDark'],
 ]);
 
 // rows -> a palette-indexed sprite; `swap` (a Map char -> char) recolours symbols first (ANGRY, WHITE)
@@ -228,7 +232,317 @@ export const WhistleB = [
     '.....cc..cc.....',
 ];
 
-// ---------------------------------------------------------------- fruit (14 x 14)
+// ---------------------------------------------------------------- the hopper (faces right): a spring toy
+export const HopRest = [
+    '................',
+    '.....UUUUUU.....',
+    '....UVVVVVVU....',
+    '...UVvvVVVVVU...',
+    '...UVvVWWVWWWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVVVVVVVU..',
+    '..UVVVVVVKKKVU..',
+    '...UVVVVVVVVU...',
+    '....UUUUUUUU....',
+    '......YOOY......',
+    '.....OYYYYO.....',
+    '......YOOY......',
+    '.....OYYYYO.....',
+    '....OOOOOOOO....',
+];
+export const HopCrouch = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '.....UUUUUU.....',
+    '....UVVVVVVU....',
+    '...UVvvVVVVVU...',
+    '..UVVvVWWVWWWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVVVVVVVU..',
+    '..UVVVVVVKKKVU..',
+    '...UUUUUUUUUU...',
+    '.....OYYYYO.....',
+    '....OYYYYYYO....',
+    '...OOOOOOOOOO...',
+];
+export const HopAir = [
+    '.....UUUUUU.....',
+    '....UVVVVVVU....',
+    '...UVvvVVVVVU...',
+    '...UVvVWWVWWWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVWKVWKWU..',
+    '..UVVVVVVVVVVU..',
+    '..UVVVVVVVKKVU..',
+    '...UVVVVVVKKU...',
+    '....UUUUUUUU....',
+    '......YOOY......',
+    '......OYYO......',
+    '......YOOY......',
+    '......OYYO......',
+    '......YOOY......',
+    '.....OOOOOO.....',
+];
+
+// ---------------------------------------------------------------- the corker (faces right): a toy popgun
+export const CorkA = [
+    '................',
+    '................',
+    '.....bbbbbb.....',
+    '....bBBBBBBb....',
+    '...bBLLBBBBBb...',
+    '..bBLLBBWWWBb...',
+    '..bBLBBWWKKWbNN.',
+    '..bBBBBWWKKWNOON',
+    '..bBBBBBWWWBNOON',
+    '..bBBBBBBBBBbNN.',
+    '..bBBBBBBBBBb...',
+    '...bBBBBBBBb....',
+    '....bbbbbbb.....',
+    '....OO...OO.....',
+    '...OOO...OOO....',
+    '................',
+];
+export const CorkB = [
+    '................',
+    '................',
+    '.....bbbbbb.....',
+    '....bBBBBBBb....',
+    '...bBLLBBBBBb...',
+    '..bBLLBBWWWBb...',
+    '..bBLBBWWKKWbNN.',
+    '..bBBBBWWKKWNOON',
+    '..bBBBBBWWWBNOON',
+    '..bBBBBBBBBBbNN.',
+    '..bBBBBBBBBBb...',
+    '...bBBBBBBBb....',
+    '....bbbbbbb.....',
+    '.....OO.OO......',
+    '.....OOOOOO.....',
+    '................',
+];
+export const CorkPuff = [
+    '................',
+    '....bbbbbbb.....',
+    '...bBBBBBBBb....',
+    '..bBLLBBBBBBb...',
+    '.bBLLBBBWWWBBb..',
+    '.bBLBBBWWKKWBbN.',
+    '.bBBBBBWWKKWBNNN',
+    '.bBBBBBBWWWBNWWN',
+    '.bBBBBBBBBBBNWWN',
+    '.bBBBBBBBBBBBNNN',
+    '.bBBBBBBBBBBBbN.',
+    '..bBBBBBBBBBBb..',
+    '...bbbbbbbbbb...',
+    '....OO....OO....',
+    '...OOO...OOO....',
+    '................',
+];
+export const Cork = [                    // 6 x 4, the shot (flies right)
+    '.NOOO.',
+    'NOOOOY',
+    'NOOOOY',
+    '.NOOO.',
+];
+
+// ---------------------------------------------------------------- the wisp (faces right): a sheet that drifts
+export const WispA = [
+    '......WWWW......',
+    '....WWWWWWWW....',
+    '...WWWWWWWWWW...',
+    '..WWWWWWWWWWWW..',
+    '..WWWWWKKWWKKWL.',
+    '.WWWWWWKKWWKKWL.',
+    '.WWWWWWWWWWWWWL.',
+    '.WWWWWWWWKKWWWL.',
+    '.WWWWWWWKKKKWWL.',
+    '.WWWWWWWWKKWWWL.',
+    '.LWWWWWWWWWWWLL.',
+    '.LWWWWWWWWWWWLL.',
+    '.LLWWWLWWWWLWLL.',
+    '.LL.WLL.WLL.WL..',
+    '..L..L...L...L..',
+    '................',
+];
+export const WispB = [
+    '......WWWW......',
+    '....WWWWWWWW....',
+    '...WWWWWWWWWW...',
+    '..WWWWWWWWWWWW..',
+    '..WWWWWKKWWKKWL.',
+    '.WWWWWWKKWWKKWL.',
+    '.WWWWWWWWWWWWWL.',
+    '.WWWWWWWWKKWWWL.',
+    '.WWWWWWWKKKKWWL.',
+    '.WWWWWWWWKKWWWL.',
+    '.LWWWWWWWWWWWLL.',
+    '.LWWWWWWWWWWWLL.',
+    '.LWWWLWWWWLWWWL.',
+    '..WLL.WLL.WLL.L.',
+    '...L...L...L....',
+    '................',
+];
+
+// ---------------------------------------------------------------- the bouncer (faces right): a rubber ball
+export const BallA = [
+    '................',
+    '.....DDDDDD.....',
+    '...DDPPPYYYDD...',
+    '..DPPPPYYYYYYD..',
+    '.DPPPPYYYYYYYPD.',
+    '.DPPPPYWWWYWWWD.',
+    'DPPPPPYWKKYWKKPD',
+    'DPPPPPYWKKYWKKPD',
+    'DPPPPPYYWWYYWWPD',
+    'DPPPPYYYYYYYYPPD',
+    'DPPPPYYYYKKKYPPD',
+    '.DPPPYYYYYYYYPD.',
+    '.DPPPPYYYYYYPPD.',
+    '..DPPPPPYYYPPD..',
+    '...DDPPPPPPDD...',
+    '.....DDDDDD.....',
+];
+export const BallSquash = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '....DDDDDDDD....',
+    '..DDPPPYYYYYDD..',
+    '.DPPPPYYYYYYYPD.',
+    'DPPPPPYWWWYWWWPD',
+    'DPPPPPYWKKYWKKPD',
+    'DPPPPPYYWWYYWWPD',
+    'DPPPPYYYYYYYYPPD',
+    'DPPPPYYYYKKKYPPD',
+    '.DPPPYYYYYYYYPD.',
+    '..DDPPPPPPPPDD..',
+    '....DDDDDDDD....',
+    '................',
+];
+
+// ---------------------------------------------------------------- the alarm (faces right): cannot be popped
+export const AlarmA = [
+    '.RR..........RR.',
+    'RRRE..dddd..ERRR',
+    'RRE.dYYYYYYd.ERR',
+    '...dYWWWWWWYd...',
+    '..dYWWWWKWWWYd..',
+    '..dYWWWWKWWWWYd.',
+    '.dYWWWWWKWWWWYd.',
+    '.dYWWWWWKKKKWYd.',
+    '.dYWWWWWWWWWWYd.',
+    '.dYWWWWWWWWWWYd.',
+    '..dYWWWWWWWWYd..',
+    '..dYYWWWWWWYYd..',
+    '...dYYYYYYYYd...',
+    '....dddddddd....',
+    '...OO......OO...',
+    '..OO........OO..',
+];
+export const AlarmB = [
+    'RR............RR',
+    'RRRE..dddd..ERRR',
+    '.RE.dYYYYYYd.ER.',
+    '...dYWWWWWWYd...',
+    '..dYWWWWWKWWYd..',
+    '..dYWWWWWKWWWYd.',
+    '.dYWWWWWKWWWWYd.',
+    '.dYWWWWWKKKKWYd.',
+    '.dYWWWWWWWWWWYd.',
+    '.dYWWWWWWWWWWYd.',
+    '..dYWWWWWWWWYd..',
+    '..dYYWWWWWWYYd..',
+    '...dYYYYYYYYd...',
+    '....dddddddd....',
+    '..OO........OO..',
+    '...OO......OO...',
+];
+
+// ---------------------------------------------------------------- the Tin King (faces right), 20 x 20, drawn at 2x
+export const KingA = [
+    '.....Y...Y...Y......',
+    '.....YY.YYY.YY......',
+    '.....YYYYYYYYY......',
+    '.....OYRYOYRYO......',
+    '....ddddddddddd.....',
+    '...dTTTTTTTTTTTd....',
+    '..dTttTTTTTTTTTTd...',
+    '..dTtTTTWWWTTWWWd...',
+    '..dTTTTTWKKTTWKKd...',
+    'YY.dTTTTWKKTTWKKd...',
+    'YOddTTTTTTTTTTTTd...',
+    'YYdTTTTTTTRRRRRTd...',
+    '..dTTTTTTTTRRRTTd...',
+    '..dTTTTTTTTTTTTTd...',
+    '..ddTTTYTTTTYTTdd...',
+    '...dTTTTTTTTTTTd....',
+    '...dTTTYTTTTYTTd....',
+    '....ddddddddddd.....',
+    '....OOO.....OOO.....',
+    '...OOOO....OOOO.....',
+];
+export const KingB = [                   // the telegraph: mouth wide, the key turned
+    '.....Y...Y...Y......',
+    '.....YY.YYY.YY......',
+    '.....YYYYYYYYY......',
+    '.....OYRYOYRYO......',
+    '....ddddddddddd.....',
+    '...dTTTTTTTTTTTd....',
+    '..dTttTTTTTTTTTTd...',
+    '..dTtTTTWWWTTWWWd...',
+    '..dTTTTTWKKTTWKKd...',
+    '.Y.dTTTTWKKTTWKKd...',
+    'YOYdTTTTTTTTTTTTd...',
+    '.YdTTTTTTRRRRRRRd...',
+    '..dTTTTTTRKKKKKRd...',
+    '..dTTTTTTTRRRRRTd...',
+    '..ddTTTYTTTTYTTdd...',
+    '...dTTTTTTTTTTTd....',
+    '...dTTTYTTTTYTTd....',
+    '....ddddddddddd.....',
+    '....OOO.....OOO.....',
+    '...OOOO....OOOO.....',
+];
+export const KingHead = [                // 12 x 12 HUD icon
+    '..Y..Y..Y...',
+    '..YYYYYYY...',
+    '..OYOYOYO...',
+    '.ddddddddd..',
+    'dTTTTTTTTTd.',
+    'dTtTWWTWWTd.',
+    'dTTTWKTWKTd.',
+    'dTTTTTTTTTd.',
+    'dTTTTRRRRTd.',
+    'dTTTTTTTTTd.',
+    '.ddddddddd..',
+    '............',
+];
+export const GearA = [                   // 7 x 7, two turns
+    '..t.t..',
+    '.tTTTt.',
+    'tTTdTTt',
+    '.TdKdT.',
+    'tTTdTTt',
+    '.tTTTt.',
+    '..t.t..',
+];
+export const GearB = [
+    '.t...t.',
+    'ttTTTtt',
+    '.TTdTT.',
+    '.TdKdT.',
+    '.TTdTT.',
+    'ttTTTtt',
+    '.t...t.',
+];
+
+// ---------------------------------------------------------------- fruit and sweets (14 x 14)
 export const FruitRows = [
     [                         // cherries
         '.........cc...',
@@ -294,9 +608,79 @@ export const FruitRows = [
         '..............',
         '..............',
     ],
+    [                         // lollipop
+        '....PPPPP.....',
+        '...PWPPPPP....',
+        '..PWPPYYPPP...',
+        '..PPPYPPYPP...',
+        '..PPYPWPPYP...',
+        '..PPPYPPYPP...',
+        '...PPPYYPP....',
+        '....PPPPP.....',
+        '......W.......',
+        '......W.......',
+        '......W.......',
+        '......W.......',
+        '..............',
+        '..............',
+    ],
+    [                         // cupcake
+        '......R.......',
+        '.....WWW......',
+        '....WWEWW.....',
+        '...WEWWWEW....',
+        '..WWWWEWWWW...',
+        '..EWWWWWWEW...',
+        '..OOOOOOOOO...',
+        '..ONONONONO...',
+        '...ONONONO....',
+        '...ONONONO....',
+        '....ONONO.....',
+        '..............',
+        '..............',
+        '..............',
+    ],
+    [                         // wrapped candy
+        '..............',
+        '..............',
+        '..............',
+        '..Y........Y..',
+        '.YYY.BBBB.YYY.',
+        '.YYYBLBBBBYYY.',
+        '..YYBBLBBBYY..',
+        '..YYBBBLBBYY..',
+        '.YYYBBBBLBYYY.',
+        '.YYY.BBBB.YYY.',
+        '..Y........Y..',
+        '..............',
+        '..............',
+        '..............',
+    ],
+    [                         // ice cream
+        '....EEEE......',
+        '...EEWEEE.....',
+        '..EEWEEEEE....',
+        '..EEEEEEEE....',
+        '..WWWWWWWW....',
+        '...OYOYOYO....',
+        '...YOYOYOY....',
+        '....OYOYO.....',
+        '....YOYOY.....',
+        '.....OYO......',
+        '.....YOY......',
+        '......O.......',
+        '..............',
+        '..............',
+    ],
 ];
 
 export const Angry = new Map([['C', 'R'], ['c', 'r']]);
+// the new creatures go red their own way (body and shade)
+export const AngryHop = new Map([['V', 'R'], ['U', 'r'], ['v', 'E']]);
+export const AngryCork = new Map([['B', 'R'], ['b', 'r'], ['L', 'E']]);
+export const AngryWisp = new Map([['W', 'E'], ['L', 'R']]);
+export const AngryBall = new Map([['P', 'R'], ['D', 'r'], ['Y', 'E']]);
+export const AngryKing = new Map([['T', 'R'], ['t', 'E'], ['d', 'r']]);
 export const White = new Map([['G', 'W'], ['g', 'W'], ['Y', 'W'], ['O', 'W'], ['K', 'W']]);
 
 // the bubble ring as a sprite: radius R, ring 2 px (outer in `outer`, inner in `inner`), a glint

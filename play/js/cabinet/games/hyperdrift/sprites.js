@@ -1,9 +1,12 @@
 // THE NODE · world 1 · HYPER DRIFT (Redline Coin-Op, 1983) on the Cabinet Engine · THE SPRITES.
-// Port of HyperDriftSprites.cs (Staging/Batch3/hyperdrift), 1:1.
+// Started as a port of HyperDriftSprites.cs (Staging/Batch3/hyperdrift); the rally added the taxi, the
+// rival, the cars after dark, the burnt-out wreck, the hazards (puddle, ice, boulder, boost pad) and the
+// scenery of the other four legs (lamps, palms, pines, cacti, the jump and rockfall signs).
 //
 // Authored as palette-index rows (PixelSprite), sized for a curved tube at 0.8 m: your car 16x26,
 // traffic cars 14x22, trucks 16x30, all with a black outline so they read on grey asphalt and on
-// orange sand. Cars point UP (nose at row 0).
+// orange sand. Cars point UP (nose at row 0). After dark (the city) a car out of the light is its DARK
+// variant: the body gone to shadow, only its lamps showing (white headlights, red tail lights).
 //
 // Rotation: every vehicle is pre-rotated into 24 frames (15 degree steps) at load, the way the boards
 // kept pre-drawn rotations in ROM. RotSprite-lite: upscale 4x with Scale2x twice (it keeps diagonals
@@ -12,6 +15,7 @@
 //
 // palette: 0 bg  1 asphalt  2 asphaltDark  3 white  4 orange  5 orangeDark  6 yellow  7 yellowDark
 //          8 green  9 greenDark  a red  b redDark  c blue  d blueDark  e grey
+//          f night  g nightBlue  h purple  i purpleDark  j ice  k snow  l snowShade  m sand
 import { PixelSprite, SystemRandom, roundEven, idiv } from '../../sdk/index.js';
 
 export const Frames = 24;                             // 15 degrees a frame
@@ -109,10 +113,95 @@ function recolour(rows, ...map) {
     return PixelSprite.fromRows(...rows.split('|'));
 }
 
+// the taxi (the city): a green car with a yellow sign on the roof (lit after dark)
+const TaxiRows =
+    '..0000000000..|' +
+    '.03BBBBBBBB30.|' +
+    '00BBBBBBBBBB00|' +
+    '00BBBBBBBBBB00|' +
+    '00SBBBBBBBBS00|' +
+    '.0S00000000S0.|' +
+    '.0S00000000S0.|' +
+    '.0SB000000BS0.|' +
+    '.0SBBBBBBBBS0.|' +
+    '.0SBB7667BBS0.|' +
+    '.0SBB7667BBS0.|' +
+    '.0SBBBBBBBBS0.|' +
+    '.0SB000000BS0.|' +
+    '.0SBB0000BBS0.|' +
+    '.0SBBBBBBBBS0.|' +
+    '00SBBBBBBBBS00|' +
+    '00BBBBBBBBBB00|' +
+    '00BBBBBBBBBB00|' +
+    '00BBBBBBBBBB00|' +
+    '.0BBBBBBBBBB0.|' +
+    '.0LBBBBBBBBL0.|' +
+    '..0000000000..';
+
+// the rival (the canyon's final dash): purple, a white stripe down the middle, a black wing at the tail
+const RivalRows =
+    '...0000000000...|' +
+    '..03hhh33hhh30..|' +
+    '..0hhhh33hhhh0..|' +
+    '000hhhh33hhhh000|' +
+    '000ihhh33hhhi000|' +
+    '..0i00000000i0..|' +
+    '..0i00000000i0..|' +
+    '..0ih000000hi0..|' +
+    '..0ihhh33hhhi0..|' +
+    '..0ihhh33hhhi0..|' +
+    '..0ihhh33hhhi0..|' +
+    '..0ihhh33hhhi0..|' +
+    '..0ih000000hi0..|' +
+    '..0ihh0000hhi0..|' +
+    '..0ihhh33hhhi0..|' +
+    '000ihhh33hhhi000|' +
+    '000hhhh33hhhh000|' +
+    '000hhhh33hhhh000|' +
+    '..0hhhh33hhhh0..|' +
+    '.00000000000000.|' +
+    '.0aiiiiiiiiiia0.|' +
+    '.00000000000000.';
+
 const CarRed = recolour(CarRows, ['B', 'a'], ['S', 'b'], ['L', '6']);
 const CarBlue = recolour(CarRows, ['B', 'c'], ['S', 'd'], ['L', 'a']);
 const TruckRed = recolour(TruckRows, ['C', 'a'], ['D', 'b']);
 const TruckBlue = recolour(TruckRows, ['C', 'c'], ['D', 'd']);
+const Taxi = recolour(TaxiRows, ['B', '8'], ['S', '9'], ['L', 'a']);
+const Rival = recolour(RivalRows);
+// after dark: the body is shadow; the lamps stay lit (white heads, red tails, the taxi's roof sign)
+const CarDark = recolour(CarRows, ['B', 'f'], ['S', '2'], ['L', 'a']);
+const TruckDark = recolour(TruckRows.split('|').map((r, j) => j < 8 ? r : r.replace(/3/g, '2')).join('|'), ['C', 'f'], ['D', '2'], ['e', 'f']);
+const TaxiDark = recolour(TaxiRows, ['B', 'f'], ['S', '2'], ['L', 'a']);
+
+// your car burnt out (a wreck)
+const Wreck = PixelSprite.fromRows(
+    '...0000000000...',
+    '..022222222220..',
+    '..025222222520..',
+    '0002222552222000',
+    '0002222002222000',
+    '0005220000225000',
+    '0002000000002000',
+    '..020000000020..',
+    '..020000000020..',
+    '..020000000020..',
+    '..025000000520..',
+    '..022222222220..',
+    '..022205522220..',
+    '..022205522220..',
+    '..022222222220..',
+    '..020000000020..',
+    '..025000000520..',
+    '..022222222220..',
+    '0002200000022000',
+    '0002222552222000',
+    '0005200000025000',
+    '0002222222222000',
+    '0002200000022000',
+    '..022222222220..',
+    '..0bb222222bb0..',
+    '...0000000000...');
 
 // ------------------------------------------------------------------ the road furniture
 const Oil = PixelSprite.fromRows(
@@ -179,6 +268,178 @@ const SignWorks = PixelSprite.fromRows(
     '.....e.....',
     '.....e.....',
     '.....e.....');
+
+const Puddle = PixelSprite.fromRows(
+    '.....dddddddd.......',
+    '...dddcccdddddddd...',
+    '.ddddddddddjdddddd..',
+    'dddcccddddddddcccddd',
+    'ddddddddjdddddddddd.',
+    '.dddddddddddcccdd...',
+    '...ddddddddddd......');
+
+const Ice = PixelSprite.fromRows(
+    '........jjjjjjjjj.........',
+    '.....jjjjjjjjjjjjjjjj.....',
+    '...jjjjjj33jjjjjjjjjjjj...',
+    '..jjjjjjjjj33jjjjjjjjjjj..',
+    '.jjjjjjjjjjjjjjjjjj3jjjjj.',
+    'jjjjjjjjjjjjjjjjjjjj3jjjjj',
+    'jjj3jjjjjjjjjjjjjjjjjjjjjj',
+    'jjjj33jjjjjjjjj3jjjjjjjjjj',
+    'jjjjjjjjjjjjjjjj3jjjjjjjjj',
+    '.jjjjjjjjjjjjjjjjjjjjjjjj.',
+    '.jjjjjjjjj3jjjjjjjjjjjjj..',
+    '..jjjjjjjjj33jjjjjjjjjj...',
+    '...jjjjjjjjjjjjjjjjjj.....',
+    '.....jjjjjjjjjjjjjjj......',
+    '........jjjjjjjjj.........');
+
+const Boulder = PixelSprite.fromRows(
+    '....000000....',
+    '..00eeeee100..',
+    '.0eeee3ee1110.',
+    '.0ee3eeee1110.',
+    '0eeeeee1111110',
+    '0eeee111111210',
+    '0e111111122210',
+    '01111112222210',
+    '.011222222220.',
+    '..0022222200..',
+    '....000000....');
+
+// a boost pad: three chevrons painted on the road (nose up)
+const Pad = PixelSprite.fromRows(
+    '......00......',
+    '.....0660.....',
+    '....066660....',
+    '...06600660...',
+    '..0660..0660..',
+    '..000....000..',
+    '......00......',
+    '.....0440.....',
+    '....044440....',
+    '...04400440...',
+    '..0440..0440..',
+    '..000....000..',
+    '......00......',
+    '.....0660.....',
+    '....066660....',
+    '...06600660...',
+    '..0660..0660..',
+    '..000....000..');
+
+// the city's street lamp, from above: the post's arm and the lamp head
+const Lamp = PixelSprite.fromRows(
+    '.00000.',
+    '0366630',
+    '0666660',
+    '0366630',
+    '.00e00.',
+    '...e...',
+    '...e...');
+
+const Palm = PixelSprite.fromRows(
+    '.9..9..9..9.',
+    '..9.989.99..',
+    '9.98888889.9',
+    '.9888558889.',
+    '988855558889',
+    '.9888558889.',
+    '9.98888889.9',
+    '..99.989.9..',
+    '.9..9..9..9.');
+
+const Pine = PixelSprite.fromRows(
+    '......0.......',
+    '.....090......',
+    '....09k90.....',
+    '..009989900...',
+    '.09989k89990..',
+    '0999899989990.',
+    '.0k9988899k0..',
+    '..099989990...',
+    '.0999k899990..',
+    '..009989900...',
+    '....09990.....',
+    '.....000......');
+
+const PineSmall = PixelSprite.fromRows(
+    '...090...',
+    '..09k90..',
+    '.0998990.',
+    '09k989990',
+    '.0998990.',
+    '..09990..',
+    '...000...');
+
+const SnowRock = PixelSprite.fromRows(
+    '..kkkkk...',
+    '.kkkkkkkk.',
+    'kkkllkkkkl',
+    'eeeeeeeel0',
+    '.eeeeee00.',
+    '..00000...');
+
+const Cactus = PixelSprite.fromRows(
+    '...00...',
+    '.008900.',
+    '.089980.',
+    '08938980',
+    '08989830',
+    '.089980.',
+    '.009800.',
+    '...00...');
+
+const Tuft = PixelSprite.fromRows(
+    '.8.9.8.',
+    '9.989.9',
+    '.98889.',
+    '..999..');
+
+// a yellow diamond: a ramp (JUMP) or falling rocks
+const SignJump = PixelSprite.fromRows(
+    '.....0.....',
+    '....060....',
+    '...06660...',
+    '..0666660..',
+    '.066666060.',
+    '06666600660',
+    '.066000660.',
+    '..0666660..',
+    '...06660...',
+    '....060....',
+    '.....0.....',
+    '.....e.....',
+    '.....e.....',
+    '.....e.....');
+
+const SignRocks = PixelSprite.fromRows(
+    '.....0.....',
+    '....060....',
+    '...06060...',
+    '..0666660..',
+    '.066606660.',
+    '06666666660',
+    '.060066000.',
+    '..0006600..',
+    '...06660...',
+    '....060....',
+    '.....0.....',
+    '.....e.....',
+    '.....e.....',
+    '.....e.....');
+
+// the cars-left icon (the HUD)
+const CarIcon = PixelSprite.fromRows(
+    '.666.',
+    '66666',
+    '60006',
+    '66666',
+    '66666',
+    '60006',
+    '66666',
+    'a666a');
 
 const Bush = PixelSprite.fromRows(
     '....00000....',
@@ -294,6 +555,12 @@ const CarRedFrames = cache(CarRed);
 const CarBlueFrames = cache(CarBlue);
 const TruckRedFrames = cache(TruckRed);
 const TruckBlueFrames = cache(TruckBlue);
+const TaxiFrames = cache(Taxi);
+const RivalFrames = cache(Rival);
+const WreckFrames = cache(Wreck);
+const CarDarkFrames = cache(CarDark);
+const TruckDarkFrames = cache(TruckDark);
+const TaxiDarkFrames = cache(TaxiDark);
 
 // ------------------------------------------------------------------ title art (144x44): the winding road + your car mid-drift
 function titleArt() {
@@ -328,8 +595,10 @@ function titleArt() {
 
 export const HyperDriftSprites = Object.freeze({
     Frames, Step,
-    Player, CarRed, CarBlue, TruckRed, TruckBlue,
-    Oil, Cone, Barrier, SignLeft, SignWorks, Bush, Scrub, Rock,
-    PlayerFrames, CarRedFrames, CarBlueFrames, TruckRedFrames, TruckBlueFrames,
+    Player, CarRed, CarBlue, TruckRed, TruckBlue, Taxi, Rival, Wreck,
+    Oil, Puddle, Ice, Boulder, Pad, Cone, Barrier, SignLeft, SignWorks, SignJump, SignRocks, Bush, Scrub, Rock,
+    Lamp, Palm, Pine, PineSmall, SnowRock, Cactus, Tuft, CarIcon,
+    PlayerFrames, CarRedFrames, CarBlueFrames, TruckRedFrames, TruckBlueFrames, TaxiFrames, RivalFrames, WreckFrames,
+    CarDarkFrames, TruckDarkFrames, TaxiDarkFrames,
     frameFor, blitCentred, rotate, titleArt,
 });

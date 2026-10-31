@@ -71,7 +71,7 @@ export class LunarDutyBot extends CabinetBotBase {
         ahead.sort((a, b) => a.near - b.near);
 
         // what the cannon could take (before merging): a rock, a tank or a shell in reach
-        let shootable = false;
+        let shootable = !!(r.boss && r.boss.hp > 0 && r.boss.x - r.x < 240);
         for (const h of ahead) {
             if (h.kind === 0) continue;
             if (h.kind === 1 && h.ref.kind === HazardKind.Mine) continue;
@@ -94,7 +94,7 @@ export class LunarDutyBot extends CabinetBotBase {
             if (gap < jumpLen * 0.9 && ahead[0].near - nose < 110) this._slowing = true;
         }
         if (this._slowing && (ahead.length === 0 || ahead[0].near - nose > 140)) this._slowing = false;
-        f.x = this._slowing ? -1 : 0;
+        f.x = r.checkpoint === 4 ? 1 : this._slowing ? -1 : 0;
 
         // ---- JUMP
         let jump = false;

@@ -1,4 +1,4 @@
-// THE NODE · world 1 · RELIC QUEST on the Cabinet Engine · THE MAZE's rules (port of RelicQuestSim.cs, Slice B).
+// THE NODE · world 1 · RELIC QUEST on the Cabinet Engine · THE MAZE's rules.
 //
 // A 19 x 13 tile maze of 16 px blocks. The knight walks tile to tile: a held direction is taken at the
 // next junction it fits, a released one is remembered for a moment (turnBuffer), and with nothing held
@@ -25,7 +25,7 @@ export const Up = 0, Right = 1, Down = 2, Left = 3;
 
 // '#' block, '.' floor, '*' gem, 'K' knight start, 'R' the relic's plinth, snake starts: 'S' always,
 // 'T' the third snake and 'U' the fourth (snakeCap, a mercy knob, drops U first, then T)
-export const Levels = Object.freeze([
+const OldLevels = Object.freeze([
     Object.freeze([
         '###################',
         '#K.......#.......S#',
@@ -55,6 +55,26 @@ export const Levels = Object.freeze([
         '#T.*....U....*...S#',
         '###################']),
 ]);
+
+// Six temples, each carved from the cabinet's long-wall vocabulary.
+export const Temples = [
+    ['THE OUTER COURT', 'EVERY GEM RAISES THE RELIC'],
+    ['THE GILDED GATES', 'TAKE THE KEY TO OPEN THE GATES'],
+    ['THE SILKEN HALL', 'SWORD CUTS WEBS - TORCH CLEARS ALL'],
+    ['THE WAKING TOMB', 'FIRST GEM WAKES THE STONE GUARDS'],
+    ['THE NIGHT VAULT', 'TORCH REVEALS THE WHOLE MAZE'],
+    ['THE RELIC CHAMBER', 'BREAK SIX SEALS TO BIND THE GUARDIAN'],
+];
+export const Levels = Object.freeze(Temples.map((_, n) => {
+    const rows = OldLevels[n % 2].map(r => [...r]);
+    if (n >= 2) {
+        // New cross passages change the route rather than just the enemy pace.
+        for (const [x,y] of (n === 2 ? [[4,4],[14,8]] : n === 3 ? [[9,3],[6,8]] : n === 4 ? [[9,1],[4,8],[14,4]] : [[6,6],[12,6],[9,8]])) rows[y][x] = '.';
+        for (let y=1;y<12;y++) for(let x=1;x<18;x++)
+            if(rows[y][x] === '.' && (x*7+y*3+n)%19 === 0) rows[y][x]='*';
+    }
+    return rows.map(r => r.join(''));
+}));
 
 export const Outcome = Object.freeze({ None: 0, Caught: 1, LevelClear: 2 });
 
@@ -92,7 +112,7 @@ export class RelicQuestMaze {
         this.snakesAsleep = false;                   // mercy credit: they never wake
         this.snakeCap = 4;                           // snakes a maze at most (2 = only the 'S' pair)
         this.catchDist = f32(0.7);                   // head to knight, in tiles
-        this.gemPoints = 50; this.relicPoints = 2500; this.stunPoints = 200;
+        this.gemPoints = 100; this.relicPoints = 2500; this.stunPoints = 200;
         this.stunSeconds = f32(3);
         this.torchSeconds = f32(4);
         this.torchesPerLevel = 1;
@@ -109,6 +129,7 @@ export class RelicQuestMaze {
         this.swingHit = false; this.swingDir = Right;
         this.torchAge = f32(99);                     // seconds since the last flare (drawing)
 
+        this.emit = () => {}; this.fx = []; this.invuln = 0;
         this.cues = null;                            // the round's CueBuffer (null = silent)
         this._rng = seed === 0 ? new SystemRandom() : new SystemRandom(seed);
         this._dist = new Int32Array(GW * GH); this._from = new Int32Array(GW * GH); this._q = new Int32Array(GW * GH);
@@ -130,7 +151,7 @@ export class RelicQuestMaze {
     newGame(lives) { this.lives = lives; this.score = 0; this.level = 0; this.caught = 0; }
 
     loadLevel(idx) {
-        this.level = idx + 1;
+        this.level = idx + 1; this.fx = []; this.key = idx !== 1; this.keyX = 3; this.keyY = 1; this.bossHp = idx === 5 ? 6 : 0; this.bossBeat = -1; this.seals = new Set(); this.webs = new Set();
         const L = Levels[Math.max(0, Math.min(Levels.length - 1, idx))];
         this.snakes = [];
         this.gemsLeft = 0;
@@ -146,13 +167,22 @@ export class RelicQuestMaze {
                 }
                 if (c === 'R') { this.relicX = x; this.relicY = y; }
             }
+        if (idx === 1) { this.wall[1*GW+8] = 2; this.wall[11*GW+10] = 2; }
+        if (idx === 2) for(let i=0;i<GW*GH;i++) if(!this.wall[i] && i%7===0) this.webs.add(i);
+        if(idx === 5) {
+            const gems = [...this.gem.keys()].filter(i=>this.gem[i]);
+            for(let j=0;j<6;j++) this.seals.add(gems[Math.floor(j*gems.length/6)]);
+            this.snakes[0].guardian = true;
+        }
         this.gemsTotal = this.gemsLeft;
         this.relicUp = false; this.relicAge = 0; this.levelTime = 0;
         this.torches = this.torchesPerLevel;
         this.resetPositions();
+        if (idx === 3) for(const s of this.snakes) s.stun = s.stunMax = 999;
     }
 
     resetPositions() {
+        this.invuln = 4;
         this._place(this.knight, this.knightSpeed);
         this.knight.facing = Right; this.knight.faceX = 1;
         for (const s of this.snakes) { this._place(s, this.snakeSpeed); s.stun = 0; s.lastDir = s.sx > GW / 2 ? Left : Right; }
@@ -170,7 +200,9 @@ export class RelicQuestMaze {
     swingSword() {
         if (this.swing > 0 || this.swingCd > 0) return false;
         this.swing = this.swingTime; this.swingHit = false; this.swingDir = this.knight.facing;
-        this.swings++;
+        this.swings++; this.emit("sword");
+        const i = RelicQuestMaze.nearY(this.knight)*GW+RelicQuestMaze.nearX(this.knight);
+        for(const j of [i,i+1,i-1,i+GW,i-GW]) this.webs.delete(j);
         return true;
     }
 
@@ -178,7 +210,7 @@ export class RelicQuestMaze {
     lightTorch() {
         if (this.torches <= 0) return false;
         this.torches--; this.torchesUsed++;
-        this.torchAge = 0;
+        this.torchAge = 0; this.webs.clear(); this.emit("torch");
         for (const s of this.snakes) this._stun(s, this.torchSeconds);
         this._cue(SoundCue.Bonus);
         return true;
@@ -204,7 +236,16 @@ export class RelicQuestMaze {
     }
 
     _step(h, want) {
-        this.levelTime = f32(this.levelTime + h);
+        this.levelTime = f32(this.levelTime + h); this.hitFlash = Math.max(0,(this.hitFlash || 0)-h);
+        this.invuln = Math.max(0, this.invuln-h);
+        for(const f of this.fx) f.age += h;
+        this.fx = this.fx.filter(f => f.age < 1);
+        const tile = RelicQuestMaze.nearY(this.knight)*GW+RelicQuestMaze.nearX(this.knight);
+        this.knight.speed = f32(this.knightSpeed * (this.webs.has(tile) ? 0.55 : 1));
+        if(this.level === 6 && this.bossHp > 0) {
+            const beat = Math.floor(this.levelTime/5);
+            if(beat !== this.bossBeat) { this.bossBeat = beat; this.emit('bossWarn'); }
+        }
         this.torchAge = f32(this.torchAge + h);
         if (this.relicUp) this.relicAge = f32(this.relicAge + h);
         this._moveKnight(h, want);
@@ -218,17 +259,18 @@ export class RelicQuestMaze {
         for (const s of this.snakes) {
             if (this.snakesAsleep) continue;
             if (s.stun > 0) { s.stun = f32(s.stun - h); if (s.stun < 0) s.stun = 0; continue; }
+            if(s.guardian) s.speed = f32(this.snakeSpeed * (this.levelTime%5 < 1.2 ? 0.15 : this.levelTime%5 < 3 ? 1.6 : 0.8));
             this._moveSnake(s, h);
         }
         this._sword(0);                                  // a head that just slid into the reach is hit before it bites
-        if (!this.snakesAsleep) {
+        if (!this.snakesAsleep && this.invuln <= 0) {
             const kx = RelicQuestMaze.px(k), ky = RelicQuestMaze.py(k);
             const c2 = f32(this.catchDist * this.catchDist);
             for (const s of this.snakes) {
                 if (s.stun > 0) continue;
                 const dx = f32(RelicQuestMaze.px(s) - kx), dy = f32(RelicQuestMaze.py(s) - ky);
                 if (f32(f32(dx * dx) + f32(dy * dy)) < c2) {
-                    this.lives--; this.caught++;
+                    this.lives--; this.caught++; this.emit("bite");
                     return Outcome.Caught;
                 }
             }
@@ -239,7 +281,19 @@ export class RelicQuestMaze {
     _collect() {
         const k = this.knight;
         const x = RelicQuestMaze.nearX(k), y = RelicQuestMaze.nearY(k);
+        if (!this.key && x === this.keyX && y === this.keyY) {
+            this.key = true; for(let i=0;i<this.wall.length;i++) if(this.wall[i]===2) this.wall[i]=0;
+            this.score += 500; this.emit('key'); this.pop(x,y,'KEY +500');
+        }
         if (!this.hasGem(x, y)) return;
+        this.emit('gem'); this.pop(x,y,'+100');
+        if(this.level === 4 && this.gemsLeft === this.gemsTotal) {
+            for(const s of this.snakes) s.stun = 0; this.emit('wake');
+        }
+        if(this.level === 6 && this.seals.has(y*GW+x)) {
+            this.seals.delete(y*GW+x); this.bossHp--; this.emit('bossHit');
+            if(this.bossHp === 0) { this.emit('bossDown'); for(const s of this.snakes) s.stun = s.stunMax = 999; }
+        }
         this.gem[y * GW + x] = 0; this.gemsLeft--; this.gemsTaken++;
         this.score += this.gemPoints;
         if (this.gemsLeft <= 0) { this.relicUp = true; this.relicAge = 0; this._cue(SoundCue.Bonus); }
@@ -299,8 +353,8 @@ export class RelicQuestMaze {
                 // no swinging through a block: the tile in front must be open if the head is past it
                 if (along > 0.6 && !this.open(RelicQuestMaze.nearX(k) + DX[f], RelicQuestMaze.nearY(k) + DY[f])) continue;
                 this._stun(s, this.stunSeconds);
-                this.stuns++; this.score += this.stunPoints; this.swingHit = true;
-                this._cue(SoundCue.Hit);
+                this.hitFlash = 0.18; this.stuns++; this.score += this.stunPoints; this.swingHit = true;
+                this._cue(SoundCue.Hit); this.emit("stun"); this.pop(RelicQuestMaze.px(s),RelicQuestMaze.py(s),"+200");
             }
             if (h > 0) {
                 this.swing = f32(this.swing - h);
@@ -353,6 +407,8 @@ export class RelicQuestMaze {
         return opt[this._rng.next(opt.length)];
     }
 
+    pop(x,y,text) { this.fx.push({x,y,text,age:0}); }
+
     _cue(c) { if (this.cues) this.cues.emit(c); }
 
     // ------------------------------------------------------------------ the mercy autopilot
@@ -367,7 +423,7 @@ export class RelicQuestMaze {
         let found = -1;
         while (head < tail) {
             const i = q[head++], x = i % GW, y = Math.trunc(i / GW);
-            if ((this.relicUp && x === this.relicX && y === this.relicY) || (!this.relicUp && this.gem[i])) { found = i; break; }
+            if ((!this.key ? x === this.keyX && y === this.keyY : (this.relicUp && x === this.relicX && y === this.relicY) || (!this.relicUp && this.gem[i]))) { found = i; break; }
             for (let d = 0; d < 4; d++) {
                 const nx = x + DX[d], ny = y + DY[d];
                 if (!this.open(nx, ny)) continue;

@@ -1,14 +1,18 @@
 // THE NODE · world 1 · LANCE RIDER on the Cabinet Engine · THE CARTRIDGE: spec + factories (data only).
 // Split from cartridge.js so the renderer and the round can read it without an import cycle.
 //
-// Port of LanceRiderCartridge.cs. Palette: black sky, stone grey (three steps), lava orange
-// (dark/orange/hot), rider blue (+light), egg gold (+dark), white; the player's pale-gold steed,
-// the rivals' green buzzards, and their armour: bounder red, hunter silver, shadow lord violet.
+// Began as the port of LanceRiderCartridge.cs; built out 2026-10-18 (seven waves, the pit beast).
+// Palette: black sky, the cave's dark, stone grey (three steps), lava orange (dark/orange/hot), rider
+// blue (+light), egg gold (+dark), white; the player's pale-gold steed, the rivals' green buzzards,
+// and their armour: bounder red, hunter silver, shadow lord violet; the pit beast's hide (+lit).
 //
 // Knobs (Lab: --knob name=value tunes the BASE, mercy eases it per loss):
-//   rivalAltitude  1.0 x0.9/loss   THE CORE MERCY: every rival's target altitude, -10% per loss
-//   rivalSpeed     0.95            multiplier on the tier air speeds (66 / 82 / 98 px/s)
-//   ...plus the wave's make-up, the egg timer and the lava hand; see Knobs below.
+//   rivalAltitude  0.9 x0.9/loss   THE CORE MERCY: every rival's target altitude, -10% per loss
+//   rivalSpeed     0.95 x0.97/loss multiplier on the tier air speeds (66 / 82 / 98 px/s)
+//   hawkLinger     0 +10 s/loss    the cinder hawk comes this much later on every wave
+//   beastHP        5 -0.5/loss     blows on its crown to kill the pit beast (rounded; 3 at the floor)
+//   ...plus the egg timer, the lava hand, lives and the extra rider; see Knobs below. The waves'
+//   make-up is data (stages.js).
 // The unlosable credit (5) is a RULE in the sim (rivals never above the player, the player cannot
 // lose), not a knob.
 import { Palette, PixelSprite, CabinetGameSpec, CabinetState, Knob } from '../../sdk/index.js';
@@ -34,6 +38,9 @@ export const LanceRiderPalette = new Palette(
     ['bounder', 0xE03828],
     ['hunter', 0xD2DCF0],
     ['lord', 0xA048F0],
+    ['cave', 0x2A221C],
+    ['hide', 0x6A1E12],
+    ['hideLight', 0xA8401C],
 ).roles('sky', 'stoneLight', 'lava', 'egg', 'lavaDark');
 
 // the title card's picture: the blue knight diving on a red bounder over the lava, lances crossing
@@ -75,38 +82,37 @@ function buildSpec() {
         publisher: 'ANVIL AND SPARKS',
         year: 1982,
         palette: LanceRiderPalette,
-        tagline: 'THE HIGHER LANCE WINS',
-        controls: ['STICK  STEER YOUR BIRD', 'A  FLAP YOUR WINGS', 'UNHORSE THEM  TAKE THE EGGS'],
-        roundWonText: 'ROUND WON',
+        tagline: 'SEVEN WAVES  THEN THE PIT BEAST',
+        controls: ['STICK  STEER YOUR BIRD   A  FLAP', 'THE HIGHER LANCE WINS', 'TAKE THE EGGS BEFORE THEY HATCH'],
+        hints: [['LR', 'STEER'], ['A', 'FLAP']],
+        roundWonText: 'VICTORY',
         roundLostText: 'GAME OVER',
-        highScoreSeed: [12000, 9500, 7500, 5000, 3000],
+        highScoreSeed: [60000, 45000, 32000, 22000, 14000],
         titleArt: buildTitleArt(),
         titleArtScale: 2,
         knobs: [
-            Knob.mul('rivalAltitude', 1.0, 0.9, 'rival target altitude; Core mercy: -10% per loss'),
-            Knob.fixed('rivalSpeed', 0.95, 'x tier air speed (66/82/98 px/s)'),
-            Knob.fixed('rivalReaction', 1.0, 'x tier decision interval (0.50/0.34/0.22 s)'),
+            Knob.mul('rivalAltitude', 0.9, 0.9, 'rival target altitude; Core mercy: -10% per loss'),
+            Knob.mul('rivalSpeed', 0.95, 0.97, 'x tier air speed (66/82/98 px/s), x the wave\'s own'),
+            Knob.fixed('rivalReaction', 1.0, 'x tier decision interval (0.50/0.34/0.22 s), x the wave\'s own'),
             Knob.fixed('rivalChase', 0.8, 'x tier chance a decision hunts the player (0.45/0.75/0.95)'),
             Knob.fixed('rivalEvade', 1.5, 'x tier chance to break away and climb when the player is above (0.20/0.55/0.80)'),
             Knob.fixed('rivalApproach', 120, 'px: a hunting rival closes the last stretch only when level with its aim'),
             Knob.fixed('rivalLevel', 6, 'px: how level (vs its aim height) a hunting rival must be to close in'),
-            Knob.fixed('waveMin', 5, 'rivals in a wave, low'),
-            Knob.fixed('waveMax', 8, 'rivals in a wave, high'),
-            Knob.fixed('hunterShare', 0.30, 'chance a rider of the wave is a hunter'),
-            Knob.fixed('lordShare', 0.10, 'chance a rider of the wave is a shadow lord'),
-            Knob.fixed('startRivals', 2, 'riders on the field when the wave opens'),
-            Knob.fixed('maxActive', 3, 'most rivals on the field at once (hatchlings included)'),
-            Knob.fixed('spawnGap', 8.5, 'seconds between riders riding in (x0.8..1.3)'),
             Knob.fixed('tieBand', 3, 'px: lances this close in height bounce instead of deciding'),
+            Knob.add('loseBand', 14, 2, 'px a rival must be higher by to unhorse the player (less, a bounce)'),
             Knob.fixed('hatchSeconds', 8, 'an egg on a ledge hatches after this'),
             Knob.fixed('escapeFlaps', 5, 'flaps to tear free of the lava hand'),
-            Knob.fixed('handSkim', 0.30, 'seconds skimming the pits before the hand rises'),
-            Knob.fixed('lives', 3, 'lives per round'),
+            Knob.fixed('handSkim', 0.30, 'seconds skimming the pits before the hand comes'),
+            Knob.add('hawkLinger', 0, 10, 'seconds added to every wave\'s hawk time (the cinder hawk comes later)'),
+            Knob.add('beastHP', 5, -0.5, 'blows on its crown that kill the pit beast').clamp(3, 5),
+            Knob.fixed('lives', 3, 'riders per coin'),
+            Knob.fixed('extraFirst', 10000, 'the first extra rider'),
+            Knob.fixed('extraEvery', 20000, 'and one every this many points after it'),
         ],
     });
     s.phaseNames.set(CabinetState.Intro, 'wave_start');
     s.phaseNames.set(CabinetState.Playing, 'joust');
-    s.phaseNames.set(CabinetState.Interlude, 'unhorsed');
+    s.phaseNames.set(CabinetState.Interlude, 'between');
     return s;
 }
 

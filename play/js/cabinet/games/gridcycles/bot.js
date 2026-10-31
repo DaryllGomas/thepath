@@ -1,13 +1,6 @@
 // THE NODE · world 1 · GRID CYCLES '82 on the Cabinet Engine · THE BOT: a modelled average player
-// (port of GridCyclesBot.cs).
-//
-// It only ever TAPS a stick direction, one decision per cell the cycle enters. Its dice are its own
-// (this.rng), never the duel's.
-//   notice   0.90  chance per cell that a wall inside its look-ahead is seen in time
-//   reaction 0.25 s  look-ahead = speed x reaction + 1 cell
-//   care     0.80  when it turns, chance it reads room (flood fill) rather than just the next cell
-//   aggro    0.15  chance per cell with open road to go for the cut, a few cells ahead of the rival
-//   and 2% a cell it cuts across for no reason, like people do.
+// One decision per entered cell, using its own dice. It reads room before committing
+// to a turn and occasionally tries a cut ahead of the rival. No sim writes or shortcuts.
 import { f32, CabinetBotBase, InputFrame } from '../../sdk/index.js';
 import { GridCyclesDuel } from './duel.js';
 import { GridCyclesRound } from './round.js';
@@ -15,12 +8,12 @@ import { GridCyclesRound } from './round.js';
 export class GridCyclesBot extends CabinetBotBase {
     constructor() {
         super();
-        this.notice = f32(0.9); this.reaction = f32(0.25); this.care = f32(0.8); this.aggro = f32(0.15);
-        this.readArea = 90;
+        this.notice = f32(0.98); this.reaction = f32(0.25); this.care = f32(0.95); this.aggro = f32(0.04);
+        this.readArea = 150;
         this._lastX = -1; this._lastY = -1;
     }
 
-    get name() { return 'gc-average-player'; }
+    get name() { return 'gc-tournament-player'; }
 
     reset(seed) { super.reset(seed); this._lastX = this._lastY = -1; }
 

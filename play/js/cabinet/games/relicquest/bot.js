@@ -1,5 +1,5 @@
 // THE NODE · world 1 · RELIC QUEST on the Cabinet Engine · THE BOT: a modelled average player.
-// Its eye is Unity's RelicQuestSim.BotDir ("the explorer's eye"), with a person's limits on top.
+// It plans the whole quest: keys first, then gems, then the relic, with a person's limits.
 //
 // It HOLDS a stick direction and looks again every `reaction` s (+ up to `jitter`). Each look:
 //   notice  0.85   chance it registers the snakes at all this look (else it just heads for the gem)
@@ -109,7 +109,7 @@ export class RelicQuestBot extends CabinetBotBase {
         let found = -1;
         while (head < tail) {
             const i = q[head++], x = i % GW, y = Math.trunc(i / GW);
-            if ((m.relicUp && x === m.relicX && y === m.relicY) || (!m.relicUp && m.gem[i])) { found = i; break; }
+            if ((!m.key ? x === m.keyX && y === m.keyY : (m.relicUp && x === m.relicX && y === m.relicY) || (!m.relicUp && m.gem[i]))) { found = i; break; }
             for (let d = 0; d < 4; d++) {
                 const nx = x + DX[d], ny = y + DY[d];
                 if (!m.open(nx, ny)) continue;

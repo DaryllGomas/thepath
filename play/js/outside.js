@@ -9,6 +9,9 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBVH } from 'three-mesh-bvh';
 import { makeCRTMaterial } from './crt.js';
+import { buildYardHouse, YARD_OLD, YARD_OLD_COLLIDER } from './yardhouse.js';
+import { buildRoadside, buildYardGround, ROADSIDE_OLD } from './roadside.js';
+import { buildMainStreet, terrainSampler, STREET_OLD, KID_BARS } from './mainstreet.js';
 
 const DEG = Math.PI / 180;
 const LM_RANGE = 4;
@@ -19,6 +22,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // (the floor cabinets too: each wears its own game's art, so they cannot share instanced materials)
 const DYNAMIC = /^Outside\/Bike(\/|$)|^Outside\/Flynns\/FlynnsArchGlass\/FlynnDoor[LR]|^Outside\/Flynns\/FlynnsInterior\/PolybiusSpot|^Outside\/MainStreet\/LampHead_|^Outside\/Flynns\/FlynnsInterior\/FFiller(Sit)?_\d+\//;
 const POOL = 16;                 // point lights live at once; the nearest, strongest ones get them
+const STREET_ON = !/[?&]street=0/.test(location.search);       // look batch 3a: ?street=0 draws main street as it was (for before and after pictures)
 
 // ---- the web version's own Flynn's (his ruling 2026-09-26). The nook straight ahead starts EMPTY (only the cord and
 // the clean rectangle on the lino) and is where the cabinet with no name is delivered; the two sit-down racers move
@@ -278,6 +282,11 @@ function applyLayout(meta) {
 // town's lights come on in layers as you come down (the houses' backs, the blocks, their streetlights, the far edge of
 // town); the houses' bare sides get siding; one lamp stands at the bend (storyboard frame 04). No light is added: the
 // moon is the sun, and the bend's lamp joins the pool like the street's.
+// LOOK BATCH 1 (2026-10-30, the look review of the ride): the ground is grass and dirt, not shag carpet; the road is asphalt with grain,
+// a worn yellow centre line and gravel verges; the street lamps burn sodium amber; the dusk takes the whole hill to come down
+// (it was done two thirds of the way); the tree leaves' cut-out edges are smoothed by the 4x multisample (alpha to coverage).
+// LOOK BATCH 2 (2026-10-31): the yard house is a real house now (js/yardhouse.js: Unity's flat facade, its slab roof and its flat windows are not drawn, and the
+// yard's square fence sticks and mailbox box with them), and the ground is lifted at dusk so its grass and dirt read (GROUND, below).
 const NIGHT = {
   moonDir: new THREE.Vector3(-0.47, 0.34, -0.81).normalize(),    // where the moon hangs: up and left of the view down the valley
   moonLight: new THREE.Vector3(-0.383, 0.643, -0.663).normalize(), // where its light comes from: the same bearing, higher, so the
@@ -293,25 +302,227 @@ const NIGHT = {
   hillLamps: [{ at: [39.6, -90.0], arm: [-1, 0.03], scale: 1.2 }],      // the lamp at the bend: post (x, z), where its arm reaches, size
                             // (coming into the bend THE JUNCTION's sign is dead ahead: the post stands ~7 deg right of it)
   siding: [0.084, 0.119, 0.162],                                  // the house facades' blue-grey (o13), linear
+  nightY: -36,              // the dusk is done here, at the foot of the hill (the street lies at y -37). Unity finished it at bottomY
+                            // -27.11, two thirds of the way down, and the last third of the ride was already full night
+  sodium: [1, 0.557, 0.106],  // a street lamp is high-pressure sodium, about 2100 K: (255, 142, 27) as sRGB. Unity's was (255, 189, 107), a
+                            // pale peach that the tone curve and the bloom pushed to white. Scaled below to the same luminance as that
+  sodiumHead: [2.0, 0.5, 0.02],  // what the lit lamp head glows (linear, before the exposure): deep enough in red that the tone curve
+                            // keeps it amber instead of clipping it through yellow to white (Unity's head was 6.2 / 2.4 / 0.34)
 };
 const LAMP_SRC = { post: 'Outside/MainStreet/Streetlamp_1/SM_NL_Streetlamp', head: 'Outside/MainStreet/LampHead_1', base: [8.6, -37.0, -155.4], arm: [0, -1], light: 'Streetlamp_1_Light' };
 const HOUSE_BOX = /^Outside\/MainStreet\/House_\d$/;
 const smooth01 = (x) => { const s = Math.min(1, Math.max(0, x)); return s * s * (3 - 2 * s); };
+// how far the dusk has run (0 on the crest .. 1 full night) against how far down the hill you are (0 .. 1). Measured, not guessed. Two things
+// made a straight line in height the wrong shape: the sky's brightness is not a straight line in the dusk (it falls 15 grey levels per 0.1 of
+// it early on, 3 per 0.1 at the end), and the road drops fastest in the middle of the hill (3.8 m of height a second there, 1.5 at the top and
+// 0.6 at the foot, at the ride's steady 7.5 m/s). These knots invert both: with them the sky's mean grey falls in an even line against time
+// on the ride, from the first metre of the descent to the foot of the hill (tools: fixed-camera sweep of the sky's grey against the dusk,
+// and the scripted ride's height by time).
+const DUSK_CURVE = [[0, 0], [0.1, 0.136], [0.2, 0.219], [0.3, 0.29], [0.4, 0.352], [0.5, 0.402], [0.6, 0.463], [0.7, 0.538], [0.8, 0.624], [0.9, 0.735], [1, 1]];
+const duskAt = (s) => {
+  for (let i = 1; i < DUSK_CURVE.length; i++) if (s <= DUSK_CURVE[i][0]) { const [s0, t0] = DUSK_CURVE[i - 1], [s1, t1] = DUSK_CURVE[i]; return t0 + (t1 - t0) * (s - s0) / (s1 - s0); }
+  return 1;
+};
+// a street lamp's light: NIGHT.sodium's colour at exactly the luminance of the colour it replaces (Unity's peach), so the pool on the
+// road and the sidewalk is as bright as before and only its colour changes
+const lumOf = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+const sodiumLight = (old) => { const c = new THREE.Color().setRGB(NIGHT.sodium[0], NIGHT.sodium[1], NIGHT.sodium[2], THREE.SRGBColorSpace); return c.multiplyScalar(lumOf(old) / lumOf(c)); };
 let _seed = 1;
 const rnd = () => (_seed = (_seed * 16807) % 2147483647) / 2147483647;
-// the hill road's own asphalt, with its edge lines painted in (its u runs 0..1 across the 5 m width)
-function hillRoadMaterial(src) {
-  const m = src.clone(); m.name = 'M_Asphalt_HillRoad'; m.userData.edgeK = { value: 0 };   // edgeK: the paint shows as the dusk goes
-  m.onBeforeCompile = (s) => {
-    s.uniforms.edgeCol = { value: new THREE.Color().setRGB(0.34, 0.32, 0.23) };      // M_RoadLine
-    s.uniforms.edgeK = m.userData.edgeK;
-    s.vertexShader = 'varying float vRoadU;\n' + s.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n\tvRoadU = uv.x;');
-    s.fragmentShader = 'uniform vec3 edgeCol;\nuniform float edgeK;\nvarying float vRoadU;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-	float eu = min( vRoadU, 1.0 - vRoadU ), ew = max( fwidth( eu ), 1e-5 );
-	float edge = ( smoothstep( 0.024 - ew, 0.024 + ew, eu ) - smoothstep( 0.05 - ew, 0.05 + ew, eu ) ) * clamp( 0.02 / ew, 0.0, 1.0 ) * edgeK;
-	diffuseColor.rgb = mix( diffuseColor.rgb, edgeCol, edge );`);
+// ---- LOOK BATCH 1: the ground and the asphalt, painted. All of it is drawn at load from fixed seeds (no files, no network, the same
+// every run). The ground and the asphalt are read by WORLD position, not by the mesh's UVs: the lawn and the street are boxes
+// stretched to different sizes, each with UVs 0..1, so no one repeat could give them the same scale.
+const lcg = (seed) => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+// value noise that wraps, so what is made of it tiles: an n x n field over a cells x cells lattice, 0..1
+function tileNoise(n, cells, rand) {
+  const lat = Float32Array.from({ length: cells * cells }, () => rand()), out = new Float32Array(n * n), s = cells / n;
+  for (let y = 0; y < n; y++) {
+    const fy = y * s, y0 = Math.floor(fy), ty = fy - y0, sy = ty * ty * (3 - 2 * ty), ra = (y0 % cells) * cells, rb = ((y0 + 1) % cells) * cells;
+    for (let x = 0; x < n; x++) {
+      const fx = x * s, x0 = Math.floor(fx), tx = fx - x0, sx = tx * tx * (3 - 2 * tx), xa = x0 % cells, xb = (x0 + 1) % cells;
+      out[y * n + x] = lerp(lerp(lat[ra + xa], lat[ra + xb], sx), lerp(lat[rb + xa], lat[rb + xb], sx), sy);
+    }
+  }
+  return out;
+}
+// the one noise tile (256 x 256, tiling, raw data, no colour) that the asphalt and the ground both read:
+//   r  grain: per-pixel speckle over a fine value noise (the aggregate in the asphalt, the gravel's specks)
+//   g  slow drift: patches of a few metres (the paint's long worn stretches)
+//   b  mid noise: chips and wear
+let _noiseTex = null;
+function noiseTexture(anisotropy) {
+  if (_noiseTex) return _noiseTex;
+  const N = 256, rand = lcg(7), fine = tileNoise(N, 64, rand), slow = tileNoise(N, 6, rand), mid = tileNoise(N, 24, rand);
+  const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), im = g.createImageData(N, N);
+  const q = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  for (let i = 0; i < N * N; i++) {
+    im.data[i * 4] = q(0.5 + (rand() - 0.5) * 0.7 + (fine[i] - 0.5) * 0.6); im.data[i * 4 + 1] = q(0.5 + (slow[i] - 0.5) * 1.5);
+    im.data[i * 4 + 2] = q(0.5 + (mid[i] - 0.5) * 1.6); im.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(im, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = anisotropy; t.needsUpdate = true;
+  return (_noiseTex = t);
+}
+// the ground: grass and bare dirt (it was the basement's shag carpet). One texture repeat is GROUND_M metres of ground, on the lawn
+// and on the hill alike. The material's own colour (the lawn's dark green) still multiplies it, as it did the carpet, so the
+// grass is drawn at the carpet's mean colour (111, 114, 70 as sRGB) and the dirt is drawn as what, after that green, comes out
+// brown: the picture itself looks plum, the ground does not. Low contrast on purpose: the eye is going fast and a loud texture strobes.
+const GROUND_MATS = new Set(['M_Lawn', 'M_HillGrass']);
+const GROUND_M = 2;
+const GROUND_DIRT = [0.040, 0.0285, 0.0145];           // the bare dirt's albedo (linear): brown, and about 1.8 x the grass's luminance, as dry dirt is
+// LOOK BATCH 2: at dusk the ground read as black (mean 4/255 on the lawn, 8/255 on the hill: the albedo, once the carpet's green is multiplied in,
+// is 0.012 to 0.02, where real lawn is 0.1 or so, and the dusk ambient is weak), so no grass or dirt showed. The ground shader adds a flat fill of
+// its own (a ground-only hemisphere light): the ambient's colour and strength, GROUND.dusk times over, times the ground's own albedo. It does not
+// touch the sky, the trees or the houses; it is flat, so slopes facing the sun do not flare (a straight gain on the albedo lit the sun-facing hill orange);
+// and it is a multiple of the ambient, which falls with the night, so the ground still goes dark as you ride down (`night` is its multiple at the foot,
+// where the moon takes over). The hill's albedo is a quarter darker than the lawn's and its slopes lie away from the low sun, so it takes `hill` times more.
+const GROUND = { dusk: 4.2, night: 1.5, hill: 2.0 };
+const GROUND_FILL = new THREE.Color();
+function groundTexture(tint, anisotropy) {
+  const N = 512, rand = lcg(1982);
+  const lo = tileNoise(N, 4, rand), mid = tileNoise(N, 16, rand), hi = tileNoise(N, 64, rand), dA = tileNoise(N, 5, rand), dB = tileNoise(N, 15, rand);
+  const dirt = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) dirt[i] = smooth01((0.55 * dA[i] + 0.35 * dB[i] + 0.1 * hi[i] - 0.6) / 0.1);   // patches of bare ground, ragged edged
+  // the blades, on a black canvas: red where a blade is lighter than the ground, green where it is darker (a gap, a shadow)
+  const bc = document.createElement('canvas'); bc.width = bc.height = N; const g = bc.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  const blade = (x, y, a, len, w, col) => {
+    if (dirt[(y | 0) * N + (x | 0)] > 0.5 && rand() < 0.85) return;                  // nothing grows on the bare patches
+    g.strokeStyle = col; g.lineWidth = w;
+    const ex = Math.cos(a) * len, ey = Math.sin(a) * len, bend = (rand() - 0.5) * len * 0.4;
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) {                      // a blade over the edge carries on at the other side
+      const x0 = x + ox, y0 = y + oy;
+      if (Math.min(x0, x0 + ex) > N || Math.max(x0, x0 + ex) < 0 || Math.min(y0, y0 + ey) > N || Math.max(y0, y0 + ey) < 0) continue;
+      g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x0 + ex / 2 - Math.sin(a) * bend, y0 + ey / 2 + Math.cos(a) * bend, x0 + ex, y0 + ey); g.stroke();
+    }
   };
-  m.customProgramCacheKey = () => 'hillRoadEdges';
+  const light = 'rgba(255,0,0,0.30)', dark = 'rgba(0,255,0,0.40)';
+  for (let c = 0; c < 150; c++) {                                                    // tufts: blades fanning out from a crown
+    const cx = rand() * N, cy = rand() * N, n = 22 + Math.floor(rand() * 18);
+    for (let i = 0; i < n; i++) blade(cx + (rand() - 0.5) * 4, cy + (rand() - 0.5) * 4, rand() * Math.PI * 2, 9 + rand() * 13, 1.1 + rand() * 0.9, rand() < 0.45 ? light : dark);
+  }
+  for (let i = 0; i < 3500; i++) blade(rand() * N, rand() * N, rand() * Math.PI * 2, 6 + rand() * 9, 1.0 + rand() * 0.8, rand() < 0.5 ? light : dark);
+  const bd = g.getImageData(0, 0, N, N).data;
+  const oc = document.createElement('canvas'); oc.width = oc.height = N; const og = oc.getContext('2d'), out = og.createImageData(N, N);
+  const GR = [0.159, 0.168, 0.061], DR = GROUND_DIRT.map((v, k) => Math.min(1, v / tint[k]));
+  const s8 = (v) => Math.max(0, Math.min(255, Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055))));
+  for (let i = 0; i < N * N; i++) {
+    const dm = dirt[i], lum = 1 + 0.8 * (lo[i] - 0.5) + 0.55 * (mid[i] - 0.5) + 0.3 * (hi[i] - 0.5);
+    const bl = 1 + (0.85 * bd[i * 4] / 255 - 0.7 * bd[i * 4 + 1] / 255) * (1 - 0.85 * dm);
+    const dry = Math.max(-1, Math.min(1, (lo[i] - 0.5) * 2.5 + (mid[i] - 0.5)));        // drier, yellower grass where the field runs high
+    const gr = [GR[0] * (1 + 0.22 * dry), GR[1], GR[2] * (1 - 0.3 * dry)], dg = 1 + 0.9 * (hi[i] - 0.5) + 0.35 * (rand() - 0.5);
+    for (let k = 0; k < 3; k++) out.data[i * 4 + k] = s8(lerp(gr[k] * lum * bl, DR[k] * dg, dm));
+    out.data[i * 4 + 3] = 255;
+  }
+  og.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(oc); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = anisotropy; t.needsUpdate = true;
+  return t;
+}
+// the ground material reads its texture by world x, z (one repeat = GROUND_M metres). It reads it twice, the second time turned 31 degrees
+// and at 0.73 of the scale, and averages the two: a 2 m tile repeated across a whole hill shows as a lattice (the dirt patches line up in
+// rows), but two tiles of different size and heading never line up, so the pattern stops repeating to the eye. Two taps, as cheap as that.
+function groundMaterial(mat, tex, lawn) {
+  mat.map = tex;
+  const hill = mat.name === 'M_HillGrass';
+  mat.onBeforeCompile = (s) => {
+    s.vertexShader = (hill ? 'varying float vGz;\n' : '') + s.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+	vec4 grw = vec4( transformed, 1.0 );
+	#ifdef USE_INSTANCING
+		grw = instanceMatrix * grw;
+	#endif
+	vMapUv = ( modelMatrix * grw ).xz * ${(1 / GROUND_M).toFixed(4)};${hill ? '\n\tvGz = ( modelMatrix * grw ).z;' : ''}`);
+    s.uniforms.gFill = { value: GROUND_FILL }; s.uniforms.gGain = { value: hill ? GROUND.hill : 1 };
+    if (hill) s.uniforms.gLawn = { value: lawn };
+    // LOOK BATCH 3b: the hill is darker than the lawn (its green is a quarter down) and takes twice the fill, so where the lawn slab ended (z -15) the
+    // ground changed colour along a straight line, and the plateau past it read tan. The hill wears the lawn's colour and fill at the yard and eases
+    // into its own by z -50, so the lawn runs into the hill with no seam.
+    s.fragmentShader = 'uniform vec3 gFill;\nuniform float gGain;\n' + (hill ? 'uniform vec3 gLawn;\nvarying float vGz;\n' : '') + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+	diffuseColor.rgb = 0.5 * ( diffuseColor.rgb + diffuse * texture2D( map, mat2( 0.63, -0.38, 0.38, 0.63 ) * vMapUv + vec2( 0.37, 0.11 ) ).rgb );${hill ? `
+	float gHw = 1.0 - smoothstep( -50.0, -16.0, vGz );
+	diffuseColor.rgb *= mix( gLawn, diffuse, gHw ) / max( diffuse, vec3( 1e-4 ) );
+	float gainK = mix( 1.0, gGain, gHw );` : `
+	float gainK = gGain;`}`)
+      .replace('#include <opaque_fragment>', `outgoingLight += diffuseColor.rgb * gFill * gainK;
+	#include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => hill ? 'groundWorldUv2FillHill' : 'groundWorldUv2Fill';
+  return mat;
+}
+// asphalt: grain (the aggregate; mean 1, so far away it averages to the plain colour). The hill road (hill = true; its u runs 0..1
+// across the 5 m width) also gets its edge lines worn, and a gravel verge outside them (dirt and thrown stones, ragged where it
+// creeps over the paint) so the road meets the grass with a shoulder instead of a razor seam. Its centre line is Unity's own
+// ribbon (Outside/RoadLine), repainted by roadLineMaterial below.
+function paintAsphalt(m, hill, noise) {
+  m.onBeforeCompile = (s) => {
+    s.uniforms.asNoise = { value: noise };
+    if (hill) { s.uniforms.edgeCol = { value: new THREE.Color().setRGB(0.34, 0.32, 0.23) }; s.uniforms.edgeK = m.userData.edgeK; }      // M_RoadLine
+    s.vertexShader = 'varying vec3 vAsW;\n' + (hill ? 'varying float vRoadU;\n' : '') + s.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+	vec4 asw = vec4( transformed, 1.0 );
+	#ifdef USE_INSTANCING
+		asw = instanceMatrix * asw;
+	#endif
+	vAsW = ( modelMatrix * asw ).xyz;${hill ? '\n\tvRoadU = uv.x;' : ''}`);
+    s.fragmentShader = 'uniform sampler2D asNoise;\nvarying vec3 vAsW;\n' + (hill ? 'uniform vec3 edgeCol;\nuniform float edgeK;\nvarying float vRoadU;\n' : '') +
+      s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+	vec4 nA = texture2D( asNoise, vAsW.xz * 0.625 ), nB = texture2D( asNoise, vAsW.xz * 1.37 + vec2( 0.31, 0.77 ) );
+	diffuseColor.rgb *= 1.0 + 0.85 * ( nA.r - 0.5 ) + 0.55 * ( nB.r - 0.5 );${hill ? `
+	vec4 nW = texture2D( asNoise, vAsW.xz * 0.31 );
+	float wornK = smoothstep( 0.3, 0.65, nW.g * 0.6 + nW.b * 0.4 );                                   // long stretches where the paint has gone
+	float eu = min( vRoadU, 1.0 - vRoadU ), ew = max( fwidth( eu ), 1e-5 ), em = eu * 5.0;               // em: metres in from the road's edge
+	float gravel = max( 1.0 - smoothstep( 0.07, 0.15, em + ( nA.b - 0.5 ) * 0.14 ), step( 0.74, nB.r ) * ( 1.0 - smoothstep( 0.25, 0.75, em ) ) * 0.8 );
+	float edge = ( smoothstep( 0.024 - ew, 0.024 + ew, eu ) - smoothstep( 0.05 - ew, 0.05 + ew, eu ) ) * clamp( 0.02 / ew, 0.0, 1.0 ) * edgeK;
+	diffuseColor.rgb = mix( diffuseColor.rgb, edgeCol * ( 0.9 + 0.2 * nA.r ), edge * mix( 0.7, 1.0, wornK ) );
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.075, 0.062, 0.046 ) * ( 0.4 + 1.2 * nA.r ), gravel );` : ''}`);
+  };
+  m.customProgramCacheKey = () => hill ? 'asphaltHill' : 'asphaltStreet';
+  return m;
+}
+// the leaves' cut-out edge: alpha to coverage turns the clip's hard on/off into the multisample's partial coverage (post.js renders the clean
+// look into a 4-sample target; with no multisampling, the retro looks, it falls back to the hard edge). Three's own version ramps the alpha
+// from the clip upward (smoothstep(clip, clip + fwidth, a)), which eats half a pixel off every leaf; this one centres the ramp on the clip
+// (the usual "sharpened alpha" for foliage), so the leaf keeps its size and only its edge goes soft.
+const A2C_SHARP = THREE.ShaderChunk.alphatest_fragment.replace(/diffuseColor\.a = smoothstep\([^;]*\);/, 'diffuseColor.a = clamp( ( diffuseColor.a - alphaTest ) / max( fwidth( diffuseColor.a ), 1e-4 ) + 0.5, 0.0, 1.0 );');
+// ... and only while the picture is drawn into a multisampled target (the clean look). The retro looks draw into a plain one, where alpha
+// to coverage does nothing and the widened ramp would only fatten every leaf, so there the material goes back to the hard clip. (The
+// floor's one-off cube capture, js/outside.js captureSheen, is not the picture: it must not flip the material, or the shader would be
+// compiled again in the middle of the ride, at the arcade's door.)
+function msaaOnly(mat) {
+  mat.onBeforeRender = (renderer) => {
+    const t = renderer.getRenderTarget(); if (!t || t.isWebGLCubeRenderTarget) return;
+    const on = t.samples > 0; if (mat.alphaToCoverage !== on) { mat.alphaToCoverage = on; mat.needsUpdate = true; }
+  };
+}
+function leafCoverage(mat) {
+  mat.alphaToCoverage = true; msaaOnly(mat);
+  mat.onBeforeCompile = (s) => { s.fragmentShader = s.fragmentShader.replace('#include <alphatest_fragment>', A2C_SHARP); };
+  mat.customProgramCacheKey = () => 'leafAlphaToCoverage';
+}
+// the hill road's own asphalt: the street's, cloned, with its paint and verges
+function hillRoadMaterial(src, noise) {
+  const m = src.clone(); m.name = 'M_Asphalt_HillRoad'; m.userData.edgeK = { value: 0 };   // edgeK: the paint shows as the dusk goes
+  return paintAsphalt(m, true, noise);
+}
+// the hill road's centre line: Unity's ribbon is one solid 14 cm line in the same cream as the edge paint. A 1982 small-town road has a
+// yellow one, faded, with stretches and chips worn through to the asphalt below (those pixels are dropped; the 4x multisample softens
+// the chipped edge as it does the leaves')
+function roadLineMaterial(src, noise) {
+  const m = src.clone(); m.name = 'M_RoadLine_Hill';
+  m.color.setRGB(0.30, 0.205, 0.035, THREE.LinearSRGBColorSpace);
+  m.alphaTest = 0.5; m.alphaToCoverage = true; msaaOnly(m);
+  m.onBeforeCompile = (s) => {
+    s.uniforms.asNoise = { value: noise };
+    s.vertexShader = 'varying vec3 vAsW;\n' + s.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+	vec4 asw = vec4( transformed, 1.0 );
+	#ifdef USE_INSTANCING
+		asw = instanceMatrix * asw;
+	#endif
+	vAsW = ( modelMatrix * asw ).xyz;`);
+    s.fragmentShader = 'uniform sampler2D asNoise;\nvarying vec3 vAsW;\n' + s.fragmentShader.replace('#include <alphatest_fragment>', A2C_SHARP).replace('#include <map_fragment>', `#include <map_fragment>
+	vec4 nA = texture2D( asNoise, vAsW.xz * 0.625 ), nW = texture2D( asNoise, vAsW.xz * 0.31 );
+	diffuseColor.a = smoothstep( 0.0, 0.14, 0.42 * nW.g + 0.38 * nW.b + 0.30 * nA.r - 0.28 );          // worn: gone in patches, chipped
+	diffuseColor.rgb *= 0.8 + 0.4 * nA.r;`);
+  };
+  m.customProgramCacheKey = () => 'roadLineYellow';
   return m;
 }
 // the houses' sides and backs (Unity left them one flat cream): painted clapboard in the facades' blue-grey
@@ -390,6 +601,9 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   applyLayout(meta);
   // THE JUNCTION's posters in the two old FLYNN'S slots (Stage 1; tools/make_junction_posters.py): paths with a folder load from assets/
   for (const m of meta.materials) if (RETEX[m.name]) m.map = RETEX[m.name];
+  // look batch 1: the lawn and the hill wore the basement's shag carpet (o1_shag_albedo.jpg); they get a drawn grass and dirt instead
+  // (groundTexture), so the carpet is not even fetched
+  for (const m of meta.materials) if (GROUND_MATS.has(m.name)) m.map = null;
   const comps = {};
   for (const c of meta.components) (comps[c.type] = comps[c.type] || []).push(c);
   const objects = new Map(meta.objects.map((o) => [o.path, o]));
@@ -420,13 +634,20 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
 
   // ---- materials (the basement's conversion; baked ones borrow the basement's lightmaps)
   const cache = new Map();
+  const noise = noiseTexture(anisotropy);              // the asphalt's grain and the road paint's wear (look batch 1)
+  let groundTex = null;                                // grass and dirt, made once, for both ground materials
   function litMaterial(mi, lm) {
     const key = mi + '|' + lm;
     if (cache.has(key)) return cache.get(key);
     const m = meta.materials[mi];
     const mat = new THREE.MeshStandardMaterial({ name: m.name });
     mat.color.setRGB(m.color[0], m.color[1], m.color[2], THREE.LinearSRGBColorSpace);
-    if (m.map && textures[m.map]) {
+    if (GROUND_MATS.has(m.name)) {
+      // drawn against the lawn's green: the hill's is the same hue a little darker, so the one picture serves both
+      const lawn = meta.materials.find((x) => x.name === 'M_Lawn') || m;
+      groundTex = groundTex || groundTexture(lawn.color, anisotropy);
+      groundMaterial(mat, groundTex, new THREE.Color().setRGB(lawn.color[0], lawn.color[1], lawn.color[2], THREE.LinearSRGBColorSpace));
+    } else if (m.map && textures[m.map]) {
       const t = textures[m.map].clone(); const [sx, sy, ox, oy] = m.st;
       t.repeat.set(sx, sy); t.offset.set(ox, 1 - sy - oy); t.needsUpdate = true; mat.map = t;
     }
@@ -438,7 +659,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
       if (m.emissiveMap && textures[m.emissiveMap]) mat.emissiveMap = textures[m.emissiveMap];
     }
     if (m.transparent) { mat.transparent = true; mat.opacity = m.alpha; mat.depthWrite = false; }
-    if (m.clip > 0) { mat.alphaTest = m.clip; mat.side = THREE.DoubleSide; }
+    if (m.clip > 0) { mat.alphaTest = m.clip; mat.side = THREE.DoubleSide; leafCoverage(mat); }
     if (m.doubleSided) mat.side = THREE.DoubleSide;
     if (lm >= 0 && lightmaps[lm]) { mat.lightMap = lightmaps[lm]; mat.lightMapIntensity = Math.PI * LM_RANGE; }
     cache.set(key, mat);
@@ -453,11 +674,13 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   const screens = {};                // CRT screens by path
   const templates = {};              // the men in suits: pose meshes relative to their figure root
   const statics = new Map();         // geometry|material -> [{geo, matrix, lm}]
+  const kidBars = [];                // look batch 3a: where THE JUNCTION's display bikes' old handlebars hung (js/mainstreet.js puts the new bars there)
   const collisionSource = {};        // Unity path -> world geometries (for mesh colliders)
   const night = { asphalt: new Set(), lampSrc: {}, road: null, siding: null };   // Stage 1 (NIGHT)
   const nightMat = (path, mat) => {
-    if (mat.name === 'M_Asphalt') night.asphalt.add(mat);
-    if (path === 'Outside/Road') { if (!night.road) night.asphalt.add(night.road = hillRoadMaterial(mat)); return night.road; }
+    if (mat.name === 'M_Asphalt' && !night.asphalt.has(mat)) { night.asphalt.add(mat); paintAsphalt(mat, false, noise); }   // grain (look batch 1)
+    if (path === 'Outside/Road') { if (!night.road) night.asphalt.add(night.road = hillRoadMaterial(mat, noise)); return night.road; }
+    if (path === 'Outside/RoadLine') return night.line || (night.line = roadLineMaterial(mat, noise));      // the hill's centre line, faded yellow
     if (HOUSE_BOX.test(path)) return night.siding || (night.siding = sidingMaterial(anisotropy));
     return mat;
   };
@@ -479,6 +702,9 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
         (collisionSource[ud.path] = collisionSource[ud.path] || []).push(toWorld(o.geometry, world));
       }
       if (envPaths.has(ud.path)) continue;           // drawn by the environment pass instead (collision stays)
+      if (YARD_OLD.test(ud.path)) continue;          // look batch 2: the yard house, the fence and the mailbox are drawn by js/yardhouse.js now
+      if (ROADSIDE_OLD.test(ud.path)) continue;      // look batch 3b: the areaway's slabs are drawn by js/areaway.js now
+      if (STREET_ON && STREET_OLD.test(ud.path)) { if (KID_BARS.test(ud.path) && !kidBars.some((k) => k.path === ud.path)) kidBars.push({ path: ud.path, world }); continue; }   // look batch 3a: the slabs, kerbs, shop windows and cornices, the old crossing and the kid bikes' bars are drawn by js/mainstreet.js now
       if (sign && OLD_SIGN.test(ud.path)) continue;  // THE JUNCTION's sign stands there now
       if (m && m.kind === 'crt') {
         const mesh = new THREE.Mesh(o.geometry, makeCRTMaterial(m.crt)); mesh.matrixAutoUpdate = false; mesh.matrix.copy(world);
@@ -550,6 +776,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   }
   for (const c of meta.colliders) {
     if (!c.on || c.trigger) continue;
+    if (YARD_OLD_COLLIDER.test(c.path)) continue;       // Unity's 32 m wall: the new house's own boxes (below) stand in its place
     if (officeCol && OLD_MEZZ.test(c.path)) continue;
     if (HIDDEN_UNTIL_DELIVERY.test(c.path)) { if (c.kind === 'box') polyGeos.push(boxGeo(c)); continue; }   // counts once delivered
     if (c.kind === 'mesh') {
@@ -560,12 +787,32 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   }
   // the bend's lamp post stands (a tall pole of a collider: the ground under it is only known once the BVH is)
   for (const h of NIGHT.hillLamps) colGeos.push(capsuleGeo({ radius: 0.16, height: 80, c: [h.at[0], 0, h.at[1]], axis: [0, 1, 0] }));
+  // look batch 2: the yard house (js/yardhouse.js) is built here, so that its collision (the house, the garage, the back stoop, the cellar door's wall) is in the BVH
+  const yard = buildYardHouse({ anisotropy, objects: meta.objects });
+  for (const b of yard.colliders) colGeos.push(new THREE.BoxGeometry(b[3] - b[0], b[4] - b[1], b[5] - b[2]).translate((b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2));
+  group.add(yard.group); drawCalls += yard.stats.calls;
+  // look batch 3b: the hill road's verge, plants, fence, signs and guard rail, and the areaway (js/roadside.js); the rail is solid
+  const roadside = buildRoadside({ anisotropy, objects, noise, hill: collisionSource['Outside/Hill'] || [], road: collisionSource['Outside/Road'] || [], ground: { fill: GROUND_FILL, hill: GROUND.hill }, fx: { a2c: A2C_SHARP, msaaOnly } });
+  for (const g of roadside.colliders) colGeos.push(g);
+  group.add(roadside.group); drawCalls += roadside.stats.calls;
+  const lawnMi = meta.materials.findIndex((x) => x.name === 'M_Lawn');
+  if (lawnMi >= 0) { group.add(buildYardGround(litMaterial(lawnMi, -1))); drawCalls++; }          // the lawn carries on behind the house (it hung over the void)
+  // look batch 3a: main street and the town (js/mainstreet.js): parked cars, telephone poles, the sidewalks and kerbs, the shop fronts, the blocks' rooflines, the street furniture, the display bikes' bars.
+  // Their colliders go in here too; the pole line up the hill needs the ground's height, so a small BVH of just the hill and its road answers that.
+  const street = STREET_ON ? buildMainStreet({ anisotropy, objects: meta.objects, kidBars,
+    roadAt: terrainSampler(Object.entries(collisionSource).filter(([p]) => /^Outside\/Road/.test(p)).flatMap(([, g]) => g)),
+    groundAt: terrainSampler(Object.entries(collisionSource).filter(([p]) => /^Outside\/(Hill|Road)/.test(p)).flatMap(([, g]) => g)) })
+    : { group: new THREE.Group(), colliders: [], capsules: [], lights: [], fadeMats: [], bindLamps() {}, stats: { calls: 0 } };
+  for (const b of street.colliders) colGeos.push(new THREE.BoxGeometry(b[3] - b[0], b[4] - b[1], b[5] - b[2]).translate((b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2));
+  for (const c of street.capsules) colGeos.push(capsuleGeo(c));
+  group.add(street.group); drawCalls += street.stats.calls;
   const bvh = new MeshBVH(mergeGeometries(colGeos.map(stripToPosition), false));
   const doorBvh = doorGeos.length ? new MeshBVH(mergeGeometries(doorGeos.map(stripToPosition), false)) : null;
   const polyBvh = polyGeos.length ? new MeshBVH(mergeGeometries(polyGeos.map(stripToPosition), false)) : null;
   const town = buildTownLights(objects, bvh);
   for (const m of town.meshes) group.add(m);
   drawCalls += town.meshes.length;
+  town.mats.push(...street.fadeMats);       // look batch 3a: the shops' windows, signs and light pools come up with the night, with the town's
 
   // ---- the sky: Node/GradientSky (three bands), recoloured by the descent
   const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
@@ -617,6 +864,8 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
     defs.push(...flynnsRig(env.boxes));
     for (const d of defs) if (FLYNNS_SPILL.test(d.name)) { d.pos.z = SPILL_Z; d.range = SPILL_RANGE; }
   }
+  for (const l of yard.lights) defs.push({ name: l.name, pos: new THREE.Vector3(...l.pos), color: srgb(l.color), range: l.range, base: l.intensity, intensity: l.intensity, on: true });
+  for (const l of street.lights) defs.push({ name: l.name, pos: new THREE.Vector3(...l.pos), color: srgb(l.color), range: l.range, base: l.intensity, intensity: l.intensity, on: true });
   const byName = Object.fromEntries(defs.map((d) => [d.name, d]));
   const pool = [];
   for (let i = 0; i < POOL; i++) { const p = new THREE.PointLight(0xffffff, 0, 1, 2); group.add(p); pool.push(p); }
@@ -629,11 +878,12 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   // ---- the street lamps: dark until you come within their radius, then they buzz on (LampBuzzOn)
   const lamps = (comps.LampBuzzOn || []).map((c) => {
     const f = c.fields; const def = byName[f.lamp.comp.split('/').pop()];
-    if (def) def.intensity = 0;
+    if (def) { def.intensity = 0; def.color.copy(sodiumLight(def.color)); }       // look batch 1: sodium amber (the bend's lamp copies this def's colour)
     const heads = byPath[f.head.comp] || [];
     for (const h of heads) { h.material.emissive.setRGB(0, 0, 0); }
     return { pos: new THREE.Vector3(...c.pos), radius: f.radius, fade: f.fadeSeconds, target: f.targetIntensity, emissive: f.emissive, def, heads, k: 0, on: false };
   });
+  street.bindLamps(lamps);          // look batch 3a: the wires pick up the sodium glow from the lamps that are on
   // ---- Stage 1: the lamp at the bend: the street's own post and head, turned to reach over the hill road; it buzzes on
   // like theirs and its light joins the pool (the pool's size never changes)
   const lampPost = night.lampSrc[LAMP_SRC.post], lampHead = night.lampSrc[LAMP_SRC.head], lampDef = byName[LAMP_SRC.light];
@@ -654,8 +904,9 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   night.sunDir0 = sun.position.clone().normalize(); night.town = town; night.fog = dusk ? dusk.nightFog.map((x) => x * NIGHT.fog) : null;
   for (const m of night.asphalt) m.userData.day = m.color.clone();
 
-  const W = { group, meta, comps, objects, byPath, screens, templates, bvh, doorBvh, polyBvh, polyPlaced: false, sky, sun, ambient, defs, byName, pool, spots, lamps, dusk, drawCalls, doorsOpen: false, t: 0, env, inside: 0, night };
+  const W = { group, meta, comps, objects, byPath, screens, templates, bvh, doorBvh, polyBvh, polyPlaced: false, sky, sun, ambient, defs, byName, pool, spots, lamps, dusk, drawCalls, doorsOpen: false, t: 0, env, inside: 0, night, yard, roadside, street };
   W.obj = (p) => objects.get(p);
+  W.groundTune = (o = {}) => { for (const k of ['dusk', 'night']) if (o[k] !== undefined) GROUND[k] = o[k]; return { ...GROUND }; };     // for the look passes
   // the floor's reflection of the room: taken once, the first time you walk in (main.js), when every light and marquee is up
   // one face a frame (six frames, no hitch at the door); true once the cube is whole and the floor shows it
   W.captureSheen = (renderer, scene) => {
@@ -735,7 +986,9 @@ function updateOutside(W, dt, cam, feetY) {
   W.t += dt;
   const d = W.dusk;
   if (d) {
-    const k = Math.min(1, Math.max(0, (d.topY - feetY) / (d.topY - d.bottomY)));
+    // look batch 1: the dusk runs the whole hill, from the crest (topY) to NIGHT.nightY at its foot; Unity ended it at d.bottomY, two
+    // thirds of the way down, so the ride's whole last third was already full night and the drop in light came in three seconds
+    const k = duskAt(Math.min(1, Math.max(0, (d.topY - feetY) / (d.topY - NIGHT.nightY))));
     W.k = (W.k ?? k) + Math.max(-dt * 0.9, Math.min(dt * 0.9, k - (W.k ?? k)));
     const t = W.k;
     const u = W.sky.material.uniforms;
@@ -747,10 +1000,12 @@ function updateOutside(W, dt, cam, feetY) {
     // Stage 1 (NIGHT): the sun sets into a cold moon (weaker down in the street); less flat fill; a lifted, hazier night;
     // the hill road's paint and the town's lights come up with the dark
     const N = W.night, nk = smooth01(t / 0.9);
+    W.yard.update(t);                                                                  // look batch 2: the yard's lit windows and lamps
     u.night.value = smooth01((t - 0.05) / 0.55);
     W.sun.position.copy(N.sunDir0).lerp(NIGHT.moonLight, nk).normalize().multiplyScalar(100);
     W.sun.intensity = lerp(d.duskSunIntensity, lerp(NIGHT.moon, NIGHT.moonStreet, smooth01((d.bottomY - feetY) / 8)), t) * Math.PI;
     W.ambient.color.setRGB(...lerpC(d.duskAmbient, d.nightAmbient, t), THREE.SRGBColorSpace); W.ambient.intensity = Math.PI * lerp(1.15, NIGHT.ambient, t);
+    GROUND_FILL.copy(W.ambient.color).multiplyScalar(W.ambient.intensity / Math.PI * lerp(GROUND.dusk, GROUND.night, nk));      // look batch 2: the ground's own fill
     W.fogColor = new THREE.Color().setRGB(...lerpC(d.duskFog, N.fog, t), THREE.SRGBColorSpace);
     if (N.road) N.road.userData.edgeK.value = smooth01((t - 0.12) / 0.4);
     for (const m of N.asphalt) m.color.copy(m.userData.day).lerp(_c.setRGB(NIGHT.asphalt, NIGHT.asphalt, NIGHT.asphalt * 1.05, THREE.LinearSRGBColorSpace), t);
@@ -776,7 +1031,7 @@ function updateOutside(W, dt, cam, feetY) {
       L.k = Math.min(1, L.k + dt / L.fade);
       const flick = L.k < 1 ? (Math.sin(W.t * 60) > 0.2 ? 1 : 0.35) : 1;
       if (L.def) L.def.intensity = L.target * NIGHT.lampGain * L.k * flick;
-      for (const h of L.heads) h.material.emissive.setRGB(...L.emissive.slice(0, 3).map((x) => x * L.k * flick), THREE.SRGBColorSpace);
+      for (const h of L.heads) h.material.emissive.setRGB(...NIGHT.sodiumHead.map((x) => x * L.k * flick), THREE.LinearSRGBColorSpace);
     }
   }
   // the pool: every quarter second, the lights that matter most to what the camera can see
@@ -857,7 +1112,14 @@ export class OutdoorBody {
     this.eye = 1.62; this.eyeNow = 1.62; this.radius = 0.3; this.height = 1.75;
     this.speed = 2.4; this.bobT = 0; this.bob = 0; this.control = false; this.grounded = false;
     this.sens = 1; this.invert = false; this.lookOverride = null; this.moved = 0;
-    this.bike = { mounted: false, speed: 0, sway: 0, slope: 0 };
+    // the ride's feel (look batch 2): steer is the stick as you hold it, steerVis its eased value (the bars turn by it); lean is the camera's
+    // roll into a turn (radians, eased; the bike rig leans a little further: RIG_LEAN); bobY the pedalling bob and vibY / vibP / vibR the
+    // road's buzz (metres, metres, radians, radians); crank the crank's turn; pedal 0..1 pedalling; rough 0.3 (asphalt) .. 1 (the yard's lawn)
+    this.bike = { mounted: false, speed: 0, sway: 0, slope: 0, steer: 0, steerVis: 0, lean: 0, bobY: 0, vibY: 0, vibP: 0, vibR: 0, crank: 0, pedal: 0, rough: 0.3 };
+    this.vt = 0;
+    // reduced motion (the OS setting, as the handshake and the ending read it): no bob, no buzz, a third of the lean (0.8 degrees)
+    this.reduced = false;
+    try { const mq = matchMedia('(prefers-reduced-motion: reduce)'); this.reduced = mq.matches; mq.addEventListener('change', (e) => { this.reduced = e.matches; }); } catch (e) { /* no matchMedia: full motion */ }
   }
   place(x, y, z, yaw) { this.pos.set(x, y, z); this.yaw = yaw; this.pitch = 0; this.vel.set(0, 0, 0); this.vy = 0; }
   look(dx, dy) {
@@ -895,6 +1157,7 @@ export class OutdoorBody {
       if (Math.abs(B.speed) < 0.06 && !throttle) B.speed = 0;
       this.vel.set(fwd.x * B.speed, 0, fwd.z * B.speed);
       B.sway += dt * (1.2 + Math.abs(B.speed) * 0.35);
+      this.rideFeel(dt, steer, throttle);
     } else if (this.control) {
       const turn = (k('ArrowLeft') ? 1 : 0) - (k('ArrowRight') ? 1 : 0);
       this.yaw += turn * 1.9 * dt;
@@ -934,6 +1197,28 @@ export class OutdoorBody {
     const eye = this.bike.mounted ? 1.35 : this.eye;
     this.eyeNow += (eye - this.eyeNow) * Math.min(1, dt * 6);
   }
+  // the ride's feel: a lean into turns (about 2 degrees at a firm turn, eased), a pedalling bob of a couple of millimetres, a little buzz
+  // from the ground, and the bars' own turn. Gentle on purpose; reduced motion keeps the bars turning and little else.
+  rideFeel(dt, steer, throttle) {
+    const B = this.bike, rm = this.reduced, v = Math.abs(B.speed), ease = (tc) => 1 - Math.exp(-dt / tc);
+    B.steer = steer; B.steerVis += (steer - B.steerVis) * ease(0.13);
+    // lean: the turn's sideways acceleration (speed x yaw rate) against a firm turn's 4.5 m/s2; right turns roll the view clockwise (negative)
+    const yawRate = this.control ? -steer * 85 * DEG : 0;
+    const target = (rm ? 0.8 : 2.2) * DEG * Math.tanh(B.speed * yawRate / 4.5);
+    B.lean += (target - B.lean) * ease(Math.abs(target) > Math.abs(B.lean) ? 0.24 : 0.32);
+    // pedalling: the crank turns with the road (one turn every 4.4 m: a 44/16 gear on 20 inch wheels), the head dips twice a turn
+    B.pedal += (((throttle > 0 && v > 0.3) ? 1 : 0) - B.pedal) * ease(0.3);
+    B.crank += dt * B.speed / 4.4 * 2 * Math.PI;
+    const sk = Math.min(1, v / 6);
+    B.bobY = rm ? 0 : (0.0010 + 0.0010 * B.pedal) * sk * Math.sin(B.crank * 2);
+    // the ground's buzz: a few uneven frequencies, more on the lawn than on the asphalt (the yard plateau sits at y 2.9; the road starts down from it past z -37)
+    this.vt += dt;
+    const y = this.pos.y; B.rough = 0.3 + 0.7 * Math.min(1, Math.max(0, (y - 2.1) / 0.6));
+    const a = rm ? 0 : B.rough * sk, t = this.vt * 2 * Math.PI;
+    B.vibY = a * 0.0009 * (0.55 * Math.sin(t * 7.1) + 0.3 * Math.sin(t * 11.3 + 1.3) + 0.15 * Math.sin(t * 15.9 + 2.1));
+    B.vibP = a * 0.0007 * (0.6 * Math.sin(t * 8.7 + 0.4) + 0.4 * Math.sin(t * 13.1 + 2.6));
+    B.vibR = a * 0.0007 * (0.6 * Math.sin(t * 9.9 + 1.7) + 0.4 * Math.sin(t * 6.3 + 0.2));
+  }
   groundHit(reach) {
     _ray.origin.set(this.pos.x, this.pos.y + 0.6, this.pos.z); _ray.direction.set(0, -1, 0);
     const hit = this.W.bvh.raycastFirst(_ray, THREE.DoubleSide);
@@ -972,8 +1257,9 @@ export class OutdoorBody {
       return;
     }
     const B = this.bike, k = B.mounted ? Math.min(1, Math.abs(B.speed) / 9) : 0;
-    c.position.set(this.pos.x, this.pos.y + this.eyeNow + this.bob, this.pos.z);
-    c.rotation.set(this.pitch, this.yaw, this.roll + Math.sin(B.sway * 2) * 0.012 * k, 'YXZ');
+    const ride = B.mounted ? B.bobY + B.vibY : 0;
+    c.position.set(this.pos.x, this.pos.y + this.eyeNow + this.bob + ride, this.pos.z);
+    c.rotation.set(this.pitch + (B.mounted ? B.vibP : 0), this.yaw, this.roll + (B.mounted ? B.lean + B.vibR : 0) + Math.sin(B.sway * 2) * 0.012 * k * (this.reduced ? 0.3 : 1), 'YXZ');
   }
   lookAt(center, normal, dist) {
     const pos = center.clone().addScaledVector(normal, dist);

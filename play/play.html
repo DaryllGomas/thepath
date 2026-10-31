@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Junction</title>
+<link rel="icon" href="data:,">
+<style>
+  /* ANY GAME ON THE JUNCTION'S FLOOR, on its own page: play.html?g=castlecrush. No ?g lists them all.
+     ?bot=1 the game's bot plays (and coins itself up)   ?seed=N the same game every coin   ?credit=N start as the Nth coin
+     (mercy: 5 cannot be lost)   ?mute=1 no sound. */
+  :root { color-scheme: dark; --night: #030306; --gold: #f2c14e; --dim: #6b6250; --ink: #ece6d6; --line: #1d1a14; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--night); color: var(--gold); font: 13px/1.4 "Lucida Console", "Courier New", monospace; overflow: hidden; }
+  #wrap { position: fixed; inset: 0 0 30px 0; display: grid; place-items: center; }
+  #view { display: block; aspect-ratio: 4 / 3; width: min(100vw, calc((100vh - 30px) * 4 / 3)); height: auto; outline: none; background: #000;
+    image-rendering: pixelated; }
+  footer { position: fixed; left: 0; right: 0; bottom: 0; height: 30px; display: flex; gap: 18px; justify-content: center; align-items: center;
+    color: var(--dim); letter-spacing: 0.06em; padding: 0 16px; white-space: nowrap; overflow: hidden; }
+  kbd { border: 1px solid var(--dim); border-radius: 3px; padding: 0 4px; font: inherit; color: var(--gold); }
+  #status { color: var(--ink); }
+  body.list { overflow: auto; }
+  body.list #wrap, body.list footer { display: none; }
+  main { max-width: 980px; margin: 0 auto; padding: 36px 16px 60px; }
+  main h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: 0.12em; }
+  main p { color: var(--dim); margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .grid a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #0b0a08; color: var(--gold);
+    text-decoration: none; }
+  .grid a:hover { border-color: var(--dim); }
+  .grid small { display: block; color: var(--dim); margin-top: 2px; }
+  @media (max-width: 720px) { footer { font-size: 11px; gap: 10px; } }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="view" width="960" height="720" tabindex="0" aria-label="An arcade game"></canvas></div>
+<footer id="foot"></footer>
+<main id="list" hidden></main>
+<script type="module">
+import { CabinetRunner, KeyboardPanel } from './js/cabinet/host.js';
+import { Cartridges } from './js/cabinet/cartridges.js';
+import { SessionLedger, CabinetBench } from './js/cabinet/sdk/index.js';
+import { PadBridge } from './js/gamepad.js';
+
+const q = new URLSearchParams(location.search);
+const cart = Cartridges.find(q.get('g'));
+if (!cart) {
+  document.body.classList.add('list');
+  const L = document.getElementById('list'); L.hidden = false;
+  L.innerHTML = '<h1>THE JUNCTION</h1><p>Every machine on the floor, one page each. Enter or Space puts a coin in.</p><div class="grid">' +
+    Cartridges.all.map((c) => `<a href="?g=${c.id}">${c.spec.name}<small>${c.spec.copyright.replace('©', '&copy;')}</small></a>`).join('') + '</div>';
+}
+else play(cart);
+
+function play(cart) {
+  document.title = cart.spec.name;
+  const canvas = document.getElementById('view'), ctx = canvas.getContext('2d');
+  // the ledger: ?credit=N plays the Nth coin on this machine (N-1 losses before it: the knobs eased, 5 cannot be lost)
+  const ledger = new SessionLedger(), credit0 = Math.max(1, +q.get('credit') || 1);
+  for (let i = 1; i < credit0; i++) { ledger.recordCredit(cart.id); ledger.recordLoss(cart.id); }
+  const runner = new CabinetRunner(cart, { ledger, seed: +q.get('seed') || 0, freePlay: true });
+  const img = new ImageData(runner.surface.data, 320, 240), off = document.createElement('canvas'); off.width = 320; off.height = 240;
+  const octx = off.getContext('2d');
+  function show() { octx.putImageData(img, 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(off, 0, 0, canvas.width, canvas.height); }
+  show();
+  const panel = new KeyboardPanel(window);
+  new PadBridge({ context: () => 'cab' });
+  const bot = q.has('bot');
+
+  // the footer: the game's own controls card, then the page's keys
+  const keyName = { STICK: '←↑→↓', A: 'Space', B: 'X' };
+  document.getElementById('foot').innerHTML = cart.spec.controls.map((c) => '<span>' + c.replace(/\b(STICK|A|B)\b/g, (m) => '<kbd>' + keyName[m] + '</kbd>') + '</span>').join('') +
+    '<span><kbd>Enter</kbd> coin</span><span><kbd>Esc</kbd> quit the game</span><span><kbd>F</kbd> full screen</span><span id="status"></span>';
+
+  function coin() {
+    if (runner.phase === 'playing') return false;
+    if (!runner.insertCoin()) return false;
+    if (bot) runner.botDrives = true;
+    return true;
+  }
+  let gs = null, game = null, idle = 0;
+  function frame(dt, input) {
+    runner.step(dt, input);
+    if (gs) gs.frame(game, Math.min(Math.max(dt, 0), 0.1));
+  }
+  let last = performance.now(), paused = false;
+  function loop(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const input = panel.frame();
+    if (!paused) {
+      if (runner.phase === 'attract' && (input.start || input.a)) coin();
+      if (bot && runner.phase === 'attract') { idle += dt; if (idle > 1.5) { idle = 0; coin(); } }
+      frame(dt, input);
+      if (runner.dirty) show();
+    }
+    requestAnimationFrame(loop);
+  }
+  if (!q.has('noloop')) requestAnimationFrame(loop);
+  canvas.focus();
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyF' && !e.repeat) { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); }
+    if (e.code === 'Escape' && runner.phase === 'playing') runner.abort();
+  });
+  setInterval(() => {
+    const s = runner.sim, st = document.getElementById('status');
+    st.textContent = runner.phase === 'playing' && s ? 'CREDIT ' + runner.credit.number + (runner.credit.unlosable ? ' (FREE)' : '') : '';
+  }, 250);
+
+  // the sound: the game's palette (js/cabinet/games/<id>/sound.js, or the floor's stock one) on a chip made at the first key or click
+  if (!q.has('mute')) {
+    Promise.all([import('./js/cabinet/sound/index.js'), import('./js/cabinet/sound/floor.js'), import('./js/cabinet/sound/page.js')]).then(async ([S, F, P]) => {
+      const pal = await F.floorPalette(cart.id, cart.spec.name);
+      game = F.floorGame(runner);
+      P.onGesture(() => { const chip = S.Chip.live(); gs = new S.GameSound(chip, pal); window.__play.chip = chip; window.__play.gs = gs; });
+      window.__play.palette = pal;
+    }).catch((e) => console.error('sound:', e));
+  }
+
+  // ---- hooks for the headless tests ----
+  window.__play = {
+    cart, runner, ledger, coin, panel, show,
+    pause(v = true) { paused = v; },
+    /** steps the game a fixed 1/60 s a frame, synchronously. input = the frame to hold (or the bot, with runner.botDrives) */
+    advance(seconds, { input = null, until = null } = {}) {
+      const dt = 1 / 60; let n = 0;
+      for (; n < seconds * 60; n++) {
+        frame(dt, input || { x: 0, y: 0, a: false, b: false, start: false });
+        if (until && until(runner)) { n++; break; }
+      }
+      show(); return n / 60;
+    },
+    info() { const s = runner.sim; return { id: cart.id, phase: runner.phase, score: s && s.score, lives: s && s.lives, state: s && s.state, result: s && s.result, time: s && +s.time.toFixed(1), summary: s && s.summary, credit: runner.credit && runner.credit.number }; },
+    botSeed: CabinetBench.botSeed,
+    ready: true,
+  };
+}
+</script>
+</body>
+</html>

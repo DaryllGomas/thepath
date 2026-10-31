@@ -1,6 +1,7 @@
 // THE NODE · world 1 · SHORT ORDER on the Cabinet Engine · THE BOT: a modelled average player.
-// Port of ShortOrderBot.cs (Staging/Batch2/shortorder), float for float. Its dice are its own
-// (this.rng from CabinetBotBase), never the sim's.
+// From ShortOrderBot.cs (the Unity port), extended for the five kitchens: it reads the kitchen on the stove
+// (sim.k), goes after a fries plate when the shaker runs low, and treats the rival like any chaser.
+// Its dice are its own (this.rng from CabinetBotBase), never the sim's.
 //
 // It plays through the stick and button A like anyone else, reading the sim, never writing it.
 // Its three habits are the brief's:
@@ -20,6 +21,8 @@
 // in games/. The defaults below are the ones the C# bench ran with.)
 import { f32, CabinetBotBase, InputFrame, Dir4 } from '../../sdk/index.js';
 import { ShortOrderMap as M } from './map.js';
+
+const ShortOrderMap_K0 = M.Kitchens[0];
 import { ShortOrderSim, FoeMode } from './round.js';
 
 const N = M.NodeCount;
@@ -31,20 +34,20 @@ const Phase = ShortOrderSim.Phase;
 export class ShortOrderBot extends CabinetBotBase {
     constructor() {
         super();
-        this.reaction = f32(0.2);           // s between looks at the chasers
+        this.reaction = f32(0.16);           // s between looks at the chasers
         this.notice = f32(0.85);            // chance per look that an unnoticed chaser is seen
         this.memory = f32(1.2);             // s a noticed chaser stays in mind
         this.wakeWarn = f32(0.5);           // s of stun left when a stunned chaser counts again
         this.dangerCost = f32(16);          // path cost (16 a tile) at which a seen chaser makes it back off
         this.panicRange = f32(26);          // px: one chaser closing this near and it may shake
-        this.panic = f32(0.6);              // chance per look of that panic shake
+        this.panic = f32(0.8);              // chance per look of that panic shake
         this.pairShake = f32(0.9);          // chance per look to shake when two are within 2 tiles
         this.greed = f32(0.35);             // weight of walking distance when choosing a part
         this.wobble = f32(50);              // noise when choosing a part
         this.avoidRadius = f32(72); this.avoidWeight = f32(2.5);   // route penalty around seen chasers
         this.corneredNodes = 4;             // escape room (nodes) under which it counts itself cornered
 
-        this._targetPart = -1; this._hold = -1; this._turn = -1; this._lastKey = -1; this._room = N;
+        this._k = ShortOrderMap_K0; this._targetPart = -1; this._hold = -1; this._turn = -1; this._lastKey = -1; this._room = N;
         this._look = 0;
         this._shake = false; this._retreating = false;
         this._seenFor = new Float32Array(MaxFoes);
@@ -76,6 +79,7 @@ export class ShortOrderBot extends CabinetBotBase {
 
     think(sim, dt) {
         const s = sim;
+        if (s != null) this._k = s.k;
         if (s == null || s.p !== Phase.Cook) {
             this._targetPart = -1; this._hold = -1; this._turn = -1; this._shake = false; this._look = 0; this._retreating = false; this._lastKey = -1;
             for (let i = 0; i < MaxFoes; i++) { this._seenFor[i] = 0; this._prevDist[i] = Inf; }
@@ -134,7 +138,8 @@ export class ShortOrderBot extends CabinetBotBase {
     _plan(s) {
         const m = s.chef;
         const D = m.nodeAhead;
-        const B = m.dir >= 0 ? m.nodeAt : -1;
+        // Slick edges commit to the next tile; planning a reverse there wastes the escape.
+        const B = m.dir >= 0 && !(this._k.slick[m.f] && !M.vertical(m.dir)) ? m.nodeAt : -1;
         const toD = m.remaining, toB = m.dir >= 0 ? m.prog : Inf;
 
         // the closest seen chaser by path
@@ -142,7 +147,7 @@ export class ShortOrderBot extends CabinetBotBase {
         let closest = Inf;
         for (let i = 0; i < s.foes.length && i < MaxFoes; i++) {
             if (!this._threat(s, i)) continue;
-            const d = f32(M.Dist[s.foes[i].m.nodeNear * NC + chefNode]);
+            const d = f32(this._k.Dist[s.foes[i].m.nodeNear * NC + chefNode]);
             if (d < closest) closest = d;
         }
         this._retreating = closest <= f32(this.dangerCost + (this._retreating ? 16 : 0));
@@ -157,7 +162,7 @@ export class ShortOrderBot extends CabinetBotBase {
             if (!this._threat(s, i)) continue;
             const fn = s.foes[i].m.nodeNear;
             for (let n = 0; n < N; n++) {
-                const d = f32(M.Dist[fn * NC + n]);
+                const d = f32(this._k.Dist[fn * NC + n]);
                 if (d < this.avoidRadius) pen[n] = f32(pen[n] + f32(f32(this.avoidRadius - d) * this.avoidWeight));
             }
         }
@@ -169,10 +174,21 @@ export class ShortOrderBot extends CabinetBotBase {
 
     _work(s, D, B, toD, toB) {
         const m = s.chef;
+        // a fries plate on the floor and the shaker running low: go and get it if it is close
+        if (s.food.length > 0 && s.peppers <= 4) {
+            let best = Inf, goal = -1, viaB = false;
+            for (let i = 0; i < s.food.length; i++) {
+                const g = M.node(s.food[i].c, s.food[i].f);
+                const cd = f32(toD + this._distD[g]);
+                if (cd < best) { best = cd; goal = g; viaB = false; }
+                if (B >= 0) { const cb = f32(toB + this._distB[g]); if (cb < best) { best = cb; goal = g; viaB = true; } }
+            }
+            if (goal >= 0 && best <= 150) return this._toward(m, D, B, goal, viaB, this._firstD, this._firstB);
+        }
         if (this._targetPart < 0 || !s.parts[this._targetPart].resting) this._targetPart = this._choosePart(s);
         if (this._targetPart < 0) return -1;
         const p = s.parts[this._targetPart];
-        const c0 = M.BurgerCol0[p.burger], f = p.floor;
+        const c0 = this._k.burgers[p.burger].c0, f = p.floor;
         let best = Inf, goal = -1, viaB = false;
         for (let k = 0; k < M.PartTiles; k++) {
             if ((p.stepped & (1 << k)) !== 0) continue;
@@ -195,7 +211,7 @@ export class ShortOrderBot extends CabinetBotBase {
             for (let i = 0; i < s.foes.length && i < MaxFoes; i++) {
                 if (!this._threat(s, i)) continue;
                 const e = s.foes[i];
-                let d = f32(M.Dist[e.m.nodeNear * NC + n]);
+                let d = f32(this._k.Dist[e.m.nodeNear * NC + n]);
                 if (e.mode === FoeMode.Stunned) d = f32(d + f32(e.timer * s.foeSpeed));
                 if (d < fc) fc = d;
             }
@@ -216,6 +232,7 @@ export class ShortOrderBot extends CabinetBotBase {
             if (st.dir >= 0 && M.vertical(st.dir) !== M.vertical(m.dir)) this._turn = st.dir;
             return m.dir;
         }
+        if (B < 0) return m.dir;
         const rev = Dir4.reverse(m.dir);
         this._bestFrom(M.nodeC(B), M.nodeF(B), toB, m.dir, st);
         this._room = Math.max(0, st.room);
@@ -227,7 +244,7 @@ export class ShortOrderBot extends CabinetBotBase {
     _bestFrom(c, f, cost0, exclude, st) {
         st.dir = -1; st.room = -1; st.lead = -Inf;
         for (let d = 0; d < 4; d++) {
-            if (d === exclude || !M.canMove(c, f, d)) continue;
+            if (d === exclude || !this._k.canMove(c, f, d)) continue;
             const x = M.node(M.nextC(c, d), M.nextF(f, d));
             this._consider(x, f32(cost0 + (M.vertical(d) ? M.CostV : M.CostH)), d, st);
         }
@@ -238,7 +255,7 @@ export class ShortOrderBot extends CabinetBotBase {
         let count = 0, lead = Inf;
         const base = from * NC;
         for (let n = 0; n < N; n++) {
-            const dn = M.Dist[base + n];
+            const dn = this._k.Dist[base + n];
             if (dn >= M.Unreachable) continue;
             const cc = f32(dn + cost0);
             const margin = f32(foeCost[n] - cc);
@@ -254,18 +271,18 @@ export class ShortOrderBot extends CabinetBotBase {
             // going back: hold the reverse, plus the turn wanted at that node (a diagonal), so
             // the chef doesn't sail straight through it
             const rev = Dir4.reverse(m.dir);
-            const h2 = B === goal ? -1 : firstFromB != null && firstFromB[goal] >= 0 ? firstFromB[goal] : M.Hop[B * NC + goal];
+            const h2 = B === goal ? -1 : firstFromB != null && firstFromB[goal] >= 0 ? firstFromB[goal] : this._k.Hop[B * NC + goal];
             if (h2 >= 0 && M.vertical(h2) !== M.vertical(rev)) this._turn = h2;
             return rev;
         }
         if (D === goal) {
             if (m.dir >= 0) return m.dir;
             // standing on the goal (a part landed under us): step off and come back
-            for (let d = 0; d < 4; d++) if (M.canMove(m.c, m.f, d)) return d;
+            for (let d = 0; d < 4; d++) if (this._k.canMove(m.c, m.f, d)) return d;
             return -1;
         }
-        let h = firstFromD != null ? firstFromD[goal] : M.Hop[D * NC + goal];
-        if (h < 0) h = M.Hop[D * NC + goal];
+        let h = firstFromD != null ? firstFromD[goal] : this._k.Hop[D * NC + goal];
+        if (h < 0) h = this._k.Hop[D * NC + goal];
         if (m.dir >= 0 && h === Dir4.reverse(m.dir)) return m.dir;   // never flip-flop on a node's doorstep
         return h;
     }
@@ -276,8 +293,8 @@ export class ShortOrderBot extends CabinetBotBase {
         for (let i = 0; i < s.parts.length; i++) {
             const p = s.parts[i];
             if (!p.resting) continue;
-            const b = p.burger, c0 = M.BurgerCol0[b], f = p.floor;
-            const cf = M.ColumnFloors[b];
+            const b = p.burger, c0 = this._k.burgers[b].c0, f = p.floor;
+            const cf = this._k.ColumnFloors[b];
             // the cascade: how many rows this drop moves, and whether it reaches the plate
             let falls = 0, slot = p.slot, plate = false;
             while (true) {
@@ -285,17 +302,17 @@ export class ShortOrderBot extends CabinetBotBase {
                 if (slot >= cf.length) { plate = true; break; }
                 if (s.restingPartAt(b, cf[slot]) == null) break;
             }
-            const completes = plate && s.stacked[b] === M.PartsPerBurger - 1;
+            const completes = plate && s.stacked[b] === this._k.partsOf(b) - 1;
             let cost = Inf, danger = f32(160), left = 0;
             for (let k = 0; k < M.PartTiles; k++) {
                 if ((p.stepped & (1 << k)) !== 0) continue;
                 left++;
                 const g = M.node(c0 + k, f);
-                cost = Math.min(cost, f32(M.Dist[chefNode * NC + g]));
+                cost = Math.min(cost, f32(this._k.Dist[chefNode * NC + g]));
                 for (let j = 0; j < s.foes.length; j++) {
                     const e = s.foes[j];
                     if (!e.harmful) continue;
-                    danger = Math.min(danger, f32(M.Dist[e.m.nodeNear * NC + g]));
+                    danger = Math.min(danger, f32(this._k.Dist[e.m.nodeNear * NC + g]));
                 }
             }
             // falls * 60f + (completes ? 100f : 0f) + danger * 0.4f - (cost + (left - 1) * 16f) * Greed + Range(0f, Wobble)
@@ -322,7 +339,7 @@ export class ShortOrderBot extends CabinetBotBase {
             if (c > dist[u]) continue;
             const uc = M.nodeC(u), uf = M.nodeF(u);
             for (let d = 0; d < 4; d++) {
-                if (!M.canMove(uc, uf, d)) continue;
+                if (!this._k.canMove(uc, uf, d)) continue;
                 const v = M.node(M.nextC(uc, d), M.nextF(uf, d));
                 const w = f32((M.vertical(d) ? M.CostV : M.CostH) + (penalised ? pen[v] : 0));
                 const nc = f32(c + w);

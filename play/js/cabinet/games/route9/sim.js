@@ -1,5 +1,5 @@
 // THE NODE · world 1 · ROUTE 9 (Northgate Novelty Co., 1985) · THE ROUND (ICabinetSim).
-// Port of Route9Sim.cs.
+// A seven-day route; the original Unity parity is retired.
 //
 // A paper route at dusk. The street runs bottom-left to top-right; the bike rolls forward on its
 // own. The WORLD is two numbers: S = distance along the route (forward, px), L = across the
@@ -9,29 +9,26 @@
 //   across the street (L):  houses 0-58 | lawn 58-106 (mailbox at 102) | sidewalk 108-130 |
 //                           curb | road 134-196 (lanes at 146 166 186) | far sidewalk 200-222
 //   the bike rides one of four lanes: 0 = the sidewalk (118), 1-3 = the road (146, 166, 186)
-//   along the route (S):    a park, 7 houses, crossing A, 3 houses, the BUNDLE lot, 4 houses,
-//                           crossing B, 6 houses, the END sign. 20 houses, 12 subscribers
-//                           (6 each side of the bundle).
-//
-// RULES (the brief): stick left/right = lane, up/down = faster/slower, A = throw a paper LEFT in
-// an arc. A paper in a subscriber's mailbox or on their porch = a DELIVERY (100 + 20 per delivery
-// in the streak). A paper through a dark (non-subscriber) house's window = 50. A hazard passed
-// within two lanes = 10. Potholes, parked cars, dogs that run out, a kid on a tricycle, a
-// lawnmower, cross-traffic at the two crossings: a crash costs a bike (3) and 2 s. A subscriber
-// passed without a paper is MISSED (the porch light goes out); three misses end the route. 20
-// papers; the bundle halfway refills to 20. The round is WON at the END sign with every
-// subscriber delivered (winMisses = 0) and a bike to spare. Result comes from the route, never
-// from the clock.
-//
-// MERCY: knobs remove one hazard type per lost round (RemovalOrder) and shrink the pothole
-// hitbox 10% per loss. On the unlosable credit (5) the route has only mailboxes: no hazards, the
-// bike cannot crash, a thrown paper homes into the nearest waiting mailbox, and a mailbox you ride
-// past unfed gets a free flick from the paperboy, so the route cannot be lost.
+// Seven daily editions, each with its own street plan and a ramp-and-target training strip.
+// Lit mailboxes take deliveries; dark windows are fair game for spare papers. Misses cost a
+// bike in groups (the forgiveness knob); crashes cost one immediately. Keep the bikes across
+// the week. The Sunday tally, rather than an elapsed clock, is the only winning exit.
+// Cards and tallies freeze the street. All motion, debris and sounds follow simulation time.
+// Credit five keeps the hazards harmless and homes papers into overlooked mailboxes.
 import { f32, roundEven, fmt, F32, CabinetState, RoundResult, SoundCue, CueBuffer, Pad, SystemRandom } from '../../sdk/index.js';
 
 export const HazardType = Object.freeze({ Pothole: 0, ParkedCar: 1, Dog: 2, Trike: 3, Mower: 4, Traffic: 5 });
 export const LotKind = Object.freeze({ Start: 0, House: 1, Crossing: 2, Bundle: 3, Finish: 4 });
-const Phase = Object.freeze({ Idle: 0, Intro: 1, Riding: 2, Crash: 3, Card: 4, Over: 5 });
+export const Days = [
+    ['MONDAY', 'QUIET BLOCK', 'LIT BOXES WANT PAPERS', [6, -2, 4]],
+    ['TUESDAY', 'DOG LEG', 'DOGS COMMIT THEN DODGE', [5, -1, 3, -2, 4]],
+    ['WEDNESDAY', 'GARDEN SHIFT', 'MOWERS SWEEP THE WALK', [4, -2, 4, -1, 5]],
+    ['THURSDAY', 'SCHOOL RUN', 'TRIKES CROSS YOUR LINE', [5, -1, 4, -2, 5]],
+    ['FRIDAY', 'ROAD CREW', 'B JUMPS THE BARRICADES', [4, -1, 4, -2, 4, -1, 3]],
+    ['SATURDAY', 'DRAIN STREET', 'JUMP DRAINS AND DODGE CARS', [5, -1, 4, -2, 4, -1, 3]],
+    ['SUNDAY', 'BIG EDITION', 'HEAVY PAPERS - BUSY CROSSINGS', [5, -1, 4, -2, 4, -1, 4]],
+];
+const Phase = Object.freeze({ Idle: 0, Intro: 1, Riding: 2, Crash: 3, Card: 4, Over: 5, Tally: 6 });
 
 // ---- the street, across (L)
 export const LaneL = [118, 146, 166, 186];
@@ -83,6 +80,8 @@ function add(d, k, v) { d[k] = (d[k] || 0) + v; }
 export class Route9Sim {
     constructor() {
         // ---- the machine (not mercy knobs)
+        this.recordEvents = false; this.events = [];
+        this.day = 0; this.jump = 0; this.jumpCd = 0; this.extra = false;
         this.introSeconds = 2.6; this.crashSeconds = 2.0; this.cardSeconds = 3.5; this.invulnSeconds = 1.5;
         this.startLives = 3; this.missesToEnd = 3; this.papersFull = 20;
         this.range = 96; this.paperSpeed = 200; this.throwCooldown = 0.3;
@@ -121,7 +120,7 @@ export class Route9Sim {
         switch (this.p) {
             case Phase.Intro: return CabinetState.Intro;
             case Phase.Riding: return CabinetState.Playing;
-            case Phase.Crash: return CabinetState.Interlude;
+            case Phase.Tally: case Phase.Crash: return CabinetState.Interlude;
             case Phase.Card: return CabinetState.Card;
             case Phase.Over: return CabinetState.Over;
             default: return CabinetState.Idle;
@@ -143,21 +142,22 @@ export class Route9Sim {
 
     get summary() {
         const r = this._result === RoundResult.Won ? 'WON' : this._result === RoundResult.Lost ? 'LOST' : 'UNDECIDED';
-        return r + (this.endReason.length > 0 ? ' (' + this.endReason + ')' : '') + ' ' + this.delivered + '/' + Subscribers +
+        return r + (this.endReason.length > 0 ? ' (' + this.endReason + ')' : '') + ' ' + this.delivered + '/' + this.lots.filter(l => l.subscriber).length +
             ' missed ' + this.missed + ' bikes ' + this._lives + ' score ' + this._score + ' ' + fmt(this._time, 1, F32) +
             's crashes ' + this.crashes + ' windows ' + this.windows + ' papers ' + this.papersLeft;
     }
 
     reset(seed, credit, k) {
+        this.events.length = 0; this.day = 0; this.extra = false; this.totalDelivered = 0; this.totalMissed = 0;
         this.credit = credit;
         this._rng = new SystemRandom(seed === 0 ? 1 : seed);
-        this.cruise = k.get('cruiseSpeed');
+        this.cruise = credit.unlosable ? 48 : k.get('cruiseSpeed');
+        this.ease = k.get('forgiveness');
         const off = roundEven(k.get('hazardsOff'));
         for (let i = 0; i < 6; i++) this.typeOn[i] = true;
         for (let i = 0; i < off && i < RemovalOrder.length; i++) this.typeOn[RemovalOrder[i]] = false;
         if (credit.unlosable) for (let i = 0; i < 6; i++) this.typeOn[i] = false;       // the free ride: only mailboxes
         this.potholeMargin = Math.max(0, Math.min(0.8, k.get('potholeMargin')));
-        this.winMisses = roundEven(k.get('winMisses'));
         this.dogTrigger = k.get('dogTrigger');
         this.dogSpeed = k.get('dogSpeed');
         this.mailboxWindow = k.get('mailboxWindow');
@@ -166,12 +166,12 @@ export class Route9Sim {
         const gap = k.get('trafficGap');
 
         this.lots.length = 0; this.hazards.length = 0; this.papers.length = 0; this.popups.length = 0;
-        this._buildRoute(gap);
-        this._placeHazards(density);
+        this.baseDensity = density; this.gap = gap; this._setupDay();
 
         this.bikeS = StartS; this.lane = 1; this.bikeL = LaneL[this.lane]; this.speed = 0;
         this.papersLeft = this.papersFull;
         this.delivered = this.missed = this.windows = this.crashes = this.streak = this.dodges = this.thrown = 0;
+        this.dayCrashes = 0;
         this.throwAge = 9; this.invuln = 0; this._throwCd = 0; this._holdL = this._holdR = 0;
         this._crashBy.fill(0);
         this._score = 0; this._lives = this.startLives; this._time = 0; this.worldTime = 0;
@@ -187,12 +187,12 @@ export class Route9Sim {
         const addLot = (kind, len) => { const l = newLot(kind, s, len); this.lots.push(l); s += len; return l; };
 
         addLot(LotKind.Start, StartLen);
-        const plan = [7, -1, 3, -2, 4, -1, 6];            // houses, -1 crossing, -2 the bundle lot
+        const plan = Days[this.day][3];            // houses, -1 crossing, -2 the bundle lot
         let house = 0;
         for (const p of plan) {
             if (p === -1) {
                 const c = addLot(LotKind.Crossing, CrossLen);
-                c.traffic = this.typeOn[HazardType.Traffic];
+                c.traffic = this.day >= 3 && this.typeOn[HazardType.Traffic];
                 c.carSpeed = f32(this.carSpeedBase * f32(0.9 + f32(0.2 * this._rng.nextDouble())));
                 c.carGap = trafficGap;
                 c.carPhase[0] = f32(this._rng.nextDouble() * trafficGap);
@@ -202,7 +202,8 @@ export class Route9Sim {
             else for (let i = 0; i < p; i++) { const h = addLot(LotKind.House, LotLen); h.house = ++house; }
         }
         const fin = addLot(LotKind.Finish, FinishLen);
-        this.finishS = fin.s0 + FinishPastLastHouse;
+        this.courseS = fin.s0; this.finishS = fin.s0 + 250;
+        this.targets = [50, 115, 180].map((d, i) => ({ s: fin.s0 + d, lane: i % 3, hit: false, ramp: false }));
 
         // 6 subscribers among houses 1-10, 6 among 11-20; pastels never repeat next door
         const first = this._pick(10, 6), second = this._pick(10, 6);
@@ -210,10 +211,39 @@ export class Route9Sim {
         for (const l of this.lots) {
             if (l.kind !== LotKind.House) continue;
             const idx = l.house - 1;
-            l.subscriber = idx < 10 ? first[idx] : second[idx - 10];
+            l.subscriber = idx % 3 !== 2;
             let pc; do { pc = this._rng.next(4); } while (pc === prevPastel);
             l.pastel = pc; prevPastel = pc;
         }
+    }
+
+    _emit(kind, o) { if (this.recordEvents) this.events.push({ ...(o || {}), kind }); }
+
+    _setupDay() {
+        this.lots.length = 0; this.hazards.length = 0; this.papers.length = 0; this.popups.length = 0;
+        this.delivered = this.missed = this.streak = 0; this.jump = this.jumpCd = 0;
+        this._buildRoute(this.gap * (1 - this.day * 0.045));
+        this._placeHazards(this.baseDensity * (0.45 + this.day * 0.12));
+        this.hazards = this.hazards.filter(h => h.type === HazardType.Pothole || h.type === HazardType.ParkedCar ||
+            (h.type === HazardType.Dog && this.day >= 1) || (h.type === HazardType.Mower && this.day >= 2) ||
+            (h.type === HazardType.Trike && this.day >= 3));
+        if (this.day >= 4) for (let i = 0; i < 3 + this.day - 4; i++)
+            this.hazards.push({type: HazardType.Pothole, s: 310 + i * 265, l: LaneL[i % 4], hs: 9, hl: 10,
+                variant: this.day === 4 ? 5 : 6, hit: false, dodged: false});
+        this.bikeS = StartS; this.lane = 1; this.bikeL = LaneL[1]; this.speed = 0;
+        this.papersLeft = this.day === 6 ? 14 : 18; this._throwCd = 0; this.invuln = 2;
+        this.dayCrashes = this.crashes || 0; this.tally = null; this.p = Phase.Intro; this.phaseTime = 0;
+
+    }
+
+    _clearDay() {
+        const perfect = this.missed === 0 && this.crashes === this.dayCrashes;
+        this.tally = { delivery: this.delivered * 100, course: this.targets.filter(t => t.hit).length * 300,
+            perfect: perfect ? 1000 : 0 };
+        this._score += this.tally.delivery + this.tally.course + this.tally.perfect;
+        this.totalDelivered += this.delivered; this.totalMissed += this.missed;
+        this._emit('stageClear', { day: this.day, perfect });
+        this.p = Phase.Tally; this.phaseTime = 0;
     }
 
     _pick(n, k) {
@@ -247,7 +277,7 @@ export class Route9Sim {
     _freeLanes(s, pad) { let n = 0; for (let i = 0; i < 4; i++) if (this._laneFree(s, i, pad)) n++; return n; }
 
     _placeHazards(density) {
-        const lo = StartLen + 40, hi = this.finishS - 60;
+        const lo = StartLen + 40, hi = this.courseS - 60;
         const houses = [];
         for (const l of this.lots) if (l.kind === LotKind.House) houses.push(l);
 
@@ -281,7 +311,7 @@ export class Route9Sim {
             }
         }
         // statics: parked cars, potholes; trikes ride the sidewalk toward you
-        this._placeStatic(HazardType.ParkedCar, this._count(5, density), lo, hi);
+        this._placeStatic(HazardType.ParkedCar, this._count(2, density), lo, hi);
         this._placeStatic(HazardType.Trike, this._count(2, density), lo + 60, hi);
         this._placeStatic(HazardType.Pothole, this._count(8, density), lo, hi);
         this.hazards.sort((a, b) => a.s - b.s);
@@ -304,7 +334,7 @@ export class Route9Sim {
             const h = { type, s, l: 0, hs: 0, hl: 0, homeL: 0, targetL: 0, minL: 0, maxL: 0, vel: 0,
                 state: 0, timer: 0, ridden: 0, hit: false, dodged: false, variant: 0 };
             if (type === HazardType.Pothole) { h.l = LaneL[1 + this._rng.next(3)]; h.hs = 5; h.hl = 9; }
-            else if (type === HazardType.ParkedCar) { h.l = this._rng.nextDouble() < 0.6 ? LaneL[1] : LaneL[3]; h.hs = 16; h.hl = 8; h.variant = this._rng.next(4); }
+            else if (type === HazardType.ParkedCar) { h.l = this._rng.nextDouble() < 0.6 ? LaneL[1] : LaneL[3]; h.hs = 12; h.hl = 6; h.variant = this._rng.next(4); }
             else { h.l = f32(SidewalkL0 + 2); h.hs = 6; h.hl = 7; h.variant = this._rng.next(2); h.timer = f32(120 + f32(this._rng.nextDouble() * 50)); }
             // spacing: nothing else within 36 px, and at least two lanes stay open around it
             let tooClose = false;
@@ -349,7 +379,7 @@ export class Route9Sim {
 
         switch (this.p) {
             case Phase.Intro:
-                if (this.phaseTime >= this.introSeconds) { this.p = Phase.Riding; this.phaseTime = 0; this.speed = this.cruise; this._cues.emit(SoundCue.Start); }
+                if (this.phaseTime >= this.introSeconds) { this.p = Phase.Riding; this.phaseTime = 0; this.speed = this.cruise; this._cues.emit(SoundCue.Start); this._emit('stageStart', { day: this.day }); if (this.day === 6) this._emit('finale'); }
                 else if (Math.trunc(before / 0.9) !== Math.trunc(this.phaseTime / 0.9)) this._cues.emit(SoundCue.Tick);
                 break;
             case Phase.Riding:
@@ -361,9 +391,19 @@ export class Route9Sim {
                     else { this.p = Phase.Riding; this.phaseTime = 0; this.invuln = this.invulnSeconds; this.speed = f32(this.cruise * 0.8); }
                 }
                 break;
+            case Phase.Tally:
+                if (this.phaseTime >= 3.5) {
+                    if (this.day === 6) this._endRound(RoundResult.Won, 'WEEK COMPLETE');
+                    else { this.day++; this._setupDay(); }
+                }
+                break;
             case Phase.Card:
                 if (this.phaseTime >= this.cardSeconds) this.p = Phase.Over;
                 break;
+        }
+        if (!this.extra && this._score >= 9000) {
+            this.extra = true; this._lives++; this._emit('extraLife');
+            this.popups.push({text: 'EXTRA BIKE', s: this.bikeS, l: this.bikeL, born: this._time, kind: 3});
         }
         // popups live 1.3 s of sim time
         for (let i = this.popups.length - 1; i >= 0; i--) if (this._time - this.popups[i].born > 1.3) this.popups.splice(i, 1);
@@ -381,6 +421,7 @@ export class Route9Sim {
             if (input.held(Pad.Up)) target = f32(this.cruise * this.fastMul);
             else if (input.held(Pad.Down)) target = f32(this.cruise * this.slowMul);
             if (input.pressed(Pad.A)) this._throw(false);
+            if (input.pressed(Pad.B) && this.jumpCd <= 0) { this.jump = 0.8; this.jumpCd = 1.35; this._emit('jump'); }
         }
         if (this.speed < target) this.speed = Math.min(target, f32(this.speed + f32(this.accel * dt)));
         else if (this.speed > target) this.speed = Math.max(target, f32(this.speed - f32(f32(this.accel * 1.4) * dt)));
@@ -393,6 +434,16 @@ export class Route9Sim {
         this._throwCd = f32(this._throwCd - dt); this.throwAge = f32(this.throwAge + dt);
         if (this.invuln > 0) this.invuln = f32(this.invuln - dt);
 
+        this.jump = Math.max(0, this.jump - dt); this.jumpCd = Math.max(0, this.jumpCd - dt);
+        for (const q of this.targets) {
+            if (!q.ramp && Math.abs(this.bikeS - (q.s - 20)) < 9 && this.lane === q.lane) {
+                q.ramp = true; this.jump = 1; this._emit('jump');
+            }
+            if (!q.hit && Math.abs(this.bikeS - q.s) < 14 && this.jump > 0 && Math.abs(this.bikeL - LaneL[q.lane]) < 14 && input?.held(Pad.A)) {
+                q.hit = true; this._score += 200; this._emit('target');
+                this.popups.push({text: '+200', s: q.s, l: this.bikeL, born: this._time, kind: 0});
+            }
+        }
         this._updateHazards(dt);
         this._updatePapers(dt);
         if (!this.mercyActive && this.invuln <= 0 && this._collide()) return;
@@ -401,8 +452,7 @@ export class Route9Sim {
         if (this.mercyActive) this._freeFlick();
         if (this._misses()) return;
         if (this.bikeS >= this.finishS) {
-            const won = this.missed <= this.winMisses && this._lives > 0;
-            this._endRound(won ? RoundResult.Won : RoundResult.Lost, won ? '' : 'ROUTE INCOMPLETE');
+            this._clearDay();
         }
     }
 
@@ -411,9 +461,9 @@ export class Route9Sim {
     _throw(free) {
         if (!free && (this._throwCd > 0 || this.papersLeft <= 0)) return;
         if (!free) { this.papersLeft--; this._throwCd = this.throwCooldown; }
-        this.thrown++; this.throwAge = 0;
+        this.thrown++; this.throwAge = 0; this._emit('fire', { heavy: this.day === 6 });
         const p = { s: this.bikeS, s0: this.bikeS, l0: f32(this.bikeL - 6), l: f32(this.bikeL - 6), age: 0,
-            dur: f32(this.range / this.paperSpeed), homing: false, homingS: 0, state: 0, outcome: 0, rest: 0 };
+            dur: f32(this.range / (this.paperSpeed * (this.day === 6 ? 0.75 : 1))), homing: false, homingS: 0, state: 0, outcome: 0, rest: 0 };
         if (this.mercyActive) {
             let best = null, bd = 60;
             for (const l of this.lots)
@@ -436,7 +486,7 @@ export class Route9Sim {
             switch (h.type) {
                 case HazardType.Dog:
                     if (h.state === 0 && this.bikeS >= h.s - this.dogTrigger) {
-                        h.state = 1;
+                        h.state = 1; this._emit('dog');
                         h.targetL = Math.max(LaneL[0], Math.min(LaneL[3], this.bikeL));
                     } else if (h.state === 1) {
                         // it chases the bike's lane until it is close, then it commits
@@ -471,7 +521,7 @@ export class Route9Sim {
 
     _collide() {
         for (const h of this.hazards) {
-            if (h.hit) continue;
+            if (h.hit || (this.jump > 0 && h.type !== HazardType.ParkedCar)) continue;
             let hs = h.hs, hl = h.hl;
             if (h.type === HazardType.Pothole) { hs = f32(hs * f32(1 - this.potholeMargin)); hl = f32(hl * f32(1 - this.potholeMargin)); }
             if (h.type === HazardType.Dog && (h.state === 0 || h.state === 4)) continue;     // a dog on its lawn is no hazard
@@ -495,7 +545,7 @@ export class Route9Sim {
     }
 
     _crash(type, s, l) {
-        this._lives--; this.crashes++; this._crashBy[type]++; this.streak = 0;
+        this._emit('crash', { type }); this._lives--; this.crashes++; this._crashBy[type]++; this.streak = 0;
         this.crashType = type; this.crashS = this.bikeS; this.crashL = this.bikeL;
         this.p = Phase.Crash; this.phaseTime = 0;
         this.popups.push({ text: 'CRASH', s: this.bikeS, l: this.bikeL, born: this._time, kind: 4 });
@@ -566,7 +616,7 @@ export class Route9Sim {
                         if (!l.subscriber)
                             for (let w = 0; w < 2; w++)
                                 if (!l.windowBroken[w] && Math.abs(p.s - lotWindowS(l, w)) <= WindowHalf) {
-                                    l.windowBroken[w] = true; this.windows++; this._score += 50; p.outcome = 3;
+                                    this._emit('glass'); l.windowBroken[w] = true; this.windows++; this._score += 50; p.outcome = 3;
                                     this.popups.push({ text: '+50', s: lotWindowS(l, w), l: WallL - 10, born: this._time, kind: 1 });
                                     this._cues.emit(SoundCue.Bonus);
                                 }
@@ -586,7 +636,7 @@ export class Route9Sim {
     }
 
     _deliver(l, how, p) {
-        l.delivered = true; l.deliveredBy = how; l.deliveredAt = this._time;
+        this._emit('delivery', { streak: this.streak }); l.delivered = true; l.deliveredBy = how; l.deliveredAt = this._time;
         this.delivered++; this.streak++;
         const pts = 100 + 20 * (this.streak - 1);
         this._score += pts;
@@ -609,10 +659,10 @@ export class Route9Sim {
             let inFlight = false;
             for (const p of this.papers) if (p.state === 0 && p.s >= l.s0 && p.s < lotEnd(l)) inFlight = true;
             if (inFlight) continue;
-            l.missed = true; this.missed++; this.streak = 0;
+            this._emit('miss'); l.missed = true; this.missed++; this.streak = 0;
             this.popups.push({ text: 'MISSED', s: lotDoorS(l), l: f32(WallL + 20), born: this._time, kind: 2 });
             this._cues.emit(SoundCue.Miss);
-            if (this.missed >= this.missesToEnd) { this._endRound(RoundResult.Lost, '3 MISSED'); return true; }
+            if (this.missed % this.ease === 0 && !this.mercyActive) { this._crash(HazardType.Pothole, this.bikeS, this.bikeL); return true; }
         }
         return false;
     }
@@ -621,7 +671,7 @@ export class Route9Sim {
         for (const l of this.lots) {
             if (l.kind !== LotKind.Bundle || l.bundleTaken) continue;
             if (Math.abs(this.bikeS - lotBundleS(l)) < 10 && Math.abs(this.bikeL - BundleL) < 24) {
-                l.bundleTaken = true;
+                this._emit('pickup'); l.bundleTaken = true;
                 this.papersLeft = this.papersFull;
                 this.popups.push({ text: this.papersFull + ' PAPERS', s: lotBundleS(l), l: BundleL, born: this._time, kind: 3 });
                 this._cues.emit(SoundCue.Bonus);
@@ -630,15 +680,15 @@ export class Route9Sim {
     }
 
     _endRound(r, reason) {
-        this._result = r; this.endReason = reason;
+        this._emit(r === RoundResult.Won ? 'victory' : 'out'); this._result = r; this.endReason = reason;
         this.p = Phase.Card; this.phaseTime = 0;
         if (r === RoundResult.Won) this._cues.emit(SoundCue.Win);
     }
 
     // ------------------------------------------------------------ stats
     collectStats(into) {
-        add(into, 'delivered', this.delivered);
-        add(into, 'missed', this.missed);
+        add(into, 'delivered', this.totalDelivered + (this.tally ? 0 : this.delivered));
+        add(into, 'missed', this.totalMissed + (this.tally ? 0 : this.missed));
         add(into, 'crashes', this.crashes);
         add(into, 'windows', this.windows);
         add(into, 'thrown', this.thrown);

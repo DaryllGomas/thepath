@@ -11,9 +11,9 @@
 //   - a lost life is a burst of bits that steps down through darker palette entries (no blend,
 //     no strobe); the spider's score floats where it died
 //   - GET READY / ROUND WON / GAME OVER on double-framed plates
-import { roundEven, PixelFont, d6 } from '../../sdk/index.js';
+import { roundEven, PixelFont, d6, Palette } from '../../sdk/index.js';
 import { SporeFieldPalette, SporeFieldSpec } from './spec.js';
-import { SporeFieldRound } from './round.js';
+import { GARDENS, SporeFieldRound } from './round.js';
 import { Shroom, BodyA, BodyB, HeadA, HeadB, SpiderA, SpiderB, FleaSprite, Wand } from './sprites.js';
 
 const Cell = 8;
@@ -30,6 +30,7 @@ function f32sub(v) { return (v - 0.5) * Cell; }
 export class SporeFieldRenderer {
     constructor() {
         const pal = SporeFieldPalette;
+        this.nightPalette = new Palette(['bg', 0x000000], ['red', 0x5A2890], ['redDark', 0x781008], ['green', 0x3CDC48], ['greenDark', 0x12702A], ['violet', 0xB050F8], ['violetDark', 0x5A2890], ['white', 0xFFFFFF]);
         this.cBg = pal.get('bg'); this.cRed = pal.get('red'); this.cRedDim = pal.get('redDark');
         this.cGreen = pal.get('green'); this.cGreenDim = pal.get('greenDark');
         this.cViolet = pal.get('violet'); this.cVioletDim = pal.get('violetDark'); this.cWhite = pal.get('white');
@@ -48,9 +49,14 @@ export class SporeFieldRenderer {
         for (let y = 0; y < H; y++)
             for (let x = 0; x < W; x++) {
                 const hp = r.mush[y * W + x];
-                if (hp > 0) s.blit(Shroom[Math.min(hp, 4)], OX + x * Cell, OY + y * Cell, SporeFieldPalette);
+                if (hp > 0) {
+                    s.blit(Shroom[Math.min(hp, 4)], OX + x * Cell, OY + y * Cell, r.stage === 4 ? this.nightPalette : SporeFieldPalette);
+                    if (r.poison[y * W + x]) s.rect(OX + x * Cell + 2, OY + y * Cell, 4, 2, this.cViolet);
+                }
             }
 
+        s.rect(8, OY + 160, 304, 1, this.cGreenDim);
+        if (r.stage >= 4) { s.text('>', 9, 96, PixelFont.Arcade, this.cViolet); s.text('<', 303, 96, PixelFont.Arcade, this.cViolet); }
         const dying = r.p === Phase.Dying;
         const lostCard = (r.p === Phase.Card || r.p === Phase.Over) && !r.roundWon;
 
@@ -59,6 +65,15 @@ export class SporeFieldRenderer {
         for (const c of r.chains) {
             for (let i = c.segs.length - 1; i >= 0; i--) {
                 const g = c.segs[i];
+                if (g.queen) {
+                    const x = Math.max(13, Math.min(298, PX(r.segX(g)))), y = PY(r.segY(g));
+                    s.blit(HeadA, x - 4, y - 4, SporeFieldPalette, 2, c.dirX < 0);
+                    s.rect(x - 5, y - 2, 2, 12, this.cViolet);
+                    s.rect(x + 12, y - 2, 2, 12, this.cViolet);
+                    s.rect(x + 1, y + 1, 6, 5, c.segs.length === 1 || Math.floor(r.stageTime / 2) % 2 ? this.cWhite : this.cViolet);
+                    s.rect(x - 4, y - 7, Math.max(1, g.hp), 2, this.cGreen);
+                    continue;
+                }
                 const step = ((g.x + g.y) & 1) === 0;
                 const spr = i === 0 ? (step ? HeadA : HeadB) : (step ? BodyA : BodyB);
                 s.blit(spr, PX(r.segX(g)), PY(r.segY(g)), SporeFieldPalette, 1, i === 0 && c.dirX < 0);
@@ -80,7 +95,10 @@ export class SporeFieldRenderer {
 
         // the wand, or what is left of it
         if (dying || lostCard) this._drawBurst(s, r, dying ? r.phaseTime : 99);
-        else s.blit(Wand, PX(r.playerX), PY(r.playerY), SporeFieldPalette);
+        else if (r.invulnerable <= 0 || Math.floor(t * 12) % 2) s.blit(Wand, PX(r.playerX), PY(r.playerY), SporeFieldPalette);
+        for (const q of r.particles) s.rect(PX(q.x), PY(q.y), 2, 2, q.t > 0.25 ? this.cWhite : this.cGreen);
+        if (r.burstFlash > 0) s.frame(PX(r.playerX) - 24, PY(r.playerY) - 24, 56, 56, this.cViolet);
+        s.text('B ' + (r.burstCooldown <= 0 ? 'READY' : Math.ceil(r.burstCooldown)), 12, 220, PixelFont.Arcade, r.burstCooldown <= 0 ? this.cWhite : this.cVioletDim);
 
         // floating scores
         for (const p of r.popups)
@@ -116,14 +134,7 @@ export class SporeFieldRenderer {
         const arc = PixelFont.Arcade, dsp = PixelFont.Display;
         s.text('1UP', 8, 12, arc, this.cRed);
         s.text(d6(r.score), 28, 9, dsp, this.cWhite, 2);
-        // the borer tally: one pip per segment of the one borer, green while it lives
-        for (let i = 0; i < SporeFieldRound.BorerLength; i++) {
-            const x = 146 + i * 8, y = 12;
-            if (i < r.segmentsLeft) {
-                s.rect(x + 1, y, 4, 6, this.cGreen);
-                s.rect(x, y + 1, 6, 4, this.cGreen);
-            } else s.frame(x, y, 6, 6, this.cGreenDim);
-        }
+        s.text('G' + (r.stage + 1) + '  BUGS ' + r.segmentsLeft, 148, 12, arc, r.stage >= 4 ? this.cViolet : this.cGreen);
         // lives: the wand and a display digit
         s.blit(Wand, 282, 12, SporeFieldPalette);
         s.text(String(Math.max(0, r.lives)), 296, 9, dsp, this.cWhite, 2);
@@ -135,16 +146,17 @@ export class SporeFieldRenderer {
         const spec = SporeFieldSpec;
         switch (r.p) {
             case Phase.Ready:
-                if (r.firstReady) {
-                    s.textBox('PLAYER 1', midX, midY - 30, dsp, 2, this.cWhite, this.cRed, this.cBg);
-                    s.plate(midX - 60, midY - 2, 120, 22, this.cBg, this.cGreen);
-                    s.textCentered('GET READY', midX, midY + 5, arc, this.cGreen);
-                } else {
-                    s.textBox('GET READY', midX, midY - 30, dsp, 2, this.cGreen, this.cRed, this.cBg);
-                    s.plate(midX - 60, midY - 2, 120, 22, this.cBg, this.cRed);
-                    s.textCentered('WANDS LEFT ' + r.lives, midX, midY + 5, arc, this.cWhite);
-                }
-                if (r.mercyActive) s.textCenteredShadow('FREE RIDE', midX, midY + 30, arc, this.cViolet, this.cBg);
+                s.plate(26, 83, 268, 80, this.cBg, this.cGreen);
+                s.textCentered('GARDEN ' + (r.stage + 1) + ' / 6', 160, 93, arc, this.cViolet);
+                s.textCentered(GARDENS[r.stage][0], 160, 111, dsp, this.cGreen, 2);
+                s.textCentered(GARDENS[r.stage][1], 160, 138, arc, this.cWhite);
+                if (!r.firstReady) s.textCentered('WANDS LEFT ' + r.lives + '  CLEAR +' + r.lifeBonus, 160, 152, arc, this.cWhite);
+                break;
+            case Phase.Tally:
+                s.plate(44, 80, 232, 88, this.cBg, this.cViolet);
+                s.textCentered('GARDEN CLEARED', 160, 91, dsp, this.cGreen, 2);
+                s.textCentered('HARVEST ' + Math.floor(r.lastBonus * Math.min(1, r.phaseTime / 1.5)), 160, 119, arc, this.cWhite);
+                s.textCentered('WANDS ' + r.lives + (r.stage === 5 ? '   QUEEN DOWN' : '   NEXT GARDEN'), 160, 145, arc, this.cViolet);
                 break;
             case Phase.Card:
             case Phase.Over: {
@@ -152,7 +164,7 @@ export class SporeFieldRenderer {
                 s.textBox(won ? spec.roundWonText : spec.roundLostText, midX, midY - 34, dsp, 3, won ? this.cGreen : this.cRed, this.cRed, this.cBg);
                 s.plate(midX - 84, midY + 2, 168, 46, this.cBg, won ? this.cGreen : this.cViolet);
                 s.textCentered('SCORE ' + d6(r.score), midX, midY + 9, arc, this.cWhite, 2);
-                const line = won ? 'BORER CLEARED' : r.segmentsLeft + ' SEGMENT' + (r.segmentsLeft === 1 ? '' : 'S') + ' LEFT';
+                const line = won ? 'ALL SIX GARDENS SAVED' : r.segmentsLeft + ' SEGMENT' + (r.segmentsLeft === 1 ? '' : 'S') + ' LEFT';
                 s.textCentered(line, midX, midY + 32, arc, won ? this.cGreen : this.cViolet);
                 break;
             }

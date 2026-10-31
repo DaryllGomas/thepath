@@ -373,7 +373,9 @@ export class Handshake {
 
   // ------------------------------------------------ the run
   async run() {
-    const how = await this.press();
+    // (ESC on the first screen, for a returning player, runs skipNow() while this still waits on press(): the stage is 'gone' then, so no
+    // key or click can answer press() any more. The first screen races the skip like the sequence does.)
+    const how = await Promise.race([this.press(), this.skipP]);
     try { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume(); } catch (e) { /* no audio */ }
     this.slot.replaceChildren();
     if (how === 'skip') { this.stage = 'gone'; return 'skip'; }
