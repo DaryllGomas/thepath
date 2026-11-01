@@ -25,7 +25,7 @@ const blurFrag = /* glsl */`
 
 const finalFrag = /* glsl */`
   uniform sampler2D tScene; uniform sampler2D tBloom;
-  uniform vec2 res; uniform float time, exposure, bloom, vignette, grain, dither, levels, fade;
+  uniform vec2 res; uniform float time, exposure, bloom, vignette, grain, dither, levels, fade, tpdf;
   uniform vec3 filterCol; uniform vec3 fadeCol;
   varying vec2 vUv;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -36,6 +36,9 @@ const finalFrag = /* glsl */`
     c /= 0.6; c = I * c; c = fit(c); c = O * c; return clamp(c, 0.0, 1.0);
   }
   vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+  // interleaved-gradient noise (stable, no visible tile), two decorrelated taps = a triangular dither of +-1 output code (look batch 3c: the clean look quantised to
+  // 8 bits with only the film grain in front of it; a slow gradient, like the ceiling or a wall wash, still stepped)
+  float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
   float bayer(vec2 p) {
     int x = int(mod(p.x, 4.0)), y = int(mod(p.y, 4.0));
     int i = x + y * 4;
@@ -54,6 +57,7 @@ const finalFrag = /* glsl */`
     vec2 d = vUv - 0.5; d.x *= res.x / res.y * 0.75;
     c *= 1.0 - vignette * smoothstep(0.25, 0.85, length(d));
     c += (hash(px + fract(time) * 91.7) - 0.5) * grain;
+    if (tpdf > 0.5) { vec2 q = px + floor(fract(vec2(time * 0.7131, time * 0.3917)) * 211.0); c += (ign(q) + ign(q + vec2(37.0, 17.0)) - 1.0) / 255.0; }
     if (dither > 0.5) c = floor(c * levels + bayer(px)) / levels;
     c = mix(c, fadeCol, fade);
     gl_FragColor = vec4(c, 1.0);
@@ -73,7 +77,7 @@ export class Pipeline {
     this.mFinal = mk(finalFrag, {
       tScene: { value: null }, tBloom: { value: null }, res: { value: new THREE.Vector2(1, 1) }, time: { value: 0 },
       exposure: { value: Math.pow(2, 0.55) }, bloom: { value: 0.55 }, vignette: { value: 0.3 }, grain: { value: 0.035 },
-      dither: { value: 1 }, levels: { value: 31 }, fade: { value: 0 },
+      dither: { value: 1 }, levels: { value: 31 }, fade: { value: 0 }, tpdf: { value: 1 },
       filterCol: { value: new THREE.Vector3(1, 0.913, 0.787) }, fadeCol: { value: new THREE.Vector3(0, 0, 0) },
     });
     this.w = 0; this.h = 0;
@@ -96,7 +100,7 @@ export class Pipeline {
     this.rtA = new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType });
     this.rtB = new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType });
     const u = this.mFinal.uniforms;
-    u.res.value.set(iw, ih); u.dither.value = retro ? 1 : 0; u.levels.value = this.mode === 'full' ? 24 : 40;
+    u.res.value.set(iw, ih); u.dither.value = retro ? 1 : 0; u.tpdf.value = retro ? 0 : 1; u.levels.value = this.mode === 'full' ? 24 : 40;
     u.grain.value = retro ? 0.02 : 0.01;
     this.iw = iw; this.ih = ih;
   }

@@ -1,14 +1,18 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.5",
- "updated": "2026-10-31",
+ "version": "v0.6",
+ "updated": "2026-11-01",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
   "The worlds beyond the first chapter are being planned. No dates yet; we’d rather get them right."
  ],
  "ask": [
+  {
+   "q": "Does the basement feel like a real 1982 rec room now?",
+   "hint": "Anything that looks out of place, or anything that gets in your way, tell us where."
+  },
   {
    "q": "Does the ride downtown feel like 1982 now?",
    "hint": "The house, the hill road, main street: anything that looks off or out of place, tell us where."
@@ -33,6 +37,25 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.6",
+   "date": "2026-11-01",
+   "title": "The basement, lived in",
+   "items": [
+    {
+     "h": "The TV wall",
+     "t": "A STARVECTOR poster, a pennant, a note from Mom under the car poster, tapes on the TV, and a bookshelf with role-playing rule books, a dice bag and dice, a little chest and ivy trailing down."
+    },
+    {
+     "h": "Around the room",
+     "t": "A steel beam and posts across the ceiling, a ping-pong table, rugs and a beanbag, a dartboard and posters, a workbench with a pegboard of tools, a laundry corner with clothes on a line, and the furnace, the water heater and shelves of boxes."
+    },
+    {
+     "h": "Warmer light",
+     "t": "Lighter, warmer panelling and a green carpet; the far walls aren't lost in the dark any more, and slow light across the ceiling is smooth instead of striped."
+    }
+   ]
+  },
   {
    "version": "v0.5",
    "date": "2026-10-31",

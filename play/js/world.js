@@ -5,9 +5,139 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeCRTMaterial } from './crt.js';
+import { buildBasementProps } from './basementprops.js';
 
 const DEG = Math.PI / 180;
 const LM_RANGE = 4;                   // lightmaps were written as sRGB(value / 4)
+
+// ---- look batch 3c --------------------------------------------------------------------------------------------------------------------------------
+// ?props=0 / ?grade=0 / ?dq=0 switch the new clutter, the wall and floor grade and the lightmap clean-up off (A/B pictures and costs from one build).
+const Q = typeof location !== 'undefined' ? location.search : '';
+const OPT = { props: !/[?&]props=0/.test(Q), grade: !/[?&]grade=0/.test(Q), dq: !/[?&]dq=0/.test(Q) };
+
+// The baked lightmaps are 8-bit sRGB(value / 4): two bits of the value are gone, and a slow gradient (the ceiling's pool of lamp light, the wall wash
+// by the cabinets) steps in bands that the lamp-light gain makes plain. This re-reads each one on the GPU as a CONSTRAINED smoothing, in the sRGB code
+// domain: blur the map, then clamp every texel back to within +-0.55 of a code of what the file says (the true value is somewhere in that quantisation
+// interval, so nothing in there can be wrong), and repeat. The staircase relaxes into the ramp it came from, and no texel ever moves by more than half a
+// code, so a shadow edge or a chart border keeps exactly the sharpness the bake gave it. (The first version of this was an edge-keeping bilateral blur: it
+// also sharpened every soft shadow edge, turning the ceiling's soft beam shadow into a hard diagonal line across the room. The numbers: the step across
+// that line went from 0.6 codes/texel in the file to 1.3 after the bilateral and 0.37 after this.) Written to a half-float target, same linear values,
+// no 8-bit steps. The lightmaps are shared with the outdoors (outside.js borrows them), so the yard gains it too.
+function dequantizeLightmaps(renderer, textures, meta) {
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), qs = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; qs.add(quad);
+  const vs = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const enc = 'vec3 enc(vec3 l) { return mix(l * 12.92, 1.055 * pow(max(l, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l)); }\n'
+    + 'vec3 dec(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }\n';
+  // the state is kept as the sRGB code / 255 (not linear), so the blur and the clamp both work in the domain the quantisation lives in
+  const blurFS = `uniform sampler2D tSrc; uniform vec2 dir; uniform float sigS; varying vec2 vUv;
+    void main() {
+      vec3 acc = texture2D(tSrc, vUv).rgb; float ws = 1.0;
+      for (int i = 1; i <= 14; i++) { float g = exp(-float(i * i) / (2.0 * sigS * sigS)); acc += g * (texture2D(tSrc, vUv + dir * float(i)).rgb + texture2D(tSrc, vUv - dir * float(i)).rgb); ws += 2.0 * g; }
+      gl_FragColor = vec4(acc / ws, 1.0);
+    }`;
+  const clampFS = `uniform sampler2D tSrc, tOrig; uniform float slack; uniform bool last; varying vec2 vUv;
+    ${enc}
+    void main() {
+      vec3 c0 = enc(texture2D(tOrig, vUv).rgb), c = clamp(texture2D(tSrc, vUv).rgb, c0 - slack / 255.0, c0 + slack / 255.0);
+      gl_FragColor = vec4(last ? dec(c) : c, 1.0);
+    }`;
+  const origFS = `uniform sampler2D tSrc; varying vec2 vUv;\n${enc}\nvoid main() { gl_FragColor = vec4(enc(texture2D(tSrc, vUv).rgb), 1.0); }`;
+  const mk = (fs, uniforms) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: fs, uniforms, depthTest: false, depthWrite: false });
+  const mBlur = mk(blurFS, { tSrc: { value: null }, dir: { value: new THREE.Vector2() }, sigS: { value: 6 } });
+  const mClamp = mk(clampFS, { tSrc: { value: null }, tOrig: { value: null }, slack: { value: 0.55 }, last: { value: false } });
+  const mOrig = mk(origFS, { tSrc: { value: null } });
+  const prevRT = renderer.getRenderTarget();
+  const mkRT = (w, h) => new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
+  const pass = (mat, to) => { quad.material = mat; renderer.setRenderTarget(to); renderer.render(qs, cam); };
+  const ITER = 4;
+  for (const l of meta.lightmaps) {
+    const src = textures[l.file]; if (!src || !src.image) continue;
+    const w = src.image.width, h = src.image.height, X = mkRT(w, h), Y = mkRT(w, h), Z = mkRT(w, h);
+    mOrig.uniforms.tSrc.value = src; pass(mOrig, X);                                     // X = the file's own codes: where the iteration starts (the file itself stays the constraint)
+    mClamp.uniforms.tOrig.value = src;
+    for (let it = 0; it < ITER; it++) {
+      mBlur.uniforms.tSrc.value = X.texture; mBlur.uniforms.dir.value.set(1 / w, 0); pass(mBlur, Y);
+      mBlur.uniforms.tSrc.value = Y.texture; mBlur.uniforms.dir.value.set(0, 1 / h); pass(mBlur, Z);
+      mClamp.uniforms.tSrc.value = Z.texture; mClamp.uniforms.last.value = it === ITER - 1; pass(mClamp, X);
+    }
+    const done = X; Y.dispose(); Z.dispose();
+    const t = done.texture; t.channel = 1; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    src.dispose(); textures[l.file] = t;
+  }
+  renderer.setRenderTarget(prevRT);
+  for (const m of [mBlur, mClamp, mOrig]) m.dispose();
+  quad.geometry.dispose();
+}
+
+// The floor's own baked light (the carpet's lightmap texel under each spot) = the bounce a prop standing there should get, so the new clutter is lit like
+// the room is. Read once into a half-metre grid; bounceAt(x, y, z) -> linear rgb 'value' (what a lightmapped surface there would reflect).
+function floorBounce(geo, img) {
+  try {
+    const w = img.width, h = img.height, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0); const d = cx.getImageData(0, 0, w, h).data;
+    const lut = new Float32Array(256); for (let i = 0; i < 256; i++) { const c = i / 255; lut[i] = (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) * LM_RANGE; }
+    const P = geo.attributes.position, U = geo.attributes.uv1, I = geo.index;
+    const tris = []; const n = I ? I.count : P.count;
+    for (let i = 0; i < n; i += 3) { const k = [0, 1, 2].map((j) => (I ? I.getX(i + j) : i + j)); tris.push(k.map((v) => [P.getX(v), P.getZ(v), U.getX(v), U.getY(v)])); }
+    const tex = (u, v) => {                                   // bilinear read of the 8-bit lightmap (v from the top, as the file is)
+      const fx = Math.min(w - 1.001, Math.max(0, u * w - 0.5)), fy = Math.min(h - 1.001, Math.max(0, v * h - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, out = [0, 0, 0];
+      for (let c = 0; c < 3; c++) {
+        const q = (x, y) => lut[d[(y * w + x) * 4 + c]];
+        out[c] = (q(x0, y0) * (1 - tx) + q(x0 + 1, y0) * tx) * (1 - ty) + (q(x0, y0 + 1) * (1 - tx) + q(x0 + 1, y0 + 1) * tx) * ty;
+      }
+      return out;
+    };
+    const at = (x, z) => {
+      for (const [a, b, c] of tris) {
+        const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]); if (Math.abs(det) < 1e-9) continue;
+        const l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (z - c[1])) / det, l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (z - c[1])) / det, l3 = 1 - l1 - l2;
+        if (l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue;
+        return tex(l1 * a[2] + l2 * b[2] + l3 * c[2], l1 * a[3] + l2 * b[3] + l3 * c[3]);
+      }
+      return [0.05, 0.04, 0.03];
+    };
+    const GX = 37, GZ = 29, grid = new Float32Array(GX * GZ * 3);                  // cell centres every half a metre over x -9..9, z -7..7
+    for (let j = 0; j < GZ; j++) for (let i = 0; i < GX; i++) {
+      const x = -9 + i * 0.5, z = -7 + j * 0.5, acc = [0, 0, 0];
+      for (const [ox, oz] of [[0, 0], [0.12, 0], [-0.12, 0], [0, 0.12], [0, -0.12]]) { const v = at(Math.max(-8.95, Math.min(8.95, x + ox)), Math.max(-6.95, Math.min(6.95, z + oz))); acc[0] += v[0] / 5; acc[1] += v[1] / 5; acc[2] += v[2] / 5; }
+      grid.set(acc, (j * GX + i) * 3);
+    }
+    return (x, y, z) => {
+      const fx = Math.max(0, Math.min(GX - 1.001, (x + 9) / 0.5)), fz = Math.max(0, Math.min(GZ - 1.001, (z + 7) / 0.5)), i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j, k = 1 + 0.22 * Math.max(0, Math.min(2.6, y));
+      const g = (a, b, c) => grid[((j + b) * GX + i + a) * 3 + c];
+      return [0, 1, 2].map((c) => Math.max(0.03, ((g(0, 0, c) * (1 - tx) + g(1, 0, c) * tx) * (1 - tz) + (g(0, 1, c) * (1 - tx) + g(1, 1, c) * tx) * tz) * k));
+    };
+  } catch (e) { console.warn('[basement] the floor bounce could not be read', e); return null; }
+}
+
+// ---- the grade of the room's shell: panelling lifted and warmed, carpet cooled and a touch darker, and a little contact darkening along the corners and
+// the baseboards, so the walls and the floor stop being one brown. SHELL_U is the uniform set every shell material shares (W.grade tunes it live).
+const SHELL = {
+  M_Board0: ['wall', [1.25, 1.10, 0.95], 1.25], M_Board1: ['wall', [1.25, 1.10, 0.95], 1.25], M_Board2: ['wall', [1.25, 1.10, 0.95], 1.25],
+  M_WallNS: ['wall', [1.25, 1.10, 0.95], 1.25], M_WallEW: ['wall', [1.25, 1.10, 0.95], 1.25],
+  M_Shag: ['floor', [0.80, 1.05, 1.00], 1.0], M_Ceiling: ['ceil', [1.0, 0.97, 0.9], 1.0],
+};
+// uLift*: a little light added to what the baked map gives (the far walls' bake is almost black and flat; a gain would only lift the lit parts too). Values are
+// lightmap 'value' units x pi, so a lifted wall reads like a wall with that much more bounce on it.
+const SHELL_U = { uBase: { value: 0.42 }, uTopK: { value: 0.16 }, uAoEdge: { value: 0.42 }, uAoCorner: { value: 0.3 },
+  uLiftW: { value: new THREE.Vector3(0.10, 0.07, 0.04).multiplyScalar(Math.PI) }, uLiftF: { value: new THREE.Vector3(0.012, 0.014, 0.010).multiplyScalar(Math.PI) }, uLiftC: { value: new THREE.Vector3(0, 0, 0) } };
+function gradeShell(mat, kind) {
+  mat.onBeforeCompile = (s) => {
+    Object.assign(s.uniforms, SHELL_U);
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSw;').replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvSw = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    const fn = kind === 'wall'
+      ? `float h = vSw.y, dx = min( vSw.x + 9.0, 9.0 - vSw.x ), dz = min( vSw.z + 7.0, 7.0 - vSw.z );
+	float k = mix( 1.0 - uBase, 1.0, smoothstep( 0.0, 0.6, h ) ) * mix( 1.0, 1.0 + uTopK, smoothstep( 1.3, 2.9, h ) );
+	k *= mix( 1.0 - uAoCorner, 1.0, smoothstep( 0.0, 1.6, max( dx, dz ) ) );`
+      : `float dx = min( vSw.x + 9.0, 9.0 - vSw.x ), dz = min( vSw.z + 7.0, 7.0 - vSw.z );
+	float k = mix( 1.0 - uAoEdge, 1.0, smoothstep( 0.0, ${kind === 'ceil' ? '1.3' : '1.0'}, min( dx, dz ) ) );`;
+    const lift = kind === 'wall' ? 'uLiftW * mix( 0.6, 1.0, smoothstep( 0.0, 1.0, vSw.y ) )' : kind === 'ceil' ? 'uLiftC' : 'uLiftF';
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vSw;\nuniform float uBase, uTopK, uAoEdge, uAoCorner;\nuniform vec3 uLiftW, uLiftF, uLiftC;')
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( RE_IndirectDiffuse )\n\tirradiance += ' + lift + ';\n#endif')
+      .replace('#include <color_fragment>', `#include <color_fragment>\n\t{ ${fn}\n\tdiffuseColor.rgb *= k; }`);
+  };
+  mat.customProgramCacheKey = () => 'shell-' + kind;
+}
 
 export async function loadBasement(base, opts, onProgress) {
   const meta = await (await fetch(base + 'assets/basement.json')).json();
@@ -47,12 +177,26 @@ export async function loadBasement(base, opts, onProgress) {
     if (f.startsWith('tex/lm')) { t.channel = 1; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
     t.needsUpdate = true;
   }
+  // the room's own baked bounce, read from the carpet's lightmap (before the lightmaps are cleaned up) for the new clutter to be lit by
+  let bounceAt = null;
+  gltf.scene.updateMatrixWorld(true);
+  gltf.scene.traverse((o) => {
+    if (bounceAt || !o.isMesh) return;
+    let n = o; while (n && n.userData.lm === undefined && n.parent) n = n.parent;
+    if ((n.name || o.name) !== 'ShellFloor') return;
+    const lm = meta.lightmaps[n.userData.lm], img = lm && textures[lm.file] && textures[lm.file].image;
+    if (img) bounceAt = floorBounce(toFloat(o.geometry).applyMatrix4(o.matrixWorld), img);
+  });
+  if (OPT.dq && opts.renderer) {
+    try { dequantizeLightmaps(opts.renderer, textures, meta); } catch (e) { console.warn('[basement] the lightmap clean-up failed; the 8-bit ones stay', e); }
+  }
   const flatLM = new THREE.DataTexture(new Uint8Array([74, 68, 60, 255]), 1, 1);   // ~0.25 linear bounce for the few unbaked props (the door, Lightning, the kibble)
   flatLM.colorSpace = THREE.SRGBColorSpace; flatLM.channel = 1; flatLM.needsUpdate = true;
 
   // ---- materials, one per (material, lightmap) pair
   const matCache = new Map();
   const metals = [];
+  const shell = [];
   function litMaterial(mi, lm) {
     const key = mi + '|' + lm;
     if (matCache.has(key)) return matCache.get(key);
@@ -82,6 +226,11 @@ export async function loadBasement(base, opts, onProgress) {
     if (m.doubleSided) mat.side = THREE.DoubleSide;
     mat.lightMap = lm >= 0 ? textures[meta.lightmaps[lm].file] : flatLM;
     mat.lightMapIntensity = Math.PI * LM_RANGE;
+    const sh = OPT.grade && SHELL[m.name];
+    if (sh) {                                                    // the shell: the grade (albedo tint, a lightmap gain, contact darkening)
+      mat.color.multiply(new THREE.Color().setRGB(sh[1][0], sh[1][1], sh[1][2], THREE.LinearSRGBColorSpace));
+      mat.lightMapIntensity *= sh[2]; gradeShell(mat, sh[0]); shell.push({ mat, kind: sh[0], base: mat.color.clone(), lm: mat.lightMapIntensity });
+    }
     matCache.set(key, mat);
     return mat;
   }
@@ -89,6 +238,7 @@ export async function loadBasement(base, opts, onProgress) {
   // ---- walk the glTF: classify every mesh
   gltf.scene.updateMatrixWorld(true);
   const scene = new THREE.Scene();
+  let headBoard = null;
   const buckets = new Map();        // material -> geometries (static, merged)
   const live = [];                  // meshes that stay separate
   const screens = {};
@@ -113,6 +263,7 @@ export async function loadBasement(base, opts, onProgress) {
       return;
     }
     const mat = m ? litMaterial(mi, ud.lm ?? -1) : new THREE.MeshStandardMaterial();
+    if (path === 'ShellPanellingBN52') headBoard = { geo: geo.clone(), mat };       // (the boards over the areaway door's head are missing in the dump: see below)
     if (/^Jukebox/.test(path)) jukeParts.push({ geo: geo.clone(), mat });     // (kept aside: the Junction's jukebox is these same meshes, js/jukebox.js)
     const dynamic = !ud.active || /^Areaway\/AreawayHinge|^Lightning\/|Kibble/.test(path);
     if (dynamic) {
@@ -127,6 +278,17 @@ export async function loadBasement(base, opts, onProgress) {
     buckets.get(mat).push({ geo, cast: !!ud.cast });
   });
 
+  // the wall over the areaway door is bare black backing in the dump (no boards from the frame's top to the cove): five copies of the board beside it, squeezed to
+  // that height, close it (look batch 3c: the lifted walls made the gap a black hole)
+  if (OPT.grade && headBoard) {
+    for (let i = 1; i <= 5; i++) {
+      const g = headBoard.geo.clone(), P = g.attributes.position;
+      for (let v = 0; v < P.count; v++) { P.setY(v, 2.17 + P.getY(v) * (0.83 / 3.0)); P.setX(v, P.getX(v) + 0.2305 * i); }
+      g.computeBoundingBox();
+      if (!buckets.has(headBoard.mat)) buckets.set(headBoard.mat, []);
+      buckets.get(headBoard.mat).push({ geo: g, cast: false });
+    }
+  }
   let drawCalls = 0;
   for (const [mat, list] of buckets) {
     const casters = list.filter((g) => g.cast).map((g) => g.geo);
@@ -226,9 +388,20 @@ export async function loadBasement(base, opts, onProgress) {
   scene.fog = new THREE.FogExp2(new THREE.Color().setRGB(fc[0], fc[1], fc[2], THREE.SRGBColorSpace), 0.03);
   scene.background = scene.fog.color.clone();
 
-  return { scene, meta, screens, bounds, door, cat, poses, kibble, lights, metals, drawCalls, jukeParts,
+  // ---- the 1982 clutter (js/basementprops.js): one group of five draw calls, four bare-bulb lights, boxes for the Player to bump into
+  let props = null;
+  if (OPT.props) {
+    try {
+      props = buildBasementProps({ anisotropy: opts.anisotropy, bounceAt });
+      scene.add(props.group);
+      for (const [n, l] of Object.entries(props.lights)) lights[n] = l;
+      metals.push(...props.metals);
+    } catch (e) { console.error('[basement] the props could not be built', e); props = null; }
+  }
+
+  return { scene, meta, screens, bounds, door, cat, poses, kibble, lights, metals, drawCalls, jukeParts, props, shell, shellU: SHELL_U, bounceAt,
     lightmaps: meta.lightmaps.map((l) => textures[l.file]),
-    colliders: meta.colliders.filter((c) => c.kind === 'box' && c.on && !c.trigger) };
+    colliders: [...meta.colliders.filter((c) => c.kind === 'box' && c.on && !c.trigger), ...(props ? props.colliders : [])] };
 }
 
 // the room's own reflections for chrome and brass (metals only, so the bounce is not counted twice)

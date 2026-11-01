@@ -1384,7 +1384,7 @@ async function boot() {
     const audioP = Promise.all(['juke_06.mp3', 'juke_02.mp3', 'juke_09.mp3', 'token_clunk.mp3', 'handshake/crt_hum.mp3', 'handshake/static_burst.mp3', 'walkie/walkie_squelch_01.mp3', 'walkie/walkie_squelch_02.mp3', 'walkie/walkie_static_01.mp3', 'handshake/key_return.mp3'].map(loadAudio));
     const runtimeP = loadCabinetRuntime();
     const sevenP = import('./cabinet/seven/index.js').catch((e) => { console.error('[seven] the cabinet with no name could not load', e); return null; });
-    W = await loadBasement('', { anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()) }, (f) => { $('loadFill').style.width = Math.round(f * 100) + '%'; });
+    W = await loadBasement('', { anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()), renderer }, (f) => { $('loadFill').style.width = Math.round(f * 100) + '%'; });
     runtime = await runtimeP;
     player = new Player(camera, W.colliders); player.sens = settings.sens; player.invert = settings.invert;
     W.scene.add(camera);
