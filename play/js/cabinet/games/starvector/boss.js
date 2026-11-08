@@ -24,8 +24,8 @@ const POOL = {
     serpent: [['spit', 'sweep'], ['spit', 'sweep', 'lunge'], ['spit', 'sweep2', 'lunge', 'erupt']],
     guardian: [['shards', 'slam'], ['shards', 'slam', 'slam2'], ['shards2', 'slam2', 'slam', 'shards']],
 };
-const TELE = { volley: 0.7, ring: 1.0, beam: 1.1, beam2: 1.2, mines: 0.55, spit: 0.6, sweep: 1.2, sweep2: 1.2, lunge: 1.0, erupt: 0.8, shards: 0.85, shards2: 0.85, slam: 1.25, slam2: 1.25 };
-const AFTER = { volley: 0.85, ring: 0.7, beam: 0.7, beam2: 0.8, mines: 0.6, spit: 0.5, sweep: 1.5, sweep2: 2.3, lunge: 1.6, erupt: 0.7, shards: 0.6, shards2: 1.1, slam: 0.8, slam2: 1.9 };
+const TELE = { volley: 0.7, ring: 1.0, beam: 1.1, beam2: 1.2, mines: 0.55, spit: 0.6, sweep: 1.2, sweep2: 1.2, lunge: 1.0, erupt: 0.8, shards: 0.85, shards2: 0.85, slam: 1.6, slam2: 1.6 };      // the stone's slams: longer wind-up (Daryll 11-08: "they come at you too quick")
+const AFTER = { volley: 0.85, ring: 0.7, beam: 0.7, beam2: 0.8, mines: 0.6, spit: 0.5, sweep: 1.5, sweep2: 2.3, lunge: 1.6, erupt: 0.7, shards: 0.6, shards2: 1.1, slam: 1.0, slam2: 2.7 };
 const GAP = [0, 1.15, 0.8, 0.5];
 
 export function spawn(sim, quick) {
@@ -102,7 +102,7 @@ export function step(sim, dt) {
         else if (b.atk) {
             const a = b.atk; a.t += dt; a.k = clamp(a.t / a.tele, 0, 1);
             runAttack(sim, b, a);
-            if (a.t >= a.total) { b.atk = null; b.nextAtk = GAP[b.phase] * (0.5 + 0.5 * sim.kn.enemyEvery / 0.7) * (b.quick ? 0.5 : 1); }
+            if (a.t >= a.total) { b.atk = null; b.nextAtk = GAP[b.phase] * (b.type === 'guardian' ? 1.8 : 1) * (0.5 + 0.5 * sim.kn.enemyEvery / 0.7) * (b.quick ? 0.5 : 1); }
         } else if (S.alive) {
             b.nextAtk -= dt;
             if (b.nextAtk <= 0) startAttack(sim, b, pick(sim, b));
@@ -329,12 +329,12 @@ function runAttack(sim, b, a) {
             break; }
         case 'slam': case 'slam2':
             if (!a.fired && a.t >= T) { a.fired = true; wave(sim, b, a.gx, 1.9); sim.shake = Math.max(sim.shake, 0.8); sim._emit('bossAtk', { name, stage: 'fire' }); }
-            if (name === 'slam2' && !a.fired2 && a.t >= T + 0.9) { a.fired2 = true; wave(sim, b, a.gx2, 2.7); sim.shake = Math.max(sim.shake, 0.8); sim._emit('bossAtk', { name, stage: 'fire' }); }
+            if (name === 'slam2' && !a.fired2 && a.t >= T + 1.7) { a.fired2 = true; wave(sim, b, a.gx2, 2.7); sim.shake = Math.max(sim.shake, 0.8); sim._emit('bossAtk', { name, stage: 'fire' }); }
             break;
     }
 }
 
 function wave(sim, b, gx, hgt) {
     // a curtain from the ground to the sky (no flying over it) with ONE doorway at the floor: the lit lane
-    sim._add({ k: 'wave', x: 0, y: -SV.GY, z: b.z - 1.5, ridge: -SV.GY + hgt, top: SV.YMAX + 1.4, door: -SV.GY + 2.1, hgt, gx, gw: 1.35, cs: 26, dz: 0.8 });
+    sim._add({ k: 'wave', x: 0, y: -SV.GY, z: b.z - 1.5, ridge: -SV.GY + hgt, top: SV.YMAX + 1.4, door: -SV.GY + 2.1, hgt, gx, gw: 1.6, cs: 17, dz: 0.8 });      // slower and a wider doorway (11-08: time for a human to get there)
 }

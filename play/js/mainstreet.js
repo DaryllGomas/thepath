@@ -18,6 +18,7 @@ import { RIDER } from './rider.js';
 import { Mesher, lcg, lin, mulc, WHITE, lerp, tex, nightReflect, clamp } from './streetkit.js';
 import { noiseTexture, brickMaps, poleMap, woodPanelMap, roofMap, signAtlas, windowAtlas, decalAtlas, atlasUv, poolMap } from './streettex.js';
 import { buildCar, carMaterials } from './streetcars.js';
+import { buildTown, townMaterials } from './town.js';
 import { K, WALL, GY, RY, customShop, photoShop, townBlock, sideWall, cornice, fireEscape, rooftop, bladeSign, glassWin, signQuad } from './streetshops.js';
 
 // the old pieces this replaces: the slabs and kerbs (their colliders stay), the flat shop windows and cornices, the old zebra, the kid bikes' octagonal bars
@@ -167,7 +168,7 @@ export function terrainSampler(geos) {
   return (x, z) => { ray.origin.set(x, 60, z); const h = bvh.raycastFirst(ray, THREE.DoubleSide); return h ? h.point.y : null; };
 }
 
-export function buildMainStreet({ anisotropy = 8, objects = [], groundAt = () => null, roadAt = () => null, kidBars = [] } = {}) {
+export function buildMainStreet({ anisotropy = 8, objects = [], groundAt = () => null, roadAt = () => null, kidBars = [], townOn = true } = {}) {
   const t0 = performance.now(), A = anisotropy, M = new Mesher(), rand = lcg(1982);
   const O = new Map(objects.map((o) => [o.path, o]));
   const colliders = [], capsules = [], lights = [];
@@ -408,10 +409,13 @@ export function buildMainStreet({ anisotropy = 8, objects = [], groundAt = () =>
   for (let i = 0; i <= 7; i++) { const s = sh(i); if (!s) continue; SR[i].forEach((k, j) => rooftop(M, rand, k, lerp(s.x0 + 1.8, s.x1 - 1.8, (j + 0.5) / SR[i].length) + (rand() - 0.5), Z.wall - 3.0 - rand() * 3.5, s.top)); }
   mark('shopRoofs');
   // the town
+  if (townOn) { buildTown(ctx, O, groundAt); mark('townBatch4'); }       // look batch 4 (js/town.js): walls, windows, ground floors, roofs and streets for the eleven blocks
   for (let i = 0; i <= 10; i++) {
     const o = O.get('Outside/Town/Town_' + i); if (!o) continue;
-    const wins = []; for (const [p, w] of O) if (p.startsWith(`Outside/Town/TWin_${i}_`)) wins.push(w);
-    townBlock(ctx, i, o, wins); mark('townBlocks');
+    if (!townOn) {
+      const wins = []; for (const [p, w] of O) if (p.startsWith(`Outside/Town/TWin_${i}_`)) wins.push(w);
+      townBlock(ctx, i, o, wins); mark('townBlocks');
+    }
     if ([3, 4, 8].includes(i)) { fireEscape(M, o.pos[0] + o.scale[0] * 0.22, o.pos[2] + o.scale[2] / 2, o.pos[1] - o.scale[1] / 2, o.pos[1] + o.scale[1] / 2); mark('fireEscapes'); }
   }
   // a rooftop HOTEL sign, a bank's clock
@@ -481,6 +485,7 @@ export function buildMainStreet({ anisotropy = 8, objects = [], groundAt = () =>
     pool: new THREE.MeshBasicMaterial({ name: 'M_StreetPool', map: tex(poolMap(), A, { clamp: true }), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -5 }),
     decal: S({ name: 'M_StreetDecal', map: decalTex, vertexColors: true, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }),
     ...carMaterials(THREE, nightReflect, A, woodTex),
+    ...(townOn ? townMaterials(A, THREE, rb).mats : {}),
   };
     let tris = 0, calls = 0;
   for (const k of M.b.keys()) {
@@ -503,7 +508,7 @@ export function buildMainStreet({ anisotropy = 8, objects = [], groundAt = () =>
     }
   };
   group.add(wmesh); tris += wg.index.count / 3; calls++;
-  const fadeMats = [mats.glow, mats.glass, mats.sign, mats.spill, mats.pool];
+  const fadeMats = [mats.glow, mats.glass, mats.sign, mats.spill, mats.pool, ...(mats.tsign ? [mats.tsign] : [])];
   const bindLamps = (lamps) => { lampRefs.length = 0; for (let i = 0; i < 6; i++) { const h = lampHeads.find((q) => q[3] === i); lampRefs.push(h ? lamps.find((L) => Math.abs(L.pos.x - h[0]) < 1.5 && Math.abs(L.pos.z - h[2]) < 3) : null); } };
   return { group, colliders, capsules, lights, fadeMats, bindLamps, stats: { tris, calls, stages, wires: wires.length, poles: insulators.length, cars: CARS.length, kidBars: kidBars.length, buildMs: +(performance.now() - t0).toFixed(1) } };
 }

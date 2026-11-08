@@ -61,6 +61,7 @@ export class StarvectorRound {
         this.demo = !!this.isDemo;
         this.startAct = force >= 1 && force <= 3 ? force : this.demo ? 1 + ((seed >>> 3) % 3) : (lost > 0 ? Progress.act : 1);
         this.resumeBoss = !this.demo && !force && lost > 0 && !!Progress.boss && this.startAct === Progress.act;
+        if (!this.demo && globalThis.__svBossJump) { this.startAct = globalThis.__svBossJump; this.resumeBoss = true; globalThis.__svBossJump = 0; }   // the #svboss playtest jump (js/main.js)
         this.act = this.startAct; this.knocks = this.startAct - 1;
         this.score = 0; this.lives = this.kn.ships; this.time = 0; this.kills = 0; this.hitsTaken = 0; this.rolls = 0; this.shieldsUsed = 0;
         this.state = CabinetState.Playing; this.result = RoundResult.None;

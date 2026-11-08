@@ -193,6 +193,10 @@ export class HearthView {
       } else if (e.kind === 'bite') this.fx.push({ k: 'ring', x: e.x, y: e.y, t0: t, dur: 0.5, r0: 14, r1: 50, c: mul(C.red, 0.8) });
       else if (e.kind === 'knocked') this.fx.push({ k: 'burst', x: e.x, y: e.y, t0: t, dur: 0.5, c: C.player });
       else if (e.kind === 'gore') this.fx.push({ k: 'burst', x: e.x, y: e.y, t0: t, dur: 0.6, c: C.gold });
+      else if (e.kind === 'stampede') {       // the charge clears the dark: two shock rings sweep the whole cave
+        const an = e.who === 'bull' ? sim.bull : sim.deer, x = an.lane.a[0], y = an.lane.a[1];
+        this.fx.push({ k: 'ring', x, y, t0: t, dur: 0.8, r0: 40, r1: 1100, c: C.gold }, { k: 'ring', x, y, t0: t + 0.12, dur: 0.9, r0: 20, r1: 900, c: C.white });
+      }
       else if (e.kind === 'wake') this.banner = { text: e.who === 'bull' ? 'THE BULL WAKES' : 'THE DEER WAKES', t0: t, dur: 2.2 };
       else if (e.kind === 'overtime') this.banner = { text: 'THE FIRE MUST BLAZE', t0: t, dur: 3.0 };
       else if (e.kind === 'blaze') this.banner = { text: e.first ? 'BLAZE!  HOLD IT' : 'BLAZE', t0: t, dur: e.first ? 2.6 : 1.4 };

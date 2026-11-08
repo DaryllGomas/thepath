@@ -9,6 +9,7 @@ import { Handshake } from './handshake.js';
 import { loadOutside, OutdoorBody } from './outside.js';
 import { RiderKit, RIDER } from './rider.js';       // look batch 2: the bars, the lever, the gloved hands and the sleeves
 import { Delivery, loadDeliveryModels } from './delivery.js';
+import { DeliveryOld } from './delivery_old.js';
 import { FLOOR, dressCabinet, cabinetPose, addJunctionClock } from './arcade.js';
 import { ArcadeAnswers, ANSWER } from './answer.js';
 import { JunctionJukebox, SILENT } from './jukebox.js';
@@ -229,7 +230,8 @@ function jukeboxDuckFrame(dt) {
   if (!jukebox) return;
   const c = cabs.fcab_starvector, playing = !!c && c === activeCab && !!c.runner && c.runner.phase === 'playing';
   const other = !playing && !!activeCab && activeCab !== seven && !!activeCab.runner && activeCab.runner.phase === 'playing';
-  const want = playing ? 0 : other ? jukebox.volume * 0.45 : jukebox.volume, a = jukebox.audio, v = a.getVolume();   // (a streamed element behind a PositionalAudio: its gain ducks it all the same)
+  const box = !playing && activeId === 'polybius' && state === 'screen';        // the cabinet with no name's games: the room's song stays, low-key under them (Daryll 11-08)
+  const want = playing ? 0 : box ? jukebox.volume * 0.3 : other ? jukebox.volume * 0.45 : jukebox.volume, a = jukebox.audio, v = a.getVolume();   // (a streamed element behind a PositionalAudio: its gain ducks it all the same)
   if (Math.abs(v - want) > 0.001) a.setVolume(v + (want - v) * Math.min(1, dt * 3));
 }
 async function initSevenSound() {
@@ -954,7 +956,7 @@ function attachOutside(O) {
     flynnView.polybius = { pos: polyScr.center.clone().addScaledVector(n, 0.62), target: polyScr.center.clone() };
   }
   loadDeliveryModels().then((models) => {
-    delivery = new Delivery({ O, models });
+    delivery = new URLSearchParams(location.search).get('dlv') === '0' ? new DeliveryOld({ O, models }) : new Delivery({ O, models, renderer });
     delivery.onArrive = () => { if (S.inFlynns) line('Headlights outside.', 3.5); };
     delivery.onPlaced = () => {
       if (pg) pg.on = true;
@@ -980,6 +982,7 @@ async function precompileOutside() {
   // the ending's pieces (the coin door, the token, the tunnel on the tube) are drawn once too, then hidden again
   const unwarm = ending ? ending.warm() : null;
   try {
+    const unwarmD = delivery && delivery.warm ? delivery.warm() : null;
     OUT.group.visible = true; await compile();
     basementGroup.visible = false; await compile();
     // and upload every buffer and texture once (one hidden draw with nothing culled), so the first look down
@@ -989,6 +992,7 @@ async function precompileOutside() {
     renderer.setRenderTarget(pipe.rtScene); renderer.render(W.scene, camera); renderer.setRenderTarget(null);
     camera.far = far; camera.updateProjectionMatrix();
     for (const o of culled) o.frustumCulled = true;
+    if (unwarmD) unwarmD();
   } catch (e) { console.warn('[outside] precompile', e); }
   if (unwarm) unwarm();
   basementGroup.visible = region === 'in'; OUT.group.visible = region === 'out' || state === 'leaving';
@@ -1373,7 +1377,7 @@ async function boot() {
   resize();
   requestAnimationFrame(frame);
   const jump = location.hash.slice(1);
-  if (jump !== 'basement' && jump !== 'cabinet' && jump !== 'reveal' && jump !== 'junction') {
+  if (jump !== 'basement' && jump !== 'cabinet' && jump !== 'reveal' && jump !== 'junction' && jump !== 'svboss') {
     // the site opens on the terminal; the basement loads behind it
     state = 'handshake'; show('loading', false);
     let returning = false; try { returning = localStorage.getItem('node.handshake.v1') === '1'; } catch (e) { /* private window */ }
@@ -1411,7 +1415,8 @@ async function boot() {
       .then(async (O) => { SevenMod = await sevenP; attachOutside(O); }).catch((e) => { outFailed = true; console.error('[outside]', e); });
     if (state === 'handshake') return;
     show('loading', false); show('title', true); state = 'title'; $('btnBegin').focus();
-    if (jump === 'junction') devToCabinet('junction');    // #junction: the arcade floor with quarters, nothing won (to play the floor games)
+    if (jump === 'svboss') devToCabinet('svboss');        // #svboss: at the floor's Starvector; the next credit starts at act III's boss (playtests)
+    else if (jump === 'junction') devToCabinet('junction');    // #junction: the arcade floor with quarters, nothing won (to play the floor games)
     else if (jump === 'cabinet' || jump === 'reveal') devToCabinet(jump === 'reveal');   // #cabinet: straight to the cabinet with no name; #reveal: and on to the Tunnel's let-go, the passage, the reveal and the ending (playtests)
   } catch (e) {
     console.error(e);
@@ -1436,6 +1441,11 @@ async function devToCabinet(reveal = false) {
   N.warp(81.2, -36.95, -169.2, Math.PI);
   await new Promise((r) => setTimeout(r, 600));
   if (reveal === 'junction') { N.coins(12); return; }     // #junction: on the floor with twelve quarters, nothing won yet
+  if (reveal === 'svboss') {                               // #svboss: in front of the floor's Starvector, the next credit straight into THE WAKING STONE
+    N.coins(12); globalThis.__svBossJump = 3;
+    const v = flynnView.fcab_starvector; if (v) { const d = v.target.clone().sub(v.pos); player.place(v.pos.x, -36.95, v.pos.z, Math.atan2(-d.x, -d.z)); player.pitch = 0; }
+    return;
+  }
   N.answer.skip();
   if (!await until(() => st().delivery.t > 0, 15000)) return console.warn('[#cabinet] the van did not come');
   N.skipDelivery();

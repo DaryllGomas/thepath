@@ -64,13 +64,13 @@ function bodyAndCabin(L, spec, col) {
 // a wheel on the side `side` of a body whose flank is at bodyW: the tyre stands 2 cm proud of it, a dark ring of wheel arch round it
 function wheel(L, x, side, bodyW, r = 0.335, w = 0.24) {
   const M = L.M, y = r, zc = side * (bodyW + 0.02 - w / 2), zo = side * (bodyW + 0.02);
-  const g = new THREE.CylinderGeometry(r, r, w, 12, 1); g.rotateX(Math.PI / 2);
+  const g = new THREE.CylinderGeometry(r, r, w, 28, 1); g.rotateX(Math.PI / 2);
   M.geo('trim', g, new THREE.Matrix4().makeTranslation(x, y, zc), C.tire); g.dispose();
-  const g2 = new THREE.CylinderGeometry(r * 0.64, r * 0.64, w + 0.01, 10, 1, true); g2.rotateX(Math.PI / 2);
+  const g2 = new THREE.CylinderGeometry(r * 0.64, r * 0.64, w + 0.01, 20, 1, true); g2.rotateX(Math.PI / 2);
   M.geo('chrome', g2, new THREE.Matrix4().makeTranslation(x, y, zc), [0.55, 0.57, 0.6]); g2.dispose();
-  const g3 = new THREE.CylinderGeometry(r * 0.36, r * 0.42, 0.03, 8, 1); g3.rotateX(Math.PI / 2);
+  const g3 = new THREE.CylinderGeometry(r * 0.36, r * 0.42, 0.03, 16, 1); g3.rotateX(Math.PI / 2);
   M.geo('chrome', g3, new THREE.Matrix4().makeTranslation(x, y, zo + side * 0.012), WHITE); g3.dispose();
-  const g4 = new THREE.CylinderGeometry(r * 1.3, r * 1.3, 0.012, 10, 1); g4.rotateX(Math.PI / 2);                 // the dark of the wheel arch round the tyre
+  const g4 = new THREE.CylinderGeometry(r * 1.3, r * 1.3, 0.012, 24, 1); g4.rotateX(Math.PI / 2);                 // the dark of the wheel arch round the tyre
   M.geo('trim', g4, new THREE.Matrix4().makeTranslation(x, y + 0.04, side * (bodyW + 0.004)), C.black); g4.dispose();
 }
 

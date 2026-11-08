@@ -16,7 +16,7 @@ export const TUNE = Object.freeze({
   wakeBull: 0.68,            // the bull wakes and charges its lane
   blaze: 0.88,               // the deer wakes; hold blaze this long and the hearth holds (clear)
   blazeHold: 12,             // seconds at blaze (was 16; Daryll 9/28: easier to read and to win) (they add up; they drain at half speed below blaze)
-  burn: [0.011, 0.0155],     // fire per second, start -> end of the minute
+  burn: [0.0101, 0.0143],    // fire per second, start -> end of the minute (8% slower 11-08, Daryll: "a little bit of help")
   overtimeBurn: 1.5,
   bite: 0.07,                // a shade reaching the fire
   ward: { cost: 0.025, radius: 115, cooldown: 0.8, push: 420, stun: 1.1 },
@@ -25,7 +25,7 @@ export const TUNE = Object.freeze({
   multStep: 0.3,             // n shards dropped at once: x(1 + 0.3 (n - 1))
   shade: { speed: [48, 78], max: [2, 5], every: [5.0, 3.2], huntRadius: 230, hunt: [0.5, 1.1], touch: 32, stun: 0.7, emerge: 1.2 },
   openAt: [0, 0, 12, 24, 36],   // when each opening (layout OPENINGS order) starts sending shades
-  animal: { wake: 1.2, passes: 4, pass: 2.6, settle: 1.5, cool: 8, bullReach: 82, deerReach: 72, kill: 50 },
+  animal: { wake: 1.2, passes: 4, pass: 2.6, settle: 1.5, cool: 8, bullReach: 115, deerReach: 100, kill: 50 },
   score: { ward: 10, clear: 1000, perSecondLeft: 20 },
   card: { won: 4.0, lost: 4.0 },
   ready: 1.8,

@@ -1,14 +1,18 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.6",
- "updated": "2026-11-01",
+ "version": "v0.7",
+ "updated": "2026-11-08",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
   "The worlds beyond the first chapter are being planned. No dates yet; we’d rather get them right."
  ],
  "ask": [
+  {
+   "q": "Is Starvector's last boss fair now?",
+   "hint": "Too easy, still too fast, or about right? Tell us which attack."
+  },
   {
    "q": "Does the basement feel like a real 1982 rec room now?",
    "hint": "Anything that looks out of place, or anything that gets in your way, tell us where."
@@ -37,6 +41,29 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.7",
+   "date": "2026-11-08",
+   "title": "The town, the delivery, and a fairer fight",
+   "items": [
+    {
+     "h": "The town behind main street",
+     "t": "The dark boxes behind the shops are real buildings now: red brick, painted brick and stucco, full rows of windows with lamps and blinds behind them, shop fronts with awnings, back lanes and parking lots with streetlights, and pitched roofs and chimneys."
+    },
+    {
+     "h": "The delivery",
+     "t": "You can see the black van now, chrome and grille and real headlight beams. It rolls in and brakes, and the two men step down out of the back, take the hand truck and walk the cabinet in without sliding, set it down, and wheel the truck back out before the van drives off."
+    },
+    {
+     "h": "A fairer fight",
+     "t": "Starvector's last boss gives you time to reach the gap in its shockwaves. In the cabinet's first game, the bull's charge now clears the whole cave, and the fire burns a little slower."
+    },
+    {
+     "h": "Smaller fixes",
+     "t": "Round wheels on the parked cars. The jukebox keeps playing, quietly, while you play the cabinet's games."
+    }
+   ]
+  },
   {
    "version": "v0.6",
    "date": "2026-11-01",

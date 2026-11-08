@@ -307,7 +307,13 @@ export class HearthRound {
         }
       } else if (an.st === 'wake') {
         an.glow = Math.min(1, an.t / A.wake);
-        if (an.t >= A.wake) { an.st = 'charge'; an.t = 0; an.pass = 0; }
+        if (an.t >= A.wake) {
+          an.st = 'charge'; an.t = 0; an.pass = 0;
+          // the stampede (Daryll 11-08: "it should hit everything harder and clear everything out"): the charge clears every shade out of the dark
+          let n = 0;
+          for (const sh of this.shades) { if (sh.st === 'die') continue; sh.st = 'die'; n++; this.stats.gored++; this.score += A.kill; this.events.push({ kind: 'gore', who: name, x: sh.x, y: sh.y }); }
+          this.events.push({ kind: 'stampede', who: name, n }); this._cues.emit(SoundCue.Hit);
+        }
       } else if (an.st === 'charge') {
         const u = smooth(an.t / A.pass), fwd = an.pass % 2 === 0;
         const s = fwd ? u : 1 - u;

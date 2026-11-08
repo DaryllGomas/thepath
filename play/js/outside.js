@@ -22,6 +22,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // (the floor cabinets too: each wears its own game's art, so they cannot share instanced materials)
 const DYNAMIC = /^Outside\/Bike(\/|$)|^Outside\/Flynns\/FlynnsArchGlass\/FlynnDoor[LR]|^Outside\/Flynns\/FlynnsInterior\/PolybiusSpot|^Outside\/MainStreet\/LampHead_|^Outside\/Flynns\/FlynnsInterior\/FFiller(Sit)?_\d+\//;
 const POOL = 16;                 // point lights live at once; the nearest, strongest ones get them
+const TOWN_ON = !/[?&]town=0/.test(location.search);               // look batch 4: ?town=0 draws the blocks behind main street as they were (for before and after pictures)
+const TOWN_OLD = /^Outside\/Town\/(Town_\d+|TWin_)/;                  // their Unity boxes and flat window quads: js/town.js draws the blocks now (the colliders stay)
 const STREET_ON = !/[?&]street=0/.test(location.search);       // look batch 3a: ?street=0 draws main street as it was (for before and after pictures)
 
 // ---- the web version's own Flynn's (his ruling 2026-09-26). The nook straight ahead starts EMPTY (only the cord and
@@ -550,7 +552,7 @@ function windowTexture() {
 }
 // the town's lights, in layers from near to far: windows on the houses' backs and sides and on the blocks' dark floors and
 // sides (one instanced draw), and the blocks' streetlights and the far edge of town (another). They fade in with the night.
-function buildTownLights(objects, bvh) {
+function buildTownLights(objects, bvh, townOn = false) {
   _seed = 1982;
   const wins = [], dots = [];
   const warm = (g = 1) => { const k = (0.8 + rnd() * 0.8) * g; return rnd() < 0.1 ? [0.42 * k, 0.55 * k, 1.0 * k] : [k, (0.56 + rnd() * 0.12) * k, (0.24 + rnd() * 0.1) * k]; };
@@ -569,9 +571,9 @@ function buildTownLights(objects, bvh) {
     const [cx, cy, cz] = o.pos, [sx, sy, sz] = o.scale, y0 = cy - sy / 2;
     const rows = objects.has(`Outside/Town/TWin_${i}_1_0`) ? 2 : 1;
     for (let k = 0, fy = 1.9; fy + 0.75 < sy - 0.8; k++, fy += 3.4) {
-      if (k >= rows) for (let c = 0; c < 4; c++) if (rnd() < 0.5) win(cx + (c - 1.5) * (sx - 3) / 3, y0 + fy, cz + sz / 2, 0, 1, 1.1, 1.5);
+      if (k >= rows) for (let c = 0; c < 4; c++) if (rnd() < 0.5 && !townOn) win(cx + (c - 1.5) * (sx - 3) / 3, y0 + fy, cz + sz / 2, 0, 1, 1.1, 1.5);
       const n = Math.max(1, Math.floor((sz - 2) / 3.2));
-      for (const side of [-1, 1]) for (let j = 0; j < n; j++) if (rnd() < 0.45) win(cx + side * sx / 2, y0 + fy, cz + (j - (n - 1) / 2) * 3.2, side, 0, 1.1, 1.5);
+      for (const side of [-1, 1]) for (let j = 0; j < n; j++) if (rnd() < 0.45 && !townOn) win(cx + side * sx / 2, y0 + fy, cz + (j - (n - 1) / 2) * 3.2, side, 0, 1.1, 1.5);
     }
     dot(cx - sx / 2 - 1.3, y0 + 4.6, cz + sz / 2 + 1.3, [0.34, 0.16, 0.34], [3.4, 2.1, 0.9]);
   }
@@ -705,6 +707,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
       if (YARD_OLD.test(ud.path)) continue;          // look batch 2: the yard house, the fence and the mailbox are drawn by js/yardhouse.js now
       if (ROADSIDE_OLD.test(ud.path)) continue;      // look batch 3b: the areaway's slabs are drawn by js/areaway.js now
       if (STREET_ON && STREET_OLD.test(ud.path)) { if (KID_BARS.test(ud.path) && !kidBars.some((k) => k.path === ud.path)) kidBars.push({ path: ud.path, world }); continue; }   // look batch 3a: the slabs, kerbs, shop windows and cornices, the old crossing and the kid bikes' bars are drawn by js/mainstreet.js now
+      if (STREET_ON && TOWN_ON && TOWN_OLD.test(ud.path)) continue;
       if (sign && OLD_SIGN.test(ud.path)) continue;  // THE JUNCTION's sign stands there now
       if (m && m.kind === 'crt') {
         const mesh = new THREE.Mesh(o.geometry, makeCRTMaterial(m.crt)); mesh.matrixAutoUpdate = false; mesh.matrix.copy(world);
@@ -799,7 +802,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   if (lawnMi >= 0) { group.add(buildYardGround(litMaterial(lawnMi, -1))); drawCalls++; }          // the lawn carries on behind the house (it hung over the void)
   // look batch 3a: main street and the town (js/mainstreet.js): parked cars, telephone poles, the sidewalks and kerbs, the shop fronts, the blocks' rooflines, the street furniture, the display bikes' bars.
   // Their colliders go in here too; the pole line up the hill needs the ground's height, so a small BVH of just the hill and its road answers that.
-  const street = STREET_ON ? buildMainStreet({ anisotropy, objects: meta.objects, kidBars,
+  const street = STREET_ON ? buildMainStreet({ anisotropy, objects: meta.objects, kidBars, townOn: TOWN_ON,
     roadAt: terrainSampler(Object.entries(collisionSource).filter(([p]) => /^Outside\/Road/.test(p)).flatMap(([, g]) => g)),
     groundAt: terrainSampler(Object.entries(collisionSource).filter(([p]) => /^Outside\/(Hill|Road)/.test(p)).flatMap(([, g]) => g)) })
     : { group: new THREE.Group(), colliders: [], capsules: [], lights: [], fadeMats: [], bindLamps() {}, stats: { calls: 0 } };
@@ -809,7 +812,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   const bvh = new MeshBVH(mergeGeometries(colGeos.map(stripToPosition), false));
   const doorBvh = doorGeos.length ? new MeshBVH(mergeGeometries(doorGeos.map(stripToPosition), false)) : null;
   const polyBvh = polyGeos.length ? new MeshBVH(mergeGeometries(polyGeos.map(stripToPosition), false)) : null;
-  const town = buildTownLights(objects, bvh);
+  const town = buildTownLights(objects, bvh, STREET_ON && TOWN_ON);
   for (const m of town.meshes) group.add(m);
   drawCalls += town.meshes.length;
   town.mats.push(...street.fadeMats);       // look batch 3a: the shops' windows, signs and light pools come up with the night, with the town's

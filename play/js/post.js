@@ -10,6 +10,8 @@ const brightFrag = /* glsl */`
   void main() {
     vec3 c = texture2D(tSrc, vUv).rgb;
     float b = max(c.r, max(c.g, c.b));
+    if (!(b < 6.0e4) || !(min(c.r, min(c.g, c.b)) > -1.0)) { c = vec3(0.0); b = 0.0; }   // an Inf/NaN texel (a half-float overflow) would smear a black block through the bloom
+    c = min(c, vec3(48.0)); b = min(b, 48.0);
     float k = clamp((b - threshold * 0.6) / (threshold * 0.8), 0.0, 1.0);
     gl_FragColor = vec4(c * k * k, 1.0);
   }`;
@@ -48,7 +50,8 @@ const finalFrag = /* glsl */`
   }
   void main() {
     vec2 px = floor(vUv * res);
-    vec3 c = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * bloom;
+    vec3 sc = texture2D(tScene, vUv).rgb; if (!(max(sc.r, max(sc.g, sc.b)) < 6.0e4) || !(min(sc.r, min(sc.g, sc.b)) > -1.0)) sc = vec3(0.0);   // Inf/NaN (a half-float overflow): one dark texel, never a black block through the bloom
+    vec3 c = sc + texture2D(tBloom, vUv).rgb * bloom;
     c *= exposure * filterCol;
     c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(1.08));
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, 0.9);
