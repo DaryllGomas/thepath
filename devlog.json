@@ -1,14 +1,18 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.7",
- "updated": "2026-11-08",
+ "version": "v0.8",
+ "updated": "2026-11-11",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
   "The worlds beyond the first chapter are being planned. No dates yet; we’d rather get them right."
  ],
  "ask": [
+  {
+   "q": "How do the voices sound?",
+   "hint": "The kids at the keyboard, your friend on the walkie, the last words at the end: anything that sounds off, tell us which line."
+  },
   {
    "q": "Is Starvector's last boss fair now?",
    "hint": "Too easy, still too fast, or about right? Tell us which attack."
@@ -41,6 +45,29 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.8",
+   "date": "2026-11-11",
+   "title": "Voices, a smoother ride, and the pull",
+   "items": [
+    {
+     "h": "Voices",
+     "t": "The people who speak now have voices: the two kids at the keyboard in the opening, your friend on the walkie through the radio's crackle, and the last words at the end. The words stay on screen too."
+    },
+    {
+     "h": "A smoother ride",
+     "t": "The bike no longer shakes going downhill, and it rolls over the curb at the bottom of the hill instead of slamming to a stop. You still can't ride through buildings, cars or poles."
+    },
+    {
+     "h": "The pull",
+     "t": "The end of the chapter no longer fades to white. Play it to see."
+    },
+    {
+     "h": "The delivery and the basement",
+     "t": "The van's headlights sweep across the arcade floor as it pulls in, and the two men bend their elbows and lift without crouching so low. In the basement: one note from Mom, a living green plant, and a couch that looks lived in without the dark blotches."
+    }
+   ]
+  },
   {
    "version": "v0.7",
    "date": "2026-11-08",

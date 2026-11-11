@@ -68,11 +68,28 @@ const ENV_TUNE = { lm: 1.2, amb: 0.8, sheen: 3, ambCol: [1, 0.78, 0.6], fx: { M_
 // grey axis, what AgX shows for a scene value x the web shows for ~0.96 x^0.69 (5x at 0.005, 2x at 0.1, 1x at 1), so the
 // baked surfaces carry that curve themselves and the rest of the game keeps its grade.
 const ENV_CURVE = { envK: { value: 0.96 }, envG: { value: 0.75 } };      // 0.69 by the numbers; 0.75 + lm 1.2 matched the renders closer
+// THE VAN'S HEADLIGHTS on the baked room (js/delivery.js drives it). A baked surface draws albedo x lightmap and no web light lands on it, so
+// the van's light sweep would never touch the floor or the walls: this adds one spot to every baked surface, in the shader (a cone from
+// hlPos along hlDir, lit by the face's own normal, nothing when hlK is 0). The cabinets and props take the matching SpotLight as usual.
+const HEADLIGHT = { hlPos: { value: new THREE.Vector3() }, hlDir: { value: new THREE.Vector3(0, -1, 0) }, hlCone: { value: new THREE.Vector2(0.9, 0.95) }, hlK: { value: 0 }, hlCol: { value: new THREE.Color(1.0, 0.92, 0.76) } };
+function withHeadlight(s) {
+  Object.assign(s.uniforms, HEADLIGHT);
+  s.vertexShader = 'varying vec3 vHlW;\n' + s.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n\tvHlW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+  s.fragmentShader = 'uniform vec3 hlPos, hlDir, hlCol; uniform vec2 hlCone; uniform float hlK;\nvarying vec3 vHlW;\n' + s.fragmentShader.replace('#include <opaque_fragment>', `if ( hlK > 0.0 ) {
+		vec3 hlL = hlPos - vHlW; float hlD = max( length( hlL ), 0.1 ); hlL /= hlD;
+		vec3 hlN = cross( dFdx( vHlW ), dFdy( vHlW ) ); hlN = hlN / max( length( hlN ), 1e-6 );
+		if ( dot( hlN, cameraPosition - vHlW ) < 0.0 ) hlN = -hlN;
+		float hlS = smoothstep( hlCone.x, hlCone.y, dot( -hlL, hlDir ) ) * max( dot( hlN, hlL ), 0.0 );
+		outgoingLight += diffuseColor.rgb * hlCol * ( hlK * hlS / ( 1.0 + hlD * hlD * 0.01 ) );
+	}
+	#include <opaque_fragment>`);
+}
 function withBakeCurve(m) {
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, ENV_CURVE);
     s.fragmentShader = 'uniform float envK, envG;\n' + s.fragmentShader.replace('vec3 outgoingLight = reflectedLight.indirectDiffuse;',
       'vec3 outgoingLight = envK * pow( max( reflectedLight.indirectDiffuse, vec3( 0.0 ) ), vec3( envG ) );');
+    withHeadlight(s);
   };
   return m;
 }
@@ -123,6 +140,7 @@ function withFloorSheen(m) {
 	float sheenF = 0.04 + 0.96 * pow( 1.0 - clamp( -sheenV.y, 0.0, 1.0 ), 5.0 );
 	float sheenOcc = smoothstep( 0.0, 0.012, dot( lightMapTexel.rgb, vec3( 0.3333 ) ) );
 	outgoingLight += sheen * 0.25 * sheenF * sheenOcc * sheenAcc;`);
+    withHeadlight(s);
   };
   return m;
 }
@@ -907,7 +925,7 @@ export async function loadOutside({ anisotropy = 8, lightmaps = [], onProgress }
   night.sunDir0 = sun.position.clone().normalize(); night.town = town; night.fog = dusk ? dusk.nightFog.map((x) => x * NIGHT.fog) : null;
   for (const m of night.asphalt) m.userData.day = m.color.clone();
 
-  const W = { group, meta, comps, objects, byPath, screens, templates, bvh, doorBvh, polyBvh, polyPlaced: false, sky, sun, ambient, defs, byName, pool, spots, lamps, dusk, drawCalls, doorsOpen: false, t: 0, env, inside: 0, night, yard, roadside, street };
+  const W = { group, meta, comps, objects, byPath, screens, templates, bvh, doorBvh, polyBvh, polyPlaced: false, headlight: HEADLIGHT, sky, sun, ambient, defs, byName, pool, spots, lamps, dusk, drawCalls, doorsOpen: false, t: 0, env, inside: 0, night, yard, roadside, street };
   W.obj = (p) => objects.get(p);
   W.groundTune = (o = {}) => { for (const k of ['dusk', 'night']) if (o[k] !== undefined) GROUND[k] = o[k]; return { ...GROUND }; };     // for the look passes
   // the floor's reflection of the room: taken once, the first time you walk in (main.js), when every light and marquee is up
@@ -1107,6 +1125,7 @@ function capsuleGeo(c) {
 // Same interface as Player (js/player.js) so main.js can hand it the controls at the areaway.
 const _seg = new THREE.Line3(), _box = new THREE.Box3(), _tri = new THREE.Vector3(), _cap = new THREE.Vector3();
 const _ray = new THREE.Ray(), _dir = new THREE.Vector3();
+const BIKE_STEP = 0.22;       // the bike rides over anything this low (curbs, seams); taller is a wall it slides along
 export class OutdoorBody {
   constructor(camera, W) {
     this.cam = camera; this.W = W;
@@ -1119,12 +1138,12 @@ export class OutdoorBody {
     // roll into a turn (radians, eased; the bike rig leans a little further: RIG_LEAN); bobY the pedalling bob and vibY / vibP / vibR the
     // road's buzz (metres, metres, radians, radians); crank the crank's turn; pedal 0..1 pedalling; rough 0.3 (asphalt) .. 1 (the yard's lawn)
     this.bike = { mounted: false, speed: 0, sway: 0, slope: 0, steer: 0, steerVis: 0, lean: 0, bobY: 0, vibY: 0, vibP: 0, vibR: 0, crank: 0, pedal: 0, rough: 0.3 };
-    this.vt = 0;
+    this.vt = 0; this.ySm = 0; this.ySlope = 0; this.snapEye = true;
     // reduced motion (the OS setting, as the handshake and the ending read it): no bob, no buzz, a third of the lean (0.8 degrees)
     this.reduced = false;
     try { const mq = matchMedia('(prefers-reduced-motion: reduce)'); this.reduced = mq.matches; mq.addEventListener('change', (e) => { this.reduced = e.matches; }); } catch (e) { /* no matchMedia: full motion */ }
   }
-  place(x, y, z, yaw) { this.pos.set(x, y, z); this.yaw = yaw; this.pitch = 0; this.vel.set(0, 0, 0); this.vy = 0; }
+  place(x, y, z, yaw) { this.snapEye = true; this.pos.set(x, y, z); this.yaw = yaw; this.pitch = 0; this.vel.set(0, 0, 0); this.vy = 0; }
   look(dx, dy) {
     if (!this.control) return;
     const k = 0.0022 * this.sens;
@@ -1175,23 +1194,62 @@ export class OutdoorBody {
       this.vel.x += (want.x - this.vel.x) * a; this.vel.z += (want.z - this.vel.z) * a;
     } else { this.vel.x = 0; this.vel.z = 0; }
 
-    this.vy = this.grounded ? -1.5 : this.vy - 9.81 * dt;
+    const rideOn = this.bike.mounted;
+    this.vy = this.grounded && !rideOn ? -1.5 : this.vy - 9.81 * dt;
     const before = this.pos.clone();
     const mv = new THREE.Vector3(this.vel.x * dt, this.vy * dt, this.vel.z * dt);
     const n = Math.max(1, Math.ceil(Math.hypot(mv.x, mv.z) / 0.12));
     this.grounded = false;
-    for (let i = 0; i < n; i++) { this.pos.addScaledVector(mv, 1 / n); this.collide(); }
+    for (let i = 0; i < n; i++) { this.pos.addScaledVector(mv, 1 / n); this.collide(rideOn ? BIKE_STEP : 0); }
+    if (rideOn) {
+      // the wheels are on the road every frame: follow it (a raycast under the body and one a wheel's length ahead, so a curb is climbed
+      // as the front wheel reaches it), falling only when there is no road within reach
+      const hit = this.groundHit(0.9);
+      let gy = hit && hit.face && hit.face.normal.y > 0.55 ? hit.point.y : null;
+      // nothing taller than a step is climbed: the road's own rise per frame is allowed, a prop's top is not (the collision pushes a
+      // capsule that meets a low prop's edge upward, so a 0.5 m planter would otherwise be mounted): blocked, back to where it was
+      if (gy !== null) {
+        const ny = hit.face.normal.y, run = Math.hypot(this.pos.x - before.x, this.pos.z - before.z);
+        if (gy - before.y > BIKE_STEP + 0.03 + run * Math.sqrt(Math.max(0, 1 - ny * ny)) / ny) { this.pos.copy(before); gy = before.y; this.vy = 0; }
+      }
+      if (gy !== null && this.vy <= 0.5) {
+        const f = this.forward(), ox = this.pos.x, oy = this.pos.y, oz = this.pos.z;
+        this.pos.set(ox + f.x * 0.4, oy, oz + f.z * 0.4);
+        const ah = this.groundHit(0.9); this.pos.set(ox, oy, oz);
+        if (ah && ah.face && ah.face.normal.y > 0.55 && ah.point.y > gy && ah.point.y - gy <= BIKE_STEP + 0.05) gy = ah.point.y;
+      }
+      if (gy !== null && this.vy <= 0.5 && gy >= this.pos.y - 0.9) { this.pos.y = gy; this.grounded = true; this.vy = 0; }
+    } else
     // keep the wheels (and feet) on the road going downhill: snap to ground within a short reach
     if (!this.grounded && this.vy <= 0) {
-      const hit = this.groundHit(this.bike.mounted ? 0.9 : 0.45);
+      const hit = this.groundHit(0.45);
       if (hit && hit.face && hit.face.normal.y > 0.55) { this.pos.y = hit.point.y; this.grounded = true; }
     }
     if (this.grounded) this.vy = 0;
-    // a wall stops the bike instead of letting it grind along at speed
-    if (this.bike.mounted && dt > 0) {
-      const moved = Math.hypot(this.pos.x - before.x, this.pos.z - before.z) / dt;
-      if (moved < Math.abs(this.bike.speed) * 0.5) this.bike.speed *= 0.5;
+    // a wall does not stop the bike dead: it slides along it (the collision pushes the body out sideways, so the speed along the wall is
+    // kept) and loses only what it cannot use, eased, so hitting one is a soft bump
+    if (rideOn && dt > 0) {
+      const fw = this.forward(), B = this.bike;
+      const dx = this.pos.x - before.x, dz = this.pos.z - before.z, dl = Math.hypot(dx, dz);
+      const along = (dx * fw.x + dz * fw.z) / dt;
+      if (B.speed > 0.5 && along < B.speed * 0.9) {
+        // blocked: turn the wheel along the wall (a glancing hit keeps most of its speed; a head-on one eases to a stop) and lose
+        // only what the wall took
+        let keep = Math.max(0, along);
+        if (dl > 0.002) {
+          const diff = Math.atan2(Math.sin(Math.atan2(-dx, -dz) - this.yaw), Math.cos(Math.atan2(-dx, -dz) - this.yaw));
+          if (Math.abs(diff) < 1.45) { this.yaw += diff * Math.min(1, dt * 6); keep = dl / dt; }
+        }
+        B.speed += (Math.min(B.speed, keep) - B.speed) * Math.min(1, dt * 5);
+      }
     }
+    // the camera's height: the body follows the road exactly; the eye eases (about 80 ms) so a curb or a seam never pops the view.
+    // A slow feed-forward of the road's own rate cancels the lag on a steady slope.
+    if (rideOn && !this.snapEye && Math.abs(this.pos.y - this.ySm) < 1) {
+      const dy = (this.pos.y - before.y) / Math.max(dt, 1e-4);
+      this.ySlope += (dy - this.ySlope) * Math.min(1, dt / 0.3);
+      this.ySm += (this.pos.y - this.ySm) * (1 - Math.exp(-dt / 0.08));
+    } else { this.ySm = this.pos.y; this.ySlope = 0; this.snapEye = false; }
     const sp = Math.hypot(this.pos.x - before.x, this.pos.z - before.z) / Math.max(dt, 1e-4);
     this.moved += sp * dt;
     const walking = !this.bike.mounted;
@@ -1229,11 +1287,11 @@ export class OutdoorBody {
     if (hit.face && hit.face.normal.y < 0) hit.face.normal.negate();
     return hit;
   }
-  collide() {
+  collide(lift = 0) {
     const r = this.radius;
     for (const bvh of [this.W.bvh, this.W.doorsOpen ? null : this.W.doorBvh, this.W.polyPlaced ? this.W.polyBvh : null, this.W.extraBvh || null]) {
       if (!bvh) continue;
-      _seg.start.set(this.pos.x, this.pos.y + r, this.pos.z); _seg.end.set(this.pos.x, this.pos.y + this.height - r, this.pos.z);
+      _seg.start.set(this.pos.x, this.pos.y + r + lift, this.pos.z); _seg.end.set(this.pos.x, this.pos.y + this.height - r, this.pos.z);
       _box.makeEmpty(); _box.expandByPoint(_seg.start); _box.expandByPoint(_seg.end); _box.min.addScalar(-r); _box.max.addScalar(r);
       bvh.shapecast({
         intersectsBounds: (b) => b.intersectsBox(_box),
@@ -1248,7 +1306,7 @@ export class OutdoorBody {
           else { _seg.start.addScaledVector(_dir, depth); _seg.end.addScaledVector(_dir, depth); }
         },
       });
-      this.pos.set(_seg.start.x, _seg.start.y - r, _seg.start.z);
+      this.pos.set(_seg.start.x, _seg.start.y - r - lift, _seg.start.z);
     }
   }
   apply(dt) {
@@ -1261,7 +1319,8 @@ export class OutdoorBody {
     }
     const B = this.bike, k = B.mounted ? Math.min(1, Math.abs(B.speed) / 9) : 0;
     const ride = B.mounted ? B.bobY + B.vibY : 0;
-    c.position.set(this.pos.x, this.pos.y + this.eyeNow + this.bob + ride, this.pos.z);
+    const baseY = B.mounted ? this.ySm + this.ySlope * 0.08 : this.pos.y;
+    c.position.set(this.pos.x, baseY + this.eyeNow + this.bob + ride, this.pos.z);
     c.rotation.set(this.pitch + (B.mounted ? B.vibP : 0), this.yaw, this.roll + (B.mounted ? B.lean + B.vibR : 0) + Math.sin(B.sway * 2) * 0.012 * k * (this.reduced ? 0.3 : 1), 'YXZ');
   }
   lookAt(center, normal, dist) {

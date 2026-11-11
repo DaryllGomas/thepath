@@ -706,7 +706,13 @@ const WALKIE = {
     rough: { buf: 'walkie/walkie_squelch_02.mp3', off: 1.0, dur: 0.8, gain: 1.2 },    // feedback squelch
     hiss: { buf: 'walkie/walkie_static_01.mp3', off: -1, dur: 0.6, gain: 20 },        // off -1 = a random place in the file; quiet file, big gain
     layer: { buf: 'handshake/static_burst.mp3', off: 0.05, dur: 0.5, gain: 0.9 },     // the Handshake's static, underneath
+    // the friend's recorded voice (assets/audio/voice/, from tools/voice-lab): played through this same chain, so it sounds like the walkie
+    vB2: { buf: 'voice/B2.ogg', off: 0, dur: 60, gain: 1.4 }, vB4: { buf: 'voice/B4.ogg', off: 0, dur: 60, gain: 1.4 },
+    vW3: { buf: 'voice/W3.ogg', off: 0, dur: 60, gain: 1.4 }, vW4: { buf: 'voice/W4.ogg', off: 0, dur: 60, gain: 1.4 },
+    vW5: { buf: 'voice/W5.ogg', off: 0, dur: 60, gain: 1.4 }, vW6: { buf: 'voice/W6.ogg', off: 0, dur: 60, gain: 1.4 },
   },
+  // which recording says which subtitle; a missing file leaves that line a subtitle only
+  voice: { friend: 'B2', repeat4: 'B4', bike: 'W3', replies: ['W4', 'W5', 'W6'] },
   // ---- the calls: [delay s, clip, length override] ----
   calls: {
     first: [[0, 'sq3'], [0.55, 'sq4']],                // on waking: just two short chirps
@@ -717,7 +723,7 @@ const WALKIE = {
   },
   nearBike: 2.8,
 };
-const WK = { plays: 0, log: [], missed: 0, hold: null, replyN: 0, pending: null, bus: null, calls: 0 };
+const WK = { plays: 0, log: [], vlog: [], voiceH: null, missed: 0, hold: null, replyN: 0, pending: null, bus: null, calls: 0 };
 // the small-speaker chain: band-limited, a bump in the mids, through one gentle compressor so the squelch never clips
 function wkBus() {
   if (WK.bus) return WK.bus;
@@ -765,11 +771,21 @@ function wkCall(table, where, gain) {
   WK.calls++;
 }
 // subtitles wait their turn behind a story line or a LOOK (the audio never does)
-function wkSay(text, secs, wait = 9) { WK.pending = { text, secs, until: clock + wait }; wkFlush(); }
+function wkSay(text, secs, wait = 9, voice = null, where = 'yard', lead = 0.45) { WK.pending = { text, secs, until: clock + wait, voice, where, lead }; wkFlush(); }
+// the friend's recording, started the moment its subtitle goes up (so it waits behind a LOOK like the subtitle does); returns how long the
+// caption should stay: the clip's length (and its lead-in) plus a beat. null when there is no recording: the fixed subtitle time stands.
+function wkVoice(id, where, lead) {
+  const name = 'v' + id, clip = WALKIE.clips[name], buf = clip && buffers[clip.buf]; if (!buf) return null;
+  if (WK.voiceH) WK.voiceH.stop();
+  const yard = where === 'yard', lp = yard ? 1300 + 2400 * wkAtten(wkDist()) : 3400;
+  const h = wkPlay(name, { delay: lead, lp, pos: yard ? WALKIE.yard : null }); if (!h) return null;
+  WK.voiceH = h; WK.vlog.push({ at: +clock.toFixed(2), id, where, secs: +buf.duration.toFixed(2) });
+  return lead + buf.duration + 0.8;
+}
 function wkFlush() {
   const p = WK.pending; if (!p) return;
   if (clock > p.until) { WK.pending = null; return; }
-  if (lineTimer <= 0) { WK.pending = null; line(p.text, p.secs, 'faint'); }
+  if (lineTimer <= 0) { WK.pending = null; const vs = p.voice && wkVoice(p.voice, p.where, p.lead); line(p.text, vs || p.secs, 'faint'); }
 }
 function updateWalkie() {
   wkFlush();
@@ -780,11 +796,11 @@ function updateWalkie() {
     wkCall(Wk.calls.first, 'yard'); wkSay(Wk.say.wake, 3.4);
   } else if (S.walkie === 1 && clock > S.walkieAt + Wk.friendAfter) {
     S.walkie = 2; S.walkieN = 0; S.walkieNext = clock + Wk.gap[0] + Math.random() * (Wk.gap[1] - Wk.gap[0]);
-    wkSay(Wk.say.friend, 6.2);
+    wkSay(Wk.say.friend, 6.2, 9, Wk.voice.friend, 'yard');
   } else if (S.walkie === 2 && clock >= S.walkieNext) {
     const n = ++S.walkieN, v = Wk.calls.repeat;
     wkCall(v[Math.floor(Math.random() * v.length)], 'yard', Wk.repeatGain);
-    if (n === 2) wkSay(Wk.say.repeat2, 3.2, 5); else if (n === 4) wkSay(Wk.say.repeat4, 3.4, 5);
+    if (n === 2) wkSay(Wk.say.repeat2, 3.2, 5); else if (n === 4) wkSay(Wk.say.repeat4, 3.4, 5, Wk.voice.repeat4, 'yard');
     S.walkieNext = clock + Wk.gap[0] + Math.random() * (Wk.gap[1] - Wk.gap[0]);
   }
 }
@@ -793,7 +809,7 @@ function updateBikeWalkie() {
   wkFlush();
   if (region !== 'out' || !outBody || state !== 'play' || paused) { if (WK.hold) wkRelease(); return; }
   const B = outBody.bike, near = bikeParked && bikeParked.visible && Math.hypot(outBody.pos.x - bikeParked.position.x, outBody.pos.z - bikeParked.position.z) < WALKIE.nearBike;
-  if (!S.walkieBike && (B.mounted || near)) { S.walkieBike = 1; wkCall(WALKIE.calls.bike, 'hand'); wkSay(WALKIE.say.bike, 6.4, 14); }
+  if (!S.walkieBike && (B.mounted || near)) { S.walkieBike = 1; wkCall(WALKIE.calls.bike, 'hand'); wkSay(WALKIE.say.bike, 6.4, 14, WALKIE.voice.bike, 'hand', 0.9); }
   if (B.mounted && !S.walkieHint) {
     S.walkieHint = clock;
     let h = document.getElementById('walkieHint');
@@ -812,8 +828,8 @@ function wkRelease() {
   if (h.bed) h.bed.stop();
   wkPlay('tail', { delay: 0.02 });
   wkCall(WALKIE.calls.reply.map(([d, n, l]) => [d + 0.4, n, l]), 'hand');
-  const R = WALKIE.say.replies, text = R[WK.replyN++ % R.length];
-  WK.pending = { text, secs: 3.4, until: clock + 3 }; lineTimer = 0; wkFlush();     // a reply you asked for shows at once
+  const R = WALKIE.say.replies, ri = WK.replyN++ % R.length, text = R[ri];
+  WK.pending = { text, secs: 3.4, until: clock + 3, voice: WALKIE.voice.replies[ri], where: 'hand', lead: 0.6 }; lineTimer = 0; wkFlush();     // a reply you asked for shows at once
 }
 
 // ---------------------------------------------------------------- the outdoors arrives (loaded behind the basement)
@@ -1368,7 +1384,9 @@ function frame(now) {
       if (fixedCam) { camera.position.copy(fixedCam.p); camera.up.set(0, 1, 0); camera.lookAt(fixedCam.t); if (fixedCam.roll) camera.rotateZ(fixedCam.roll); }
     }
   }
-  pipe.render(W.scene, camera, clock);
+  // once you are through the cabinet's glass the ending draws its warp full screen in place of the arcade (js/ending.js view())
+  const view = ending && (state === 'ending' || state === 'end') ? ending.view() : null;
+  pipe.render(view ? view.scene : W.scene, view ? view.camera : camera, clock);
 }
 
 // ---------------------------------------------------------------- boot
@@ -1385,7 +1403,7 @@ async function boot() {
     hs.run().then(afterHandshake);
   } else show('hs', false);
   try {
-    const audioP = Promise.all(['juke_06.mp3', 'juke_02.mp3', 'juke_09.mp3', 'token_clunk.mp3', 'handshake/crt_hum.mp3', 'handshake/static_burst.mp3', 'walkie/walkie_squelch_01.mp3', 'walkie/walkie_squelch_02.mp3', 'walkie/walkie_static_01.mp3', 'handshake/key_return.mp3'].map(loadAudio));
+    const audioP = Promise.all(['juke_06.mp3', 'juke_02.mp3', 'juke_09.mp3', 'token_clunk.mp3', 'handshake/crt_hum.mp3', 'handshake/static_burst.mp3', 'walkie/walkie_squelch_01.mp3', 'walkie/walkie_squelch_02.mp3', 'walkie/walkie_static_01.mp3', 'handshake/key_return.mp3', ...['B2', 'B4', 'W3', 'W4', 'W5', 'W6', 'E1', 'E2', 'E3', 'E4'].map((i) => 'voice/' + i + '.ogg')].map(loadAudio));
     const runtimeP = loadCabinetRuntime();
     const sevenP = import('./cabinet/seven/index.js').catch((e) => { console.error('[seven] the cabinet with no name could not load', e); return null; });
     W = await loadBasement('', { anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()), renderer }, (f) => { $('loadFill').style.width = Math.round(f * 100) + '%'; });
@@ -1484,7 +1502,7 @@ window.__node = {
   place(x, z, yaw) { player.place(x, 0.02, z, yaw ?? player.yaw); },
   setLook(m) { settings.look = m; pipe.setMode(m); },
   // for look passes and probes (tools/stage1shots.mjs): the live objects, read-only by convention
-  internals() { return { THREE, W, OUT, camera, renderer, pipe, bbs, cabs, seven, ending, answer, svTrigger, rider, bikeRig, rigSteer, outBody }; },
+  internals() { return { THREE, W, OUT, camera, renderer, pipe, bbs, cabs, seven, ending, answer, svTrigger, rider, bikeRig, rigSteer, outBody, delivery }; },
   // the glass of the cabinet being played, where it lands on screen (tools/fullscreen_test.mjs): [x0, y0, x1, y1] in window px
   camGlass() {
     const G = activeId && cabGeo(activeId); if (!G) return null;
@@ -1551,7 +1569,7 @@ window.__node = {
     glide(slow) { if (slow !== undefined) sevenCam.slow = Math.max(1, +slow || 1); const F = sevenFull(); return { on: sevenCam.on, t: +sevenCam.t.toFixed(3), out: !!sevenCam.out, slow: sevenCam.slow, full: F ? { d: +F.d.toFixed(3), fill: +F.fill.toFixed(3) } : null }; },
   },
   // tests only: the arcade's audio (tools/seven_sound*.mjs): the listener, the cabinet's sound, the arcade's own mix
-  walkie: { cfg: WALKIE, stats: WK, atten: wkAtten, dist: wkDist, nextIn(sec) { S.walkieNext = clock + sec; }, call(k, w) { wkCall(WALKIE.calls[k], w || 'yard'); } },
+  walkie: { cfg: WALKIE, stats: WK, atten: wkAtten, dist: wkDist, nextIn(sec) { S.walkieNext = clock + sec; }, call(k, w) { wkCall(WALKIE.calls[k], w || 'yard'); }, line, say: wkSay },
   audio: { get listener() { return listener; }, get snd() { return sevenSnd; }, get floor() { return floorSnd; }, get floorOn() { return floorOn; }, get bed() { return bed; }, get tape() { return tapeAudio; }, buffers },
   // tests only: run the delivery to its end at once (its own timeline, stepped fast)
   skipDelivery() { if (!delivery || delivery.t < 0) return false; let n = 0; while (!delivery.done && n++ < 2000) delivery.update(0.1); return delivery.done; },

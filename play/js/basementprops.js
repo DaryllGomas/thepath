@@ -884,9 +884,7 @@ export function buildBasementProps(o = {}) {
       CL.ribbon(cols, [0.85, 0.82, 0.8]);
       for (const [x, y] of [[x0 + 0.015, yt - 0.02], [x0 + 0.015, yb + 0.02], [x1 - 0.015, ym]]) MM.box(x, y, WZ + 0.02, 0.014, 0.014, 0.012, { all: T.iron }, { tint: [1.7, 1.35, 0.55], ao: 0 });
     }
-    // the note under the car poster: paper, a strip of tape across its top, a slight lean
-    M.box(0.96, 1.22, WZ, 0.38, 0.5, 0.004, { pz: T.noteHand, side: T.noteHand }, { rot: [0, 0, -0.035], ao: 0, tint: [0.4, 0.38, 0.35] });
-    M.box(0.955, 1.465, WZ + 0.004, 0.07, 0.035, 0.002, { pz: T.tapeStrip }, { rot: [0, 0, -0.02], tint: [0.6, 0.6, 0.55], ao: 0 });
+    // (no note here: the room's own Mom note, by the stairs, is the one note)
     // the VHS tapes on the TV beside the VCR
     M.box(-0.7, 1.19, -6.66, 0.19, 0.027, 0.105, { py: T.vhs, pz: T.vhs, side: T.vhs }, { rot: [0, 0.12, 0] }); M.box(-0.69, 1.217, -6.665, 0.19, 0.027, 0.105, { py: T.vhs, pz: T.vhs, side: T.vhs }, { rot: [0, -0.06, 0], tint: [1.05, 0.9, 0.9] });
 

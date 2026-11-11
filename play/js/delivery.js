@@ -21,6 +21,9 @@ const V0 = 7.6, BRAKE_D = 20;                              // arrives at 7.6 m/s
 const AISLE_X = 83.3;
 const RX = STOP_X - 2.56, SILL = 0.6;                      // the van's rear face, and its cargo floor above the road
 const WALK = 1.15;
+const CARGO_TILT = -50, BACK_OUT = 0.66, BACK_CARGO = 0.52;                     // the truck lies a little steeper in the cargo, and the pusher stands a little nearer its handles, so a moderate knee bend reaches them (11-08)
+const HL_K = 5;                                              // the same light on the baked floor and walls (a shader term, not candela)
+const SWEEP_I = 2500;                                        // candela of the headlight sweep through the windows (tuned by the pixel readings in tools/b5_delivery.mjs)
 
 export async function loadDeliveryModels() {
   const loader = new GLTFLoader();
@@ -112,7 +115,7 @@ export class Delivery {
       // lights the van carries / casts: the beam on the street, a sweep through Flynn's windows onto its floor, a cool rim at the kerb, a follow glow for the cargo
       const spot = (col, dist, ang, pen) => { const l = new THREE.SpotLight(col, 0, dist, ang * DEG, pen, 2); O.group.add(l); O.group.add(l.target); return l; };
       this.beam = spot(0xfff0d0, 34, 40, 1.0);
-      this.sweep = spot(0xfff0d8, 40, 24, 0.9);
+      this.sweep = spot(0xfff0d8, 70, 16, 0.7);
       this.rim = new THREE.PointLight(0xdde4ff, 0, 7, 2); O.group.add(this.rim);
       this.glow = new THREE.PointLight(0xffd9a0, 0, 4.5, 2); O.group.add(this.glow);
     }
@@ -214,7 +217,8 @@ export class Delivery {
     if (Math.abs(p.z - LANE_Z) > 1.15) return base;
     return base + SILL * smooth((p.x - (RX - 0.8)) / 0.8);
   }
-  stoopOf(p) { return Math.abs(p.z - LANE_Z) > 1.15 ? 0 : smooth((p.x - (RX - 0.9)) / 0.9); }
+  // (the lane band's edge eases out over half a metre: a hard edge popped the men upright in one frame as the route bent away)
+  stoopOf(p) { return (1 - smooth((Math.abs(p.z - LANE_Z) - 0.8) / 0.5)) * smooth((p.x - (RX - 0.9)) / 0.9); }
 
   start(onDoors, onDone) {
     if (this.t >= 0) return;
@@ -228,7 +232,7 @@ export class Delivery {
     this.T = T; this.xb = xb;
     this.s = 0; this.v = 0; this.ph = 'van'; this.phT = 0; this.sB = 0; this.vanV = 0;
     this.doorsAt = T.doors; this.closeAt = 1e9; this.driveAt = 1e9; this.vanX = START_X;
-    this.tiltCur = -72 * DEG;
+    this.tiltCur = CARGO_TILT * DEG;
   }
 
   vanState(t) {
@@ -275,10 +279,21 @@ export class Delivery {
       this.beam.position.set(fx, fy, LANE_Z - 0.3); this.beam.target.position.set(fx + 9, this.groundY, LANE_Z - 0.8);
       const fadeIn = clamp01((t - 1.0) / 2.5);
       this.beam.intensity = (gone ? 0 : 55) * fadeIn;
-      // sweep: the same lamps seen through Flynn's front windows lighting the inside floor, strongest as it passes the windows
-      const sw = smooth(1 - Math.abs(x - 70) / 22) * (t < T.arrive + 3 ? 1 : 0);
-      this.sweep.position.set(fx, this.groundY + 3.4, LANE_Z - 5.0); this.sweep.target.position.set(Math.min(90, Math.max(73, x + 3)), this.groundY + 0.1, -174.0);
-      this.sweep.intensity = 700 * sw;
+      // sweep: the van's headlights through Flynn's front windows. One spot stands in for the beams, high on the street side of the glass; it
+      // slides along the front with the van, and its pool slides across the floor, the cabinets and the stairs the same way (swinging to the
+      // back as the van brakes), holds while it is stopped, then lets go (11-08, Daryll: "the headlights don't sweep across the floor").
+      const kS = smooth((x - 38) / (STOP_X - 38)), kT = smooth((x - (STOP_X - 14)) / 14);            // approach, and the last stretch (the brake)
+      const fadeS = smooth((x - 34) / 8) * (1 - smooth((t - T.arrive - 0.6) / 2.0));
+      const lampX = lerp(64, 88, kS);
+      this.sweep.position.set(lampX, this.groundY + 5.0, LANE_Z + 3.6);
+      this.sweep.target.position.set(lerp(67, 88, kS), this.groundY - 0.1, lerp(-172.5, -176.5, kT));
+      this.sweep.intensity = SWEEP_I * fadeS;
+      const HL = O.headlight;                                 // the same spot, drawn onto the baked floor and walls (js/outside.js withHeadlight)
+      if (HL) {
+        HL.hlPos.value.copy(this.sweep.position); HL.hlDir.value.copy(this.sweep.target.position).sub(this.sweep.position).normalize();
+        const ca = Math.cos(this.sweep.angle), ci = Math.cos(this.sweep.angle * (1 - this.sweep.penumbra)); HL.hlCone.value.set(ca, ci);
+        HL.hlK.value = gone ? 0 : HL_K * fadeS;
+      }
       // a cool rim over the kerb side near the stop, on while the van is there
       this.rim.position.set(STOP_X + 0.5, this.groundY + 4.2, LANE_Z - 3.3);
       this.rim.intensity = 14 * smooth((x - 60) / 14) * (gone ? 0 : 1) * (1 - smooth((x - STOP_X - 1) / 6)) * (t < T.walk + 3 ? 1 : 1 - smooth((t - T.walk - 3) / 1.5)) * (this.driveAt < 1e8 ? 0 : 1);
@@ -320,7 +335,7 @@ export class Delivery {
       if (t >= T.doors) { // everything loaded behind the closing doors; men and truck wait inside, lying low
         this.dolly.visible = true;
         const a = this.sample(A, 0);
-        this.s = 0; this.tiltCur = -72 * DEG; this.layout(a, 0, 1);
+        this.s = 0; this.tiltCur = CARGO_TILT * DEG; this.layout(a, 0, 1);
       }
       if (t >= T.walk) { this.ph = 'in'; this.phT = 0; }
       return;
@@ -420,7 +435,7 @@ export class Delivery {
     // the truck lies in the cargo, tips up over the lip, carried at 24 degrees with the cabinet; empty it trails at 12
     const inCargo = this.stoopOf(a.p);
     const out = arriving ? -24 * DEG : -14 * DEG;
-    const target = lerp(out, -72 * DEG, inCargo);
+    const target = lerp(out, CARGO_TILT * DEG, inCargo);
     this.tiltCur = target; this.glowOn = inCargo > 0.05;
     this.dolly.position.copy(dpos); this.dolly.rotation.set(0, yaw, 0); this.tilt.rotation.x = target;
     this.cab.visible = arriving ? true : false;
@@ -429,13 +444,13 @@ export class Delivery {
     // pusher: stands behind the mid-point of the handles, at the foot of the slope
     const mid = hd.hL.clone().add(hd.hR).multiplyScalar(0.5);
     const dirH = new THREE.Vector3(a.d.x, 0, a.d.z);
-    const back = 0.50 + 0.22 * inCargo;
+    const back = lerp(BACK_OUT, BACK_CARGO, inCargo);
     const p1 = mid.clone().addScaledVector(dirH, -back); p1.y = this.floorOf(p1, this.groundY + (a.p.y - this.groundY));
     // (floor under his feet along the route: the route carries the sill step)
     const mv1 = this.moveOf2(m1, p1);
     const st1 = this.stoopOf(p1);
     const reach1 = [hd.hL, hd.hR];
-    this.place(m1, p1, yawTo(dirH), mv1, still ? 0 : wk, { stoop: st1, lean: 0.12, reach: reach1, reachW: [1, 1], stepUp: this.stepUpAt(p1) });
+    this.place(m1, p1, yawTo(dirH), mv1, still ? 0 : wk, { stoop: st1, lean: 0.12 * (1 - st1), reach: reach1, reachW: [1, 1], stepUp: this.stepUpAt(p1) });
     // helper: alongside (left of travel), a little ahead of the handles' line; hand on the cabinet's flank while it travels
     const sH = Math.max(0, Math.min(A.total, s + 0.1)); const ah = this.sample(A, sH);
     const side = new THREE.Vector3().crossVectors(up, ah.d).normalize();

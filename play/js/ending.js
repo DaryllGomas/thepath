@@ -3,12 +3,14 @@
 // tube. When the tube reports the run's win (the Tunnel's passage has played on it; step 1b's THE GATE and A·V·R go in
 // js/cabinet/seven/finale.js, before the report), there is a clunk and a brass token with the Gate on it rises into the coin
 // return. You take it. Four lines. Then the pull: the tube gains impossible depth, the arcade stretches, you are drawn into
-// the glass, THE PATH shows once, white, and a quiet end. The tube (ctx.tube) only has to hold its last picture on tube.t.
+// the glass, THE PATH shows once, and you are through: the warp (js/warp.js; the trailer v2, 44-52 s), time rushing past,
+// until its light turns white, and a quiet end. The tube (ctx.tube) only has to hold its last picture on tube.t.
 // All of it is scene and overlay: no cartridge's sim is touched. No light is added (the cabinet's own glow, one of the pool's
-// lights, carries the tunnel's colour), and every material here is built at load so main.js's precompile warms it.
+// lights, carries the warp's cold light), and every material here is built at load so main.js's precompile warms it.
 import * as THREE from 'three';
 import * as MARKS from './marks.js';
 import { UNGRADE_GLSL, gradeUniforms } from './cabinet/seven/glass.js';
+import { Warp, UNGRADE_HDR, THROUGH, WARP_LEN, warpSpeed, warpLook, drawIn } from './warp.js';
 
 export const NAMELESS = 'nameless';
 const DEG = Math.PI / 180;
@@ -224,31 +226,23 @@ export class NamelessScreen {
   }
 }
 
-// ============================================================================ the tunnel: depth through the glass
+// ============================================================================ the tube becomes a window into the warp
 // Drawn on the tube's own mesh. At depth 0 it is exactly the tube (js/crt.js's look, the frozen last frame); as depth rises the
-// picture gives way to a tunnel of gates behind the glass, ray-cast from the camera so it has real parallax: it goes on far past
-// the back of the cabinet. Each gate is a ring with its opening at the foot (the openings turn slowly down the tunnel); the
-// colours drift along a slow palette (gold, teal, violet, rose; never a saturated red), one band every several seconds. The
-// flow is held under ~2.5 gates a second at any pixel, and the gates are soft: nothing strobes.
+// picture gives way to js/warp.js's tunnel, sampled at this pixel's place on the screen: the warp is rendered from a camera that
+// stands where you stand relative to the glass, so the glass is a true window (real parallax), and when you are through it the
+// same picture goes full screen without a seam.
 const tunnelVert = /* glsl */`
-  varying vec2 vUv; varying vec3 vWorld;
-  void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const tunnelFrag = /* glsl */`
-  uniform sampler2D map;
+  uniform sampler2D map, portal;
+  uniform vec2 portalRes;
   uniform float brightness, curve, scan, scanCount, grille, vignette, chroma, roll, noise, time;
-  uniform float depth, flow, hue, glow, R, gap;
-  uniform vec3 sC, sN, sT, sB;
-  varying vec2 vUv; varying vec3 vWorld;
+  uniform float depth, glow;
+  varying vec2 vUv;
   ${UNGRADE_GLSL}
+  ${UNGRADE_HDR}
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-  vec3 pal(float h) {
-    h = fract(h) * 4.0;
-    vec3 a = vec3(1.00, 0.72, 0.36), b = vec3(0.30, 0.80, 0.76), c = vec3(0.52, 0.48, 1.00), d = vec3(0.96, 0.62, 0.72);
-    if (h < 1.0) return mix(a, b, smoothstep(0.0, 1.0, h));
-    if (h < 2.0) return mix(b, c, smoothstep(0.0, 1.0, h - 1.0));
-    if (h < 3.0) return mix(c, d, smoothstep(0.0, 1.0, h - 2.0));
-    return mix(d, a, smoothstep(0.0, 1.0, h - 3.0));
-  }
   void main() {
     // ---- the tube as js/crt.js draws it (so the swap to this material does not show)
     vec2 uv0 = vec2(vUv.x, 1.0 - vUv.y);
@@ -267,60 +261,23 @@ const tunnelFrag = /* glsl */`
     float vig = pow(clamp(v.x * v.y * 40.0, 0.0, 1.0), vignette * 0.35);
     // (the seven's glass, js/cabinet/seven/glass.js, hands the room's grade an ungraded picture: so does the tube here)
     vec3 tube = ungrade(pic * sc * gr * bar * snow * vig * inside * brightness) + vec3(0.004, 0.006, 0.010) * inside;
-    // ---- the depth: a ray from the eye through this point of the glass, into a round tunnel of radius R along -N
-    vec3 rd = normalize(vWorld - cameraPosition);
-    vec3 p = vWorld - sC;
-    vec2 xy = vec2(dot(p, sT), dot(p, sB));
-    vec3 d = vec3(dot(rd, sT), dot(rd, sB), min(dot(rd, sN), -1e-3));
-    float a = max(dot(d.xy, d.xy), 1e-7), b = 2.0 * dot(xy, d.xy), c = dot(xy, xy) - R * R;
-    float t = (-b + sqrt(max(b * b - 4.0 * a * c, 0.0))) / (2.0 * a);
-    vec2 hxy = xy + d.xy * t;
-    float s = max(0.0, -(dot(p, sN) + d.z * t));          // how deep behind the glass the wall is met (m)
-    float S = s + flow;
-    float ang = atan(hxy.y, hxy.x);
-    float L = 0.16, k = S / L, n = floor(k), f = fract(k);
-    float band = exp(-pow((f - 0.5) / 0.1, 2.0));
-    float ga = -1.5707963 + n * 0.42 + time * 0.06;          // each gate's opening, turning slowly down the tunnel
-    float da = abs(atan(sin(ang - ga), cos(ang - ga)));
-    float ring = band * smoothstep(gap, gap + 0.2, da);
-    float pips = band * pow(0.5 + 0.5 * cos(ang * 9.0 + n * 1.7), 28.0);
-    vec2 cell = vec2(floor(ang * 5.0), floor(S / 0.06));
-    float h = hash(cell), hy = hash(cell + 17.3);
-    vec2 inCell = vec2(fract(ang * 5.0) - 0.5, fract(S / 0.06) - 0.5);
-    float lines = step(0.86, h) * exp(-dot(inCell, inCell) * 90.0) * (0.35 + 0.65 * hy) * 0.5 * exp(-s * 0.35);
-    float far = 1.0 - exp(-s * 0.5);                          // haze toward the far end
-    vec3 wall = pal(hue + n * 0.05) * (ring * 0.95 + pips * 0.6) * (1.0 - 0.7 * far) + pal(hue + 0.5) * lines;
-    vec2 q = d.xy / -d.z; float qq = dot(q, q);               // q = 0 where the tunnel converges
-    vec3 endC = mix(vec3(1.0, 0.94, 0.82), pal(hue + 0.25), 0.3);
-    float star = exp(-abs(q.x) * 110.0) * exp(-abs(q.y) * 5.0) + exp(-abs(q.y) * 110.0) * exp(-abs(q.x) * 10.0);
-    vec3 deep = wall + pal(hue + 0.15) * far * 0.22 + endC * (0.004 / (qq + 0.004) * 0.8 + star * 0.8);
-    // outside the tunnel's round mouth the glass is a dark plate, its edge lit by the tunnel
-    float rim = length(xy) / R;
-    vec3 plate = pal(hue) * 0.35 * exp(-pow((rim - 1.0) / 0.045, 2.0)) + vec3(0.006, 0.007, 0.012);
-    deep = mix(deep, plate, smoothstep(0.985, 1.02, rim));
+    // ---- the warp behind the glass, at this pixel's place on the screen
+    vec3 k = texture2D(portal, clamp(gl_FragCoord.xy / max(portalRes, vec2(1.0)), 0.0, 1.0)).rgb;
+    if (!(max(k.r, max(k.g, k.b)) < 6.0e4) || !(min(k.r, min(k.g, k.b)) > -1.0)) k = vec3(0.0);
+    vec3 deep = ungradeHDR(k * glow);
     // the glass stays a tube for a moment: its scanlines fade out as the depth opens
     float glass = mix(sc, 1.0, depth);
-    gl_FragColor = vec4(mix(tube, deep * glow * glass, depth), 1.0);
+    gl_FragColor = vec4(mix(tube, deep * glass, depth), 1.0);
   }`;
 
 export function makeTunnelMaterial(crt) {
   const cu = crt.uniforms;
-  const u = {
-    map: { value: cu.map.value }, time: { value: 0 },
-    depth: { value: 0 }, flow: { value: 0 }, hue: { value: 0 }, glow: { value: 1 }, R: { value: 0.17 }, gap: { value: 0.28 },
-    sC: { value: new THREE.Vector3() }, sN: { value: new THREE.Vector3(0, 0, 1) }, sT: { value: new THREE.Vector3(1, 0, 0) }, sB: { value: new THREE.Vector3(0, 1, 0) },
-  };
+  const u = { map: { value: cu.map.value }, portal: { value: null }, portalRes: { value: new THREE.Vector2(1, 1) }, time: { value: 0 }, depth: { value: 0 }, glow: { value: 1 } };
   for (const k of ['brightness', 'curve', 'scan', 'scanCount', 'grille', 'vignette', 'chroma', 'roll', 'noise']) u[k] = { value: cu[k].value * (k === 'brightness' ? cu.flicker.value * cu.power.value : 1) };
   // the grade's inverse: shared with the glass when the tube has one (the seven's), off for a plain js/crt.js tube
   Object.assign(u, cu.gradeOn ? { gradeExposure: cu.gradeExposure, gradeFilter: cu.gradeFilter, gradeOn: cu.gradeOn, gradeO: cu.gradeO, gradeI: cu.gradeI }
     : { ...gradeUniforms(null), gradeOn: { value: 0 } });
   return new THREE.ShaderMaterial({ vertexShader: tunnelVert, fragmentShader: tunnelFrag, uniforms: u, fog: false });
-}
-// the palette the tunnel drifts through, for the cabinet's glow (same stops as the shader)
-const PAL = [[1.0, 0.72, 0.36], [0.30, 0.80, 0.76], [0.52, 0.48, 1.0], [0.96, 0.62, 0.72]];
-function pal(h, out) {
-  h = ((h % 1) + 1) % 1 * 4; const i = Math.floor(h), k = smooth(h - i), A = PAL[i], B = PAL[(i + 1) % 4];
-  return out.setRGB(A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k);
 }
 
 // ============================================================================ the coin door and the token
@@ -397,9 +354,10 @@ const LINES = [
   [12.6, 4.9, "It wasn't controlling you. It was showing you the map."],
 ];
 const LINES_END = 17.5;          // the pull begins as the last line leaves
+const WARP_GLOW = new THREE.Color(0.62, 0.72, 1.0);
 export class Ending {
   constructor(ctx) {
-    this.ctx = ctx; this.phase = 'idle'; this.t = 0; this.T = 0;
+    this.ctx = ctx; this.phase = 'idle'; this.t = 0; this.T = 0; this.vlog = []; this.sched = []; this.linesEnd = LINES_END;
     const scr = ctx.screen;
     this.C = scr.center.clone(); this.N = scr.normal.clone().normalize();
     this.Tn = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), this.N).normalize();
@@ -430,12 +388,17 @@ export class Ending {
     // ---- the tunnel, on the tube's own mesh when the pull begins
     this.tunnel = makeTunnelMaterial(scr.material);
     const tu = this.tunnel.uniforms;
-    tu.sC.value.copy(this.C); tu.sN.value.copy(this.N); tu.sT.value.copy(this.Tn); tu.sB.value.copy(this.Bn);
     // the screen's own size, measured in its plane: the tunnel is a hair smaller than its height
     const pos = scr.mesh.geometry.attributes.position, v = new THREE.Vector3(); let hw = 0, hh = 0;
     for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(scr.mesh.matrix).sub(this.C); hw = Math.max(hw, Math.abs(v.dot(this.Tn))); hh = Math.max(hh, Math.abs(v.dot(this.Bn))); }
     this.half = new THREE.Vector2(hw || 0.24, hh || 0.18);
-    tu.R.value = Math.min(this.half.x, this.half.y) * 0.96;
+    // ---- the warp (js/warp.js): its own scene, seen through the glass, then full screen; turned back through the room's grade
+    this.warp = new Warp(ctx.renderer, { gradeExposure: tu.gradeExposure, gradeFilter: tu.gradeFilter, gradeOn: tu.gradeOn, gradeO: tu.gradeO, gradeI: tu.gradeI });
+    tu.portal.value = null;
+    this.flow = 0; this.through = false;
+    // the tube's frame (its right, up and out), so the warp's camera can stand where you stand relative to the glass
+    this.frameQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(this.Tn, this.Bn, this.N));
+    this.frameQi = this.frameQ.clone().invert();
     this.glowDef = O.byName.PolyGlow || null;
     // THE PATH for the pull, built now and painted once at an invisible opacity (at load, not in the rush: parsing the SVG and
     // painting its glow the first time costs a long frame)
@@ -445,7 +408,6 @@ export class Ending {
       this.flash.style.opacity = '0.004';
       setTimeout(() => { this.flash.style.opacity = ''; }, 1500);
     }
-    this.hue = 0.02;
   }
   // z of the cabinet's front face at a height above the floor (the body's mesh, near the middle)
   faceAt(O, h) {
@@ -502,11 +464,18 @@ export class Ending {
     const scr = this.ctx.screen, keep = { door: this.door.visible, token: this.token.visible, mesh: scr.mesh.visible, mat: scr.mesh.material };
     this.door.visible = true; this.token.visible = true; scr.mesh.visible = true; scr.mesh.material = this.tunnel;
     this.tunnel.uniforms.map.value = this.ctx.tube.t;
+    try { const rt = this.ctx.pipe && this.ctx.pipe.rtScene; this.warp.warm(rt ? rt.width : 64, rt ? rt.height : 36, rt || null); this.tunnel.uniforms.portal.value = this.warp.texture; } catch (e) { console.warn('[ending] warp warm-up', e); }
     return () => { this.door.visible = keep.door; this.token.visible = keep.token; scr.mesh.visible = keep.mesh; scr.mesh.material = keep.mat; };
   }
   placed() { this.door.visible = true; }
   get busy() { return this.phase !== 'idle'; }
-  state() { return { phase: this.phase, t: +this.t.toFixed(2), T: +this.T.toFixed(2), face: this.faceSource, fov: +this.ctx.camera.fov.toFixed(1) }; }
+  state() {
+    const w = this.warpInfo;
+    return { phase: this.phase, t: +this.t.toFixed(2), T: +this.T.toFixed(2), face: this.faceSource, fov: +this.ctx.camera.fov.toFixed(1),
+      warp: w ? { beat: w.beat, through: this.through, speed: +w.speed.toFixed(2), lens: +w.lensQ.toFixed(3), rings: +w.ringQ.toFixed(3), bloom: +w.bloom.toFixed(3) } : null, voices: this.vlog.slice() };
+  }
+  // what main.js draws this frame in place of the arcade: once you are through the glass, the warp full screen
+  view() { return this.through ? { scene: this.warp.blitScene, camera: this.warp.blitCam } : null; }
 
   // ------------------------------------------------------------------ the beats
   begin() {
@@ -550,6 +519,18 @@ export class Ending {
     const q = cam.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.3, 0.16, 0.05)));
     return { p, q };
   }
+  // the four lines' timetable. With a recording (assets/audio/voice/E1..E4.ogg) the caption stays for its length and a line never starts
+  // before the one before has finished; with none, LINES stands exactly as written.
+  schedule() {
+    this.sched = []; let prev = 0, any = false;
+    LINES.forEach(([at, secs, text], i) => {
+      const clip = (this.ctx.buffers || {})['voice/E' + (i + 1) + '.ogg'] || null;
+      if (clip) any = true;
+      const start = clip ? Math.max(at, prev + 0.5) : at, cap = clip ? clip.duration + 0.6 : secs;
+      this.sched.push({ at: start, secs: cap, text, clip: clip ? 'voice/E' + (i + 1) + '.ogg' : null }); prev = start + cap;
+    });
+    this.linesEnd = any ? Math.max(prev, LINES_END - 1.5) : LINES_END;
+  }
   play(name, gain, rate = 1, loop = false) {
     const buf = this.ctx.buffers[name]; if (!buf) return null;
     try {
@@ -560,9 +541,8 @@ export class Ending {
   update(dt) {
     if (this.phase === 'idle' || this.phase === 'end') return;
     this.t += dt; this.T += dt;
-    this.hue += dt / 30;                          // the palette drifts: one band every ~7 s
     const t = this.t, tu = this.tunnel.uniforms;
-    tu.time.value += dt; tu.hue.value = this.hue;
+    tu.time.value += dt;
     switch (this.phase) {
       case 'won': {                               // the tube holds its last picture (the passage); a breath, then the clunk
         if (t >= 0.9) { this.phase = 'clunk'; this.t = 0; this.play('token_clunk.mp3', 0.9); }
@@ -594,22 +574,26 @@ export class Ending {
         this.token.position.copy(this.takeFrom.p).lerp(held.p, kt); this.token.position.y += Math.sin(kt * Math.PI) * 0.05;
         this.token.quaternion.copy(this.takeFrom.q).slerp(held.q, kt);
         this.returnGlow.material.color.multiplyScalar(0.96);
-        if (t >= 1.6) { this.ctx.camera.attach(this.token); this.phase = 'lines'; this.t = 0; this.said = 0; }
+        if (t >= 1.6) { this.ctx.camera.attach(this.token); this.phase = 'lines'; this.t = 0; this.said = 0; this.schedule(); }
         break;
       }
       case 'lines': {                             // the token in your hand; the words; the tube starts to open on the last one
-        const stand = this.pose(0.95 - Math.min(t, LINES_END) * 0.004);
+        const stand = this.pose(0.95 - Math.min(t, this.linesEnd) * 0.004);
         this.setCam(stand.p, stand.q, 60);
         this.wobble(t);
-        while (this.said < LINES.length && t >= LINES[this.said][0]) { const [, secs, text] = LINES[this.said++]; this.ctx.line(text, secs); }
-        const d0 = LINES[3][0] + 1.4;
+        while (this.said < this.sched.length && t >= this.sched[this.said].at) {
+          const L = this.sched[this.said++]; this.ctx.line(L.text, L.secs);
+          if (L.clip && this.play(L.clip, 1)) this.vlog.push({ id: 'E' + this.said, at: +t.toFixed(2), secs: +this.ctx.buffers[L.clip].duration.toFixed(2) });
+        }
+        const d0 = this.sched[3].at + 1.4;
         if (t >= d0 && this.ctx.screen.mesh.material !== this.tunnel) this.openTube();
-        if (t >= d0) tu.depth.value = 0.3 * smooth((t - d0) / 3.0);
-        if (t >= LINES_END) { this.phase = 'pull'; this.t = 0; this.pullFrom = stand; this.startPull(); }
+        if (t >= d0) { tu.depth.value = 0.3 * smooth((t - d0) / 3.0); this.drive(dt, 'glimpse', 0.25, 0); }
+        if (t >= this.linesEnd) { this.phase = 'pull'; this.t = 0; this.pullFrom = stand; this.startPull(); }
         break;
       }
       case 'pull': this.updatePull(dt); break;
       case 'white': {
+        this.drive(dt, 'white', this.warpInfo ? this.warpInfo.speed : 12, WARP_LEN);
         if (this.hum) this.hum.setVolume(Math.max(0, this.humVol * (1 - t / 1.5)));
         if (t >= 3.0) { this.phase = 'end'; if (this.hum) { try { this.hum.stop(); } catch (e) { /* stopped */ } } this.ctx.onEnd(); }
         break;
@@ -633,43 +617,67 @@ export class Ending {
     if (this.glowDef) this.glowBase = { i: this.glowDef.intensity, r: this.glowDef.range, c: this.glowDef.color.clone() };
     this.ctx.camera.near = 0.008; this.ctx.camera.updateProjectionMatrix();
   }
-  // THE PULL (12 s): the depth opens (0-3 s); the arcade stretches, a dolly-zoom out to a wide lens with the tube held the same
-  // size (0.6-5.6 s); you are drawn into the glass (5.6-9 s), THE PATH once (7.3 s, 0.6 s), then white (8.4-10 s).
+  // THE PULL: the depth opens (0-3 s); the arcade stretches, a dolly-zoom out to a wide lens with the tube held the same size
+  // (0.6-5.6 s); you are drawn into the glass (5.6-9 s), THE PATH once (7.3 s, 0.6 s); then THROUGH (9 s): the warp full screen,
+  // time rushing past, THE GATE's rings flying by, the lens opening until the light takes everything (9-15 s); white at 15 s.
   updatePull(dt) {
-    const t = this.t, tu = this.tunnel.uniforms, cam = this.ctx.camera;
+    const t = this.t, tu = this.tunnel.uniforms;
     tu.depth.value = 0.3 + 0.7 * smooth(t / 3.0);
-    tu.glow.value = 1 + 0.9 * smooth((t - 5.0) / 4.0);
-    // the flow down the tunnel: slow, then more (held under ~2.5 gates a second at any pixel with the approach)
-    const v = 0.03 + 0.1 * smooth((t - 1.0) / 6.0);
-    tu.flow.value += v * dt;
     // the token drops out of your hand's frame
     const drop = smooth(t / 1.2);
-    if (this.token.parent === cam) {
+    if (this.token.parent === this.ctx.camera) {
       this.token.position.y = HELD[1] - drop * 0.12; this.token.visible = drop < 1;
     }
     // the camera: the dolly-zoom, then in
-    const fov0 = 60, fov1 = 106, d0 = 0.95 - LINES_END * 0.004;
+    const fov0 = 60, fov1 = 106, d0 = 0.95 - this.linesEnd * 0.004;
     const kz = ease((t - 0.6) / 5.0);
     const fov = fov0 + (fov1 - fov0) * kz;
     const dz = d0 * Math.tan(fov0 * DEG / 2) / Math.tan(fov * DEG / 2);
-    const kin = ease((t - 5.6) / 3.4);
-    const d = dz + (0.045 - dz) * kin;
-    const p = this.pose(d);
-    this.setCam(p.p, p.q, fov);
-    // the cabinet's glow takes the tunnel's colour, and grows (it is one of the pool's lights: nothing is added)
+    const kin = drawIn((t - 5.6) / (THROUGH - 5.6));
+    const d = dz * Math.pow(0.045 / dz, kin);          // in by ratios: the glass grows ever faster, the bezel last to go
+    if (t < THROUGH) { const p = this.pose(d); this.setCam(p.p, p.q, fov); }
+    // the cabinet's glow takes the warp's cold light, and grows (it is one of the pool's lights: nothing is added)
     if (this.glowDef && this.glowBase) {
       const g = this.glowDef, k = smooth(t / 4.0);
-      pal(this.hue + 0.1, g.color).lerp(this.glowBase.c, 1 - k * 0.75);
-      g.intensity = this.glowBase.i * (1 + 0.5 * k); g.range = this.glowBase.r + 0.5 * k;
+      g.color.copy(this.glowBase.c).lerp(WARP_GLOW, k * 0.8);
+      g.intensity = this.glowBase.i * (1 + 0.6 * k); g.range = this.glowBase.r + 0.5 * k;
     }
-    // the cabinet's hum, drawn up with you
-    if (this.hum) { this.hum.setVolume(this.humVol * smooth(t / 2.5)); this.hum.setPlaybackRate(0.5 + 0.45 * smooth(t / 9)); }
+    // the cabinet's hum, drawn up with you, and higher as time rushes
+    if (this.hum) { this.hum.setVolume(this.humVol * smooth(t / 2.5)); this.hum.setPlaybackRate(0.5 + 0.45 * smooth(t / 9) + 0.35 * smooth((t - THROUGH) / 5)); }
     // THE PATH: once, flat, 0.6 s, a soft fade in and out
     if (t >= 7.3 && !this.flashed) { this.flashed = true; this.showPath(); }
-    // white
+    // time rushing: slow through the glass, then hard once you are in it
+    const tw = t - THROUGH;
+    const speed = warpSpeed(t);
+    if (tw >= 0 && !this.through) this.through = true;
+    this.drive(dt, tw < 0 ? (t < 5.6 ? 'opening' : 'sucked') : (tw < 2.8 ? 'rush' : 'light'), speed, tw);
+    // the light takes everything: the grade fades to white under it, so the hand-off is clean white
     const u = this.ctx.pipe.mFinal.uniforms;
-    if (t >= 8.4) { u.fadeCol.value.set(1, 1, 1); u.fade.value = smooth((t - 8.4) / 1.6); }
-    if (t >= 10.0) { u.fade.value = 1; this.phase = 'white'; this.t = 0; }
+    // (the burst itself whites the frame; the grade only closes the last 0.15 s, and its vignette lifts as the light grows)
+    if (this.vigBase === undefined) this.vigBase = u.vignette.value;
+    if (this.warpInfo) u.vignette.value = this.vigBase * (1 - smooth(this.warpInfo.bloom / 0.8));
+    if (tw >= WARP_LEN - 0.15) { u.fadeCol.value.set(1, 1, 1); u.fade.value = smooth((tw - (WARP_LEN - 0.15)) / 0.15); }
+    if (tw >= WARP_LEN) { u.fade.value = 1; this.phase = 'white'; this.t = 0; }
+  }
+  // the warp, one frame: its state from the beat, its camera from yours (through the glass) or held (once through), drawn
+  drive(dt, beat, speed, tw) {
+    const W = this.warp, cam = this.ctx.camera, pipe = this.ctx.pipe;
+    this.flow += speed * dt;
+    let glassQ = this.glassQ || this.half.y / 0.95, pose = this.warpPose;
+    if (!this.through) {
+      // where you stand, in the tube's frame (x right, y up, z out of the glass)
+      const rel = cam.position.clone().sub(this.C);
+      const p = new THREE.Vector3(rel.dot(this.Tn), rel.dot(this.Bn), rel.dot(this.N));
+      glassQ = this.glassQ = this.half.y / Math.max(p.z, 0.02);
+      pose = this.warpPose = { position: p, quaternion: this.frameQi.clone().multiply(cam.quaternion), fov: cam.fov, aspect: cam.aspect };
+    }
+    const look = warpLook(tw, glassQ, speed);
+    W.set({ ...look, time: this.T, flow: this.flow, clipZ: this.through ? 1e3 : 0, glow: 1 });
+    const w = pipe.rtScene ? pipe.rtScene.width : 640, h = pipe.rtScene ? pipe.rtScene.height : 360;
+    W.render(pose, w, h);
+    const tu = this.tunnel.uniforms;
+    tu.portal.value = W.texture; tu.portalRes.value.set(w, h);
+    this.warpInfo = { beat, ...look };
   }
   showPath() {
     const el = this.flash; if (!el) return;

@@ -10,7 +10,10 @@ const sm = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x);
 const ang = (v) => Math.atan2(-v.z, -v.y);                     // angle of a segment from straight down, forward (-Z) positive
 export const STEP = 0.48;                                       // metres per step (half a stride)
 
-const B = { root: 0, torso: 1, sh: [2, 3], hip: [4, 7], knee: [5, 8], ank: [6, 9] };
+const B = { root: 0, torso: 1, sh: [2, 3], hip: [4, 7], knee: [5, 8], ank: [6, 9], elb: [10, 11] };
+// the lift: how far the hips drop and how far the back leans while a man works low (under the van's roof). 0.47 / 0.66 was a deep squat
+// with a hunched back; this is a moderate knee bend, as upright as the van's 1.35 m cargo roof lets a man stand (11-08, Daryll: "they crouch too deep when they lift")
+const STOOP_HIP = 0.60, STOOP_LEAN = 0.58, MAX_EXTRA = 0.08;
 
 export function buildRig(O, key, { briefcase = true } = {}) {
   const parts = O.templates[key] || [];
@@ -56,16 +59,18 @@ export function buildRig(O, key, { briefcase = true } = {}) {
   const root = mk('root', new THREE.Vector3(), null);
   const torso = mk('torso', TORSO, root);
   const sh = [0, 1].map((s) => mk('sh' + s, rest.sho[s].clone().sub(TORSO), torso));
+  const elb = [0, 1].map((s) => { const mid = rest.sho[s].clone().lerp(rest.hand[s], 0.5); return mk('elb' + s, mid.sub(rest.sho[s]), sh[s]); });
   const leg = [0, 1].map((s) => {
     const hip = mk('hip' + s, rest.hip[s], root), knee = mk('knee' + s, rest.knee[s].clone().sub(rest.hip[s]), hip), ank = mk('ank' + s, rest.ankle[s].clone().sub(rest.knee[s]), knee);
     return { hip, knee, ank };
   });
   // bones array must follow the B index map
-  const ordered = [root, torso, sh[0], sh[1], leg[0].hip, leg[0].knee, leg[0].ank, leg[1].hip, leg[1].knee, leg[1].ank];
+  const ordered = [root, torso, sh[0], sh[1], leg[0].hip, leg[0].knee, leg[0].ank, leg[1].hip, leg[1].knee, leg[1].ank, elb[0], elb[1]];
   root.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(ordered);
   skeleton.calculateInverses();
-  // 4. skin weights
+  // 4. skin weights (the arm: the shoulder bone above the elbow, the elbow bone below, blended across the joint)
+  const armAx = [0, 1].map((s) => { const v = rest.hand[s].clone().sub(rest.sho[s]); return { x: v.x, y: v.y, z: v.z, lenSq: v.lengthSq() }; });
   const group = new THREE.Group(); group.name = 'rigMeshes';
   const meshes = [];
   for (const f of info) {
@@ -81,7 +86,9 @@ export function buildRig(O, key, { briefcase = true } = {}) {
         const wl = sm((0.80 - y) / 0.14);
         const wa = sm((Math.abs(x) - 0.16) / 0.07) * sm((y - 0.70) / 0.10) * sm((1.50 - y) / 0.10);
         const A = wa * (1 - wl), Tt = Math.max(0, 1 - wl - A) * sm((y - 0.74) / 0.12), R = Math.max(0, 1 - wl - A - Tt);
-        add(B.root, R); add(B.torso, Tt); add(B.sh[x > 0 ? 1 : 0], A);
+        add(B.root, R); add(B.torso, Tt);
+        { const as = x > 0 ? 1 : 0, ax = armAx[as], z = p.getZ(i), t = ((x - rest.sho[as].x) * ax.x + (y - rest.sho[as].y) * ax.y + (z - rest.sho[as].z) * ax.z) / ax.lenSq, we = sm((t - 0.40) / 0.22);
+          add(B.sh[as], A * (1 - we)); add(B.elb[as], A * we); }
         const wAnk = sm((0.20 - y) / 0.10), wKn = sm((0.52 - y) / 0.12);
         const hipW = 1 - wKn, ankW = wAnk, kneeW = Math.max(0, wKn - wAnk);
         for (const s of [0, 1]) { const sideW = s ? sRight : 1 - sRight; add(B.hip[s], wl * sideW * hipW); add(B.knee[s], wl * sideW * kneeW); add(B.ank[s], wl * sideW * ankW); }
@@ -99,8 +106,8 @@ export function buildRig(O, key, { briefcase = true } = {}) {
   for (const m of meshes) m.mesh.bind(skeleton, new THREE.Matrix4());
   const legL = rest.knee.map((k, s) => [k.distanceTo(rest.hip[s]), rest.ankle[s].distanceTo(k)]);
   const rig = {
-    fig, group, root, torso, sh, leg, skeleton, rest, meshes, u: 0, speed: 0, ready: true,
-    hipRestY: 0.82,
+    fig, group, root, torso, sh, elb, leg, skeleton, rest, meshes, u: 0, speed: 0, ready: true,
+    hipRestY: 0.82, elbowDeg: [180, 180],
     // distance-driven gait. moved: metres travelled this frame; b: 0..1 how much walking (0 standing); stoop: 0..1 crouch under a low roof;
     // lean: forward lean of the torso (radians, positive = forward); reach: [worldTargetOrNull, ...] per side; swing: arm swing amplitude
     pose(moved, b, { stoop = 0, lean = 0, reach = [null, null], reachW = [1, 1], swing = 0.32, lift = 0.07, stepUp = 0 } = {}) {
@@ -118,9 +125,9 @@ export function buildRig(O, key, { briefcase = true } = {}) {
       let H = 9;
       for (const s of [0, 1]) { const L = legL[s][0] + legL[s][1]; const aY = rest.ankle[s].y + y[s]; H = Math.min(H, aY + Math.sqrt(Math.max(0.01, (0.985 * L) ** 2 - f[s] * f[s]))); }
       H = Math.min(H, this.hipRestY);
-      const Hc = H * (1 - stoop) + 0.47 * stoop;
+      const Hc = H * (1 - stoop) + STOOP_HIP * stoop;
       root.position.y = Hc - this.hipRestY;
-      torso.rotation.set(-(lean + 0.66 * stoop), 0, 0);
+      torso.rotation.set(-(lean + STOOP_LEAN * stoop), 0, 0);
       for (const s of [0, 1]) {
         const [L1, L2] = legL[s]; const aY = rest.ankle[s].y + y[s];
         const h = Hc - aY, fo = f[s];
@@ -133,29 +140,59 @@ export function buildRig(O, key, { briefcase = true } = {}) {
       }
       // arms: swing against the legs, or reach a world point (hand truck handle, the cabinet's flank)
       fig.updateMatrixWorld(true);
+      // a man who has both hands on something he cannot quite reach leans a little further from the hips (never past MAX_EXTRA), so the
+      // knees and the back share the work instead of the arms stretching
+      if (reach[0] && reach[1]) {
+        for (let it = 0; it < 2; it++) {
+          let ex = 0; for (const s of [0, 1]) ex = Math.max(ex, sh[s].getWorldPosition(new THREE.Vector3()).distanceTo(reach[s]) - (rest.armLen[s] - 0.06) * 0.97);
+          if (ex <= 0) break;
+          torso.rotation.x -= Math.min(MAX_EXTRA - (-torso.rotation.x - (lean + STOOP_LEAN * stoop)), ex / 0.56 * 0.9);
+          fig.updateMatrixWorld(true);
+        }
+      }
       const phase = this.u * 2 * Math.PI;
       // each hand takes the handle on its own side (11-08, Daryll: the pusher's "arms are crossed")
       if (reach[0] && reach[1]) {
         const w0 = sh[0].getWorldPosition(new THREE.Vector3()), w1 = sh[1].getWorldPosition(new THREE.Vector3());
         if (w0.distanceTo(reach[1]) + w1.distanceTo(reach[0]) < w0.distanceTo(reach[0]) + w1.distanceTo(reach[1])) { reach = [reach[1], reach[0]]; reachW = [reachW[1], reachW[0]]; }
       }
+      this.lastReach = reach;
+      const tmpQ = new THREE.Quaternion();
       for (const s of [0, 1]) {
         // a free arm hangs straight down at the side and swings fore and aft from there (the kit's stride pose held the arms out and
-        // away, so swinging that pose about X waved the hands sideways: 11-08, Daryll: "the hands are just like waving")
+        // away, so swinging that pose about X waved the hands sideways: 11-08, Daryll: "the hands are just like waving"); the forearm
+        // carries a slight elbow bend that deepens as the arm swings forward
         const out = Math.sign(rest.sho[s].x) || (s ? 1 : -1);
         const restDir = rest.hand[s].clone().sub(rest.sho[s]).normalize();
         const qDown = new THREE.Quaternion().setFromUnitVectors(restDir, new THREE.Vector3(0.1 * out, -1, 0.03).normalize());
-        const swingA = Math.sin(phase + (s ? 0 : Math.PI)) * Math.min(swing, 0.22) * b;
+        const ph = phase + (s ? 0 : Math.PI);
+        const swingA = Math.sin(ph) * Math.min(swing, 0.22) * b;
         const qs = new THREE.Quaternion().setFromAxisAngle(X, swingA).multiply(qDown);
+        const upFree = restDir.clone().applyQuaternion(qs);
+        const bend = 0.2 + 0.5 * Math.max(0, Math.sin(ph + 0.6)) * b;                       // radians; forward is -Z, and +X rotation swings a hanging arm forward
+        const foFree = upFree.clone().applyQuaternion(tmpQ.setFromAxisAngle(X, bend));
+        let upper = upFree, fore = foFree;
         const tgt = reach[s];
         if (tgt) {
           const loc = sh[s].parent.worldToLocal(tgt.clone()); const v = loc.sub(sh[s].position); const dist = v.length();
-          const qr = new THREE.Quaternion().setFromUnitVectors(restDir, v.normalize());
-          sh[s].quaternion.copy(qs).slerp(qr, Math.min(1, Math.max(0, reachW[s])));
           this['reachGap' + s] = Math.max(0, dist - rest.armLen[s]);
-        } else sh[s].quaternion.copy(qs);
+          // two-bone IK: the elbow drops down and back (and a little outward) from the shoulder-to-hand line
+          const l = (rest.armLen[s] - 0.06) / 2, d = Math.min(2 * l - 1e-3, Math.max(0.05, dist)), uh = v.clone().normalize();
+          const a = d / 2, h = Math.sqrt(Math.max(0, l * l - a * a));
+          const pole = new THREE.Vector3(0.3 * out, -1, 0.45); pole.addScaledVector(uh, -pole.dot(uh)); if (pole.lengthSq() < 1e-6) pole.set(0, -1, 0); pole.normalize();
+          const E = uh.clone().multiplyScalar(a).addScaledVector(pole, h);
+          const upR = E.clone().normalize(), foR = uh.clone().multiplyScalar(d).sub(E).normalize();
+          const w = Math.min(1, Math.max(0, reachW[s]));
+          upper = upFree.clone().lerp(upR, w).normalize(); fore = foFree.clone().lerp(foR, w).normalize();
+        } else { this['reachGap' + s] = 0; }
+        sh[s].quaternion.setFromUnitVectors(restDir, upper);
+        const fl = fore.clone().applyQuaternion(sh[s].quaternion.clone().invert());
+        elb[s].quaternion.setFromUnitVectors(restDir, fl);
+        this.elbowDeg[s] = 180 - Math.acos(Math.min(1, Math.max(-1, upper.dot(fore)))) * 180 / Math.PI;
       }
     },
+    // the top of the head above the figure's feet (the tests: clearance under the van's roof)
+    headY() { let y = -1e9; fig.updateMatrixWorld(true); for (const m of meshes) { if (m.case) continue; m.mesh.computeBoundingBox(); y = Math.max(y, m.mesh.boundingBox.clone().applyMatrix4(m.mesh.matrixWorld).max.y); } return y - fig.getWorldPosition(new THREE.Vector3()).y; },
     handWorld(s) { const v = rest.hand[s].clone(); return fig.localToWorld(v); },
   };
   rig.rawDbg = rawDbg;

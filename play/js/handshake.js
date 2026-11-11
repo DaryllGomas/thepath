@@ -13,6 +13,8 @@ const YES = /^(Y|YES|YEAH|YEP|SURE|OK|OKAY|GO|BEGIN)$/, NO = /^(N|NO|NOPE|NAH|NE
 const PASSWORD = /^(LOGIN |LOGON )?(LIGHTNING|LIGHTENING)$/;
 const PH = '#9df5e1', RED = '#ff6a50';
 const AUDIO = 'assets/audio/handshake/';
+const VOICE_DIR = 'assets/audio/voice/';           // recorded voices (mono opus, tools/voice-lab); a missing file just leaves that caption silent
+const VOICE_IDS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7'];
 const SOUNDS = ['phone_pickup', 'dial_tone', 'dtmf_dial', 'ringback', 'modem_handshake', 'crt_on', 'crt_hum', 'disk_seek', 'static_burst', 'key_return',
   'key_01', 'key_02', 'key_03', 'key_04', 'key_05', 'key_06', 'key_07', 'key_08', 'key_09'];
 
@@ -212,7 +214,7 @@ export class Handshake {
     const q = (s) => root.querySelector(s);
     this.tube = q('.tube'); this.top = q('.top'); this.text = q('.text'); this.sub = q('.hs-sub'); this.hint = q('.hs-hint');
     this.white = q('.hs-white'); this.slot = q('.markslot'); this.inp = q('input');
-    this.buf = {}; this.live = new Set(); this.map = null;
+    this.buf = {}; this.live = new Set(); this.map = null; this.vlog = [];
     this.skipAt = 0; this.shown = new Set(); this.skipEl = el('div', 'hs-skip'); this.skipEl.textContent = 'PRESS ESC TO SKIP'; this.skipEl.addEventListener('click', () => this.skipNow());
     this.tube.append(this.skipEl);
     this.fxEl = el('div', 'hs-glitch'); this.tube.append(this.fxEl);   // the one glitch: THE PASSWORD is accepted
@@ -244,6 +246,12 @@ export class Handshake {
         const r = await fetch(AUDIO + n + '.mp3'); if (!r.ok) return;
         this.buf[n] = await this.ctx.decodeAudioData(await r.arrayBuffer());
       } catch (e) { /* that one stays silent */ }
+    }));
+    await Promise.all(VOICE_IDS.map(async (n) => {      // the two kids' lines: decoded the same way, kept under 'v_<id>'
+      try {
+        const r = await fetch(VOICE_DIR + n + '.ogg'); if (!r.ok) return;
+        this.buf['v_' + n] = await this.ctx.decodeAudioData(await r.arrayBuffer());
+      } catch (e) { /* that line stays a caption only */ }
     }));
     this.keyNames = Object.keys(this.buf).filter((n) => /^key_\d+$/.test(n));
   }
@@ -364,10 +372,14 @@ export class Handshake {
   }
   pulse() { const b = this.top.querySelector('.banner'); if (b) { b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); } }
   // the two kids at the keyboard are never seen; their lines are captions under the tube
-  async voice(text, who) {
+  // with a recording (id), it plays through this context at the game's volume and the caption holds for its length; without one, the old timing
+  async voice(text, who, id) {
     const s = this.sub; s.className = 'hs-sub ' + who; s.textContent = '“' + text + '”';
     void s.offsetWidth; s.classList.add('on');
-    await sleep(1150 + text.length * 48);
+    let hold = 1150 + text.length * 48;
+    const clip = id && this.buf['v_' + id];
+    if (clip && this.play('v_' + id)) { hold = clip.duration * 1000 + 300; this.vlog.push(id); }
+    await sleep(hold);
     s.classList.remove('on'); await sleep(380);
   }
 
@@ -454,7 +466,7 @@ export class Handshake {
     const bad = this.play('modem_handshake', { gain: 0.75 }); await sleep(2100);
     if (bad) bad.stop(0.04); this.play('static_burst', { gain: 0.45 });
     await this.say('NO CARRIER', { cps: 0, after: 700 });
-    await this.voice('One more.', 'boy');
+    await this.voice('One more.', 'boy', 'H1');
     await this.dialNumber('555-1982');
     await this.ring(1);
     const m = this.play('modem_handshake', { gain: 0.8 });
@@ -462,8 +474,8 @@ export class Handshake {
     await sleep(secs * 1000 - 150); if (m) m.stop(0.25);
     await this.say('CONNECT 1200', { cps: 0, after: 300 });
     await this.say('CARRIER DETECTED\nREMOTE SESSION ESTABLISHED', { after: 700 });
-    await this.voice("We're through.", 'boy');
-    await this.voice("That's it?", 'girl');
+    await this.voice("We're through.", 'boy', 'H2');
+    await this.voice("That's it?", 'girl', 'H3');
   }
 
   async identity() {
@@ -472,8 +484,8 @@ export class Handshake {
     this.banner('NODE/0', 'REMOTE ACCESS TERMINAL · REV 1.3', '(C) 1982');
     await sleep(1000);
     await this.say('HELLO.', { cps: 9, after: 900 });
-    await this.voice('It answers?', 'girl');
-    await this.voice('It responds to what it was taught to notice.', 'boy');
+    await this.voice('It answers?', 'girl', 'H4');
+    await this.voice('It responds to what it was taught to notice.', 'boy', 'H5');
     await this.say('WHO ARE YOU?', { cps: 22 });
     let name = '';
     while (!name) {
@@ -580,8 +592,8 @@ export class Handshake {
     await this.glitch();
     await this.say('ACCESS GRANTED.', { after: 500 });
     await this.say('YOU FOUND THE WAY BACK IN.', { cps: 26, after: 900 });
-    await this.voice("Who's Lightning?", 'girl');
-    await this.voice("I don't know.", 'boy');
+    await this.voice("Who's Lightning?", 'girl', 'H6');
+    await this.voice("I don't know.", 'boy', 'H7');
     this.clear(); await sleep(350);
     return this.programs();
   }

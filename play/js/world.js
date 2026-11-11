@@ -139,6 +139,24 @@ function gradeShell(mat, kind) {
   mat.customProgramCacheKey = () => 'shell-' + kind;
 }
 
+// the couch's baked light: the folds and the shadows between the cushions stay, but the lightmap is pulled toward grey (the blue cast goes) and its darkest
+// values are lifted by a soft floor (the blotches can't reach black). COUCH_U tunes it live.
+const COUCH_U = { uCouchGrey: { value: 0.75 }, uCouchFloor: { value: 0.035 } };
+function tameCouch(mat) {
+  mat.onBeforeCompile = (s) => {
+    Object.assign(s.uniforms, COUCH_U);
+    const chunk = THREE.ShaderChunk.lights_fragment_maps;
+    const line = 'vec3 lightMapIrradiance = lightMapTexel.rgb * lightMapIntensity;';
+    if (!chunk.includes(line)) { console.warn('[basement] the couch grade did not apply (shader chunk changed)'); return; }
+    const fixed = chunk.replace(line, `vec3 lmT = lightMapTexel.rgb;
+		lmT = mix( lmT, vec3( dot( lmT, vec3( 0.299, 0.587, 0.114 ) ) ), uCouchGrey );
+		lmT = sqrt( lmT * lmT + uCouchFloor * uCouchFloor ) - uCouchFloor * 0.5;
+		vec3 lightMapIrradiance = lmT * lightMapIntensity;`);
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uCouchGrey, uCouchFloor;').replace('#include <lights_fragment_maps>', fixed);
+  };
+  mat.customProgramCacheKey = () => 'couch-grade';
+}
+
 export async function loadBasement(base, opts, onProgress) {
   const meta = await (await fetch(base + 'assets/basement.json')).json();
 
@@ -205,6 +223,7 @@ export async function loadBasement(base, opts, onProgress) {
     const clockGlass = m.name === 'M_wall_clock_glass';   // the dump gave the glass the clock's own texture (it smeared the case over the dial): plain clear glass
     mat.color.setRGB(m.color[0], m.color[1], m.color[2], THREE.LinearSRGBColorSpace);
     if (clockGlass) mat.color.setRGB(1, 1, 1);
+    if (m.name === 'potted_plant_01_leaves') mat.color.setRGB(0.07, 0.34, 0.05, THREE.LinearSRGBColorSpace);   // the dump gave the leaves a plain grey (they read as a dead, bone-white plant): living green
     if (m.map && !clockGlass && textures['tex/' + m.map]) {
       const t = textures['tex/' + m.map].clone();
       const [sx, sy, ox, oy] = m.st;
@@ -225,6 +244,7 @@ export async function loadBasement(base, opts, onProgress) {
     if (m.clip > 0) mat.alphaTest = m.clip;
     if (m.doubleSided) mat.side = THREE.DoubleSide;
     mat.lightMap = lm >= 0 ? textures[meta.lightmaps[lm].file] : flatLM;
+    if (m.name === 'M_Plaid') tameCouch(mat);   // the couch keeps its baked folds (they make it look used), minus the blue cast and the near-black blotches
     mat.lightMapIntensity = Math.PI * LM_RANGE;
     const sh = OPT.grade && SHELL[m.name];
     if (sh) {                                                    // the shell: the grade (albedo tint, a lightmap gain, contact darkening)
