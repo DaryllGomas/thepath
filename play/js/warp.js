@@ -18,6 +18,12 @@ import * as THREE from 'three';
 import { UNGRADE_GLSL } from './cabinet/seven/glass.js';
 
 const WL = 12.0, MARGIN = 1.2;          // the streaks and panes repeat every WL m down the tunnel; MARGIN m may sit behind you
+const ROWS = 5;                         // the panes' atlas: 2 x 5 cells of 512 x 256 (8 paintings, then bare glass warm and cool)
+const HERO_K = 0.22;                    // the two great panes slide by at this part of the tunnel's speed (they are big and far)
+// the paintings on the panes: our own art, cropped and graded warm (tools/warp_paint_atlas.sh): 0 the trailer's pyramid at
+// sunset, 1 its moon behind the ship's mast, 2-7 the worlds ahead (Gobekli Tepe, Egypt, the East, the Vale, the Signal,
+// Atlantis), 8-9 bare glass. Loaded through three's TextureLoader; the canvas paintings below stay as the fallback.
+const PANES_URL = new URL('../assets/art/warp/panes.jpg', import.meta.url).href;
 
 // the colour helpers every warp shader shares
 const COMMON = /* glsl */`
@@ -62,7 +68,7 @@ const bgFrag = /* glsl */`
     float lit = step(1.0 - on, h4);
     float L = len * (0.5 + h3);
     float s = smoothstep(0.0, 0.04, fu) * (1.0 - smoothstep(L * 0.25, L + 0.02, fu));      // a bright head, a long fading tail
-    float th = max(0.11, fwidth(a) * 0.75);
+    float th = max(0.06, fwidth(a) * 0.6);                  // thin and sharp, as the trailer's
     float w = exp(-fa * fa / (th * th)) * (0.11 / th);
     vec3 c = h3 > 0.78 ? vec3(1.0, 0.78, 0.46) : (h3 > 0.45 ? vec3(0.62, 0.72, 1.0) : vec3(0.92, 0.95, 1.0));
     return c * s * w * lit * (0.35 + 1.1 * h4 * h4);
@@ -80,23 +86,27 @@ const bgFrag = /* glsl */`
     float lr = log(r);
     float a01 = atan(q.y, q.x) / 6.2831853 + 0.5;
     // ---- deep space: navy, an indigo heart, slow violet cloud
-    vec3 col = mix(lin(vec3(0.035, 0.045, 0.11)), lin(vec3(0.16, 0.18, 0.42)), exp(-r * 1.1));
+    vec3 col = mix(lin(vec3(0.010, 0.013, 0.032)), lin(vec3(0.07, 0.08, 0.19)), exp(-r * 1.3));     // near black, a deep navy heart
     vec2 np = q / (0.35 + r) * 3.0 + vec2(time * 0.01, 0.0);
     float n = vnoise(np * 2.0) * 0.6 + vnoise(np * 5.0 + 3.1) * 0.4;
-    col += lin(vec3(0.30, 0.24, 0.55)) * 0.35 * smoothstep(0.45, 0.95, n) * exp(-r * 0.4);
-    col += lin(vec3(0.20, 0.30, 0.60)) * 0.20 * smoothstep(0.55, 1.0, vnoise(np * 3.0 - 7.7)) ;
+    col += lin(vec3(0.30, 0.24, 0.55)) * 0.14 * smoothstep(0.45, 0.95, n) * exp(-r * 0.4);
+    col += lin(vec3(0.20, 0.30, 0.60)) * 0.06 * smoothstep(0.55, 1.0, vnoise(np * 3.0 - 7.7)) ;
     // ---- the stars, streaking out from the middle (three layers; longer with speed)
     float edge = smoothstep(0.03, 0.35, r);
     vec3 st = streaks(a01, lr, 720.0, 7.0 * density, 1.0, 1.3, streakLen, 0.30)
             + streaks(a01, lr, 1300.0, 11.0 * density, 1.4, 5.7, streakLen * 0.8, 0.22) * 0.8
             + streaks(a01, lr, 420.0, 4.0 * density, 0.7, 9.1, streakLen * 1.2, 0.18) * 1.2;
-    col += st * edge * (0.55 + 0.6 * smoothstep(0.2, 1.6, r)) * 0.78;
+    // sharp, and kept under the bloom's knee (0.97 after the grade) so a thousand bright heads do not haze into soft blobs
+    // as the light comes, the space between the streaks turns a lit blue (the trailer, 49-51 s), never a grey haze
+    col += lin(vec3(0.16, 0.24, 0.62)) * (0.10 * smoothstep(8.0, 14.0, speed) + 0.30 * bloom) * edge;
+    vec3 stB = min(st * edge * (0.55 + 0.6 * smoothstep(0.2, 1.6, r)) * 0.9, vec3(0.8));
+    col += stB;
     // long shafts of light down the tunnel, converging on the lens (stronger below, as the trailer has them)
     float sa = a01 * 210.0, sci = floor(sa), sfa = fract(sa) - 0.5;
     float sh = hash(vec2(sci, 41.0)), sh2 = hash(vec2(sci, 43.0));
     float sth = max(0.07, fwidth(sa) * 0.75);
-    float shaft = step(0.72, sh) * exp(-sfa * sfa / (sth * sth)) * (0.07 / sth) * smoothstep(0.15, 0.9, r) * (0.5 + 0.5 * sin(lr * 3.0 - flowT * (0.6 + sh2) + sh * 40.0));
-    col += mix(vec3(0.70, 0.78, 1.0), vec3(1.0, 0.86, 0.62), step(0.85, sh2)) * shaft * (q.y < 0.0 ? 0.30 : 0.16) * edge;
+    float shaft = step(0.64, sh) * exp(-sfa * sfa / (sth * sth)) * (0.07 / sth) * smoothstep(0.15, 0.9, r) * (0.5 + 0.5 * sin(lr * 3.0 - flowT * (0.6 + sh2) + sh * 40.0));
+    col += mix(vec3(0.70, 0.78, 1.0), vec3(1.0, 0.86, 0.62), step(0.85, sh2)) * shaft * (q.y < 0.0 ? 0.50 : 0.18) * edge;
     // ---- THE GATE: two rings crossing on the axis, the beam through their crossings
     float R = ringQ, off = 0.40 * R, rw = max(R * 0.0032, 0.0011);
     float rings = ring(q, vec2(-off, 0.0), R, rw) + ring(q, vec2(off, 0.0), R, rw);
@@ -121,26 +131,34 @@ const bgFrag = /* glsl */`
     // inside: blue-white light, brighter to the middle, its own fine streaks rushing out of the centre
     vec3 sti = streaks(a01, lr, 1100.0, 16.0, 1.8, 2.9, 0.5, 0.35) + streaks(a01, lr, 600.0, 10.0, 1.2, 8.3, 0.6, 0.3);
     vec2 gq = q * 95.0;                                  // ~3 px cells: finer aliases into a grid
-    float dust = step(0.82, hash12(floor(gq) + vec2(floor(flowT * 6.0) * 37.0, floor(flowT * 6.0) * 11.0))) * (1.0 - smoothstep(0.15, 0.5, length(fract(gq) - 0.5)));
-    vec3 fill = lin(vec3(0.85, 0.88, 1.0)) * (0.46 + 0.46 * exp(-r / max(lensQ, 1e-3) * 1.6)) + sti * 2.4 + vec3(0.9, 0.93, 1.0) * dust * 0.6;
+    float dust = step(0.86, hash12(floor(gq) + vec2(floor(flowT * 6.0) * 37.0, floor(flowT * 6.0) * 11.0))) * (1.0 - smoothstep(0.15, 0.5, length(fract(gq) - 0.5)));
+    vec2 gq2 = q * 61.0 + 0.5;                           // a second, coarser grain of brighter stars that twinkle
+    float h2 = hash12(floor(gq2) + 17.0);
+    float dust2 = step(0.9, h2) * (1.0 - smoothstep(0.1, 0.45, length(fract(gq2) - 0.5))) * (0.5 + 0.5 * sin(time * 9.0 + h2 * 60.0));
+    // inside: a cool sparkling field, darker between the stars so the grain shows (the trailer's lens is starry, not flat white)
+    float cen = exp(-r / max(lensQ, 1e-3) * 2.2);
+    vec3 fill = lin(vec3(0.70, 0.77, 0.96)) * (0.34 + 0.40 * cen) + sti * (1.8 + 5.0 * cen) + vec3(0.95, 0.97, 1.0) * (dust * 1.2 + dust2 * 2.6)
+      + vec3(0.9, 0.95, 1.0) * pow(vnoise(vec2(a01 * 260.0, lr * 2.0 - flowT * 1.5)), 4.0) * (0.2 + 1.6 * cen);   // a radial burst from the middle
     fill = mix(fill, vec3(1.0, 0.99, 0.97) * (1.0 + 2.0 * bloom), smoothstep(0.25, 0.85, bloom));
-    col = mix(col, fill, inside);
+    float lensGo = 1.0 - smoothstep(0.55, 0.9, bloom);   // the lens melts into the round white burst (the trailer, 51 s): no white diamond
+    col = mix(col, fill, inside * lensGo);
     float out1 = smoothstep(-0.02, 0.04, sdn);
-    float rim = exp(-sdn * sdn / 0.0007) * 1.8;
+    float rim = exp(-sdn * sdn / 0.00025) * 1.0;                         // a thin bright rim (the trailer's), not a thick white band
     vec2 tp = vec2(abs(q.x), abs(abs(q.y) - lensQ));                    // the lens's tips burn on the beam
     rim += exp(-length(tp) / max(lensQ * 0.035, 1e-4)) * 1.2 + exp(-tp.x / max(lensQ * 0.006, 1e-4)) * exp(-tp.y / max(lensQ * 0.25, 1e-4)) * 0.5;
-    float halo = exp(-max(sdn, 0.0) / (0.12 + 0.3 * bloom)) * (0.22 + 0.5 * bloom) * out1;
+    float halo = exp(-max(sdn, 0.0) / (0.10 + 0.3 * bloom)) * (0.12 + 0.55 * bloom) * out1;
     float rays = pow(vnoise(vec2(a01 * 160.0, flowT * 0.3)), 3.0) * exp(-max(sdn, 0.0) / (0.5 + 1.0 * bloom)) * (0.22 + 0.6 * bloom) * out1;
-    col += vec3(1.0, 0.94, 0.84) * rim + vec3(1.0, 0.96, 0.90) * (halo + rays);
+    col += vec3(1.0, 0.97, 0.92) * rim * lensGo + vec3(0.78, 0.86, 1.0) * (halo + rays);           // a white rim, a cool glow off it
     // the light takes everything: the stars burn brighter and longer, and a white burst grows out along them, spiked by
     // rays, the streaks still running to the edges between its spikes, until the frame is white (the trailer, 50-52 s)
-    col += st * edge * bloom * 0.7;
-    float spike = pow(vnoise(vec2(a01 * 320.0, flowT * 0.15)), 3.0) * 0.7 + pow(vnoise(vec2(a01 * 90.0, 3.0)), 2.0) * 0.5;
+    col += min(st * edge * bloom * 0.7, max(vec3(0.88) - stB, vec3(0.0)));     // brighter, still sharp (all under the bloom's knee)
+    col = mix(col, min(col, vec3(0.92)), smoothstep(0.3, 0.6, bloom));  // while the light grows, the field stays under the knee: crisp streaks, no lumps
+    float spike = pow(vnoise(vec2(a01 * 700.0, flowT * 0.1)), 2.0) * 0.6 + pow(vnoise(vec2(a01 * 140.0, 3.0)), 2.0) * 0.4;   // a fine radial fringe
     float re = length(q * vec2(0.78, 1.0));
     float br = burst;
-    float core = (1.0 - smoothstep(br * (0.35 + 0.5 * spike), br * (1.1 + 2.8 * spike) + 1e-4, re)) * step(0.001, bloom);
-    col = mix(col, vec3(1.0, 0.985, 0.96) * 1.5, core);
-    col = mix(col, vec3(1.0, 0.985, 0.96) * 1.5, smoothstep(0.97, 1.0, bloom));
+    float core = (1.0 - smoothstep(br * (0.7 + 0.15 * spike), br * (1.0 + 0.6 * spike) + 1e-4, re)) * step(0.001, bloom);
+    col = mix(col, vec3(1.0, 0.985, 0.96) * 1.08, core);               // just over the knee: white, without flooding the frame with bloom
+    col = mix(col, vec3(1.0, 0.985, 0.96) * 1.5, smoothstep(1.85, 2.05, burst));      // the whole frame only in the last ~0.2 s
     gl_FragColor = vec4(clamp(col, 0.0, 64.0), 1.0);
   }`;
 
@@ -172,39 +190,75 @@ const streakFrag = /* glsl */`
   varying float vI, vX, vU, vZ; varying vec3 vC;
   void main() {
     float a = vI * (1.0 - vX * vX) * (1.0 - vU) * (1.0 - smoothstep(clipZ - 0.08, clipZ, vZ));
-    gl_FragColor = vec4(vC * a * gain, 1.0);
+    gl_FragColor = vec4(min(vC * a * gain, vec3(0.8)), 1.0);          // under the bloom's knee: sharp, no soft haze
   }`;
 
 // ---------------------------------------------------------------- the panes of glass on the tunnel's walls: instanced
 const paneVert = /* glsl */`
   attribute vec4 aP;                 // angle, radius, z0, length (along the tunnel)
-  attribute vec4 aQ;                 // height, atlas cell, brightness, flip
-  uniform float flow, camZ, lensQ;
-  varying vec2 vUv, vLocal; varying float vI, vZ, vCell, vOp;
+  attribute vec4 aQ;                 // height, atlas cell, brightness, opacity
+  attribute float aH;                // 0: bare glass; -1: a painting on the tunnel's wall; 1 + yaw: one of the two great panes
+  uniform float flow, camZ, lensQ, heroFlow, bigOn;
+  varying vec2 vUv, vLocal; varying float vI, vZ, vCell, vOp, vSmear;
   ${COMMON}
   void main() {
-    float rel = mod(aP.z + flow - camZ + (${WL.toFixed(1)} - ${MARGIN.toFixed(1)}), ${WL.toFixed(1)}) - (${WL.toFixed(1)} - ${MARGIN.toFixed(1)});
-    vec3 er = vec3(cos(aP.x), sin(aP.x), 0.0);
-    vec3 up = vec3(-sin(aP.x), cos(aP.x), 0.0); if (up.y < -0.2) up = -up;
-    vec3 rt = cross(er, up);                             // along the tunnel, so the picture reads the right way round
-    vec3 c = er * aP.y + vec3(0.0, 0.0, camZ + rel);
+    float rel; vec3 rt, up, c;
+    if (aH > 0.5) {
+      // a great pane: big, upright, far out to the left or right (aP = x, y of its middle, z0, width), turned toward the tunnel's
+      // middle by its yaw like a wall going away; it slides by slowly (it is big and far, so it moves at a part of the tunnel's
+      // speed) and never wraps
+      float yaw = aH - 1.0;
+      rel = aP.z + ${HERO_K.toFixed(2)} * heroFlow - camZ;
+      rt = vec3(cos(yaw), 0.0, sign(aP.x) * sin(yaw)); up = vec3(0.0, 1.0, 0.0);
+      c = vec3(aP.x, aP.y, camZ + rel);
+    } else {
+      rel = mod(aP.z + flow - camZ + (${WL.toFixed(1)} - ${MARGIN.toFixed(1)}), ${WL.toFixed(1)}) - (${WL.toFixed(1)} - ${MARGIN.toFixed(1)});
+      vec3 er = vec3(cos(aP.x), sin(aP.x), 0.0);
+      up = vec3(-sin(aP.x), cos(aP.x), 0.0); if (up.y < -0.2) up = -up;
+      rt = cross(er, up);                                // along the tunnel, so the picture reads the right way round
+      c = er * aP.y + vec3(0.0, 0.0, camZ + rel);
+    }
     vec3 p = c + rt * position.x * aP.w + up * position.y * aQ.x;
     vLocal = position.xy + 0.5;
     vec2 cell = vec2(mod(aQ.y, 2.0), floor(aQ.y / 2.0));
-    vUv = vec2((cell.x + vLocal.x) / 2.0, 1.0 - (cell.y + 1.0 - vLocal.y) / 4.0);
-    float qc = aP.y / max(-rel, 0.05);                // where its middle is seen, against the lens
-    vI = aQ.z * smoothstep(6.5, 2.4, -rel) * smoothstep(lensQ * 0.9, lensQ * 1.5, qc);          // the panes melt into the lens's light before they reach it
+    vUv = vec2((cell.x + vLocal.x) / 2.0, 1.0 - (cell.y + 1.0 - vLocal.y) / ${ROWS.toFixed(1)});
+    if (aH > 0.5) { vI = aQ.z * smoothstep(13.0, 9.0, -rel) * smoothstep(-1.5, 0.0, -rel); vSmear = ${HERO_K.toFixed(2)}; }
+    else {
+      float qc = aP.y / max(-rel, 0.05);              // where its middle is seen, against the lens
+      vI = aQ.z * smoothstep(6.5, 2.4, -rel) * smoothstep(lensQ * 0.9, lensQ * 1.5, qc);        // the panes melt into the lens's light before they reach it
+      vI *= mix(0.45, 1.0, smoothstep(0.3, 2.0, -rel));   // and go half to light as they rush past you (the trailer's smears, 47-49 s)
+      vSmear = 1.0;
+      if (aH < -0.5) vI *= bigOn;                      // the paintings on the walls come once the great panes have gone by
+    }
     vZ = p.z; vCell = aQ.y; vOp = aQ.w;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   }`;
 const paneFrag = /* glsl */`
-  uniform sampler2D atlas; uniform float clipZ, gain, fade;
-  varying vec2 vUv, vLocal; varying float vI, vZ, vCell, vOp;
+  uniform sampler2D atlas; uniform float clipZ, gain, fade, speed;
+  varying vec2 vUv, vLocal; varying float vI, vZ, vCell, vOp, vSmear;
   void main() {
-    vec3 pic = pow(texture2D(atlas, vUv).rgb, vec3(2.2));
+    // smeared along the tunnel as time rushes (five taps along the pane's length, kept inside its cell)
+    bool shard = vCell > 7.5;          // bare glass: a crisp crystal shard (the trailer's), never smeared
+    float sm = shard ? 0.0 : clamp(speed * vSmear * 0.010, 0.0, 0.16);
+    vec3 pic = vec3(0.0);
+    for (int k = 0; k < 5; k++) {
+      float lx = clamp(vLocal.x + (float(k) / 4.0 - 0.5) * sm, 0.002, 0.998);
+      pic += pow(texture2D(atlas, vec2(vUv.x + (lx - vLocal.x) * 0.5, vUv.y)).rgb, vec3(2.2));
+    }
+    pic *= 0.2;
     vec2 e = min(vLocal, 1.0 - vLocal);
     float edge = exp(-min(e.x * 3.0, e.y) / 0.012);                       // the glass's lit edge
     float soft = smoothstep(0.0, 0.04, e.x) * smoothstep(0.0, 0.025, e.y);
+    if (shard) {
+      soft = smoothstep(0.0, 0.012, e.x) * smoothstep(0.0, 0.012, e.y);
+      pic = pic * 0.5 + vec3(0.10, 0.13, 0.20) + vec3(0.85, 0.92, 1.0) * pow(1.0 - abs(vLocal.x - vLocal.y), 6.0);   // a glint across the facet
+      edge = exp(-min(e.x, e.y) / 0.03) * 1.6;
+    }
+    if (vSmear < 0.5) {             // a great pane (vSmear = their slow speed): the trailer's deep blacks, edges melting into the dark
+      pic = pow(pic, vec3(1.25)) * 0.8;
+      soft = smoothstep(0.0, 0.10, e.x) * smoothstep(0.0, 0.07, e.y);
+      edge *= 0.15;
+    }
     float a = clamp(vI * (1.0 - smoothstep(clipZ - 0.08, clipZ, vZ)) * soft * vOp * fade, 0.0, 1.0);
     vec3 c = pic * gain + vec3(1.0, 0.92, 0.76) * edge * 0.7;
     gl_FragColor = vec4(c * a, a);                                        // premultiplied: the pictures sit on the dark, not in it
@@ -227,7 +281,7 @@ const blitFrag = /* glsl */`
 // Little oil-like paintings in the trailer's warm, saturated light: deep gradients, lit and shadowed faces, glows, haze and a
 // painterly grain, so they read as pictures of other times flying past, not flat shapes.
 function paintAtlas() {
-  const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 256 * ROWS;
   const g = c.getContext('2d');
   const W = 512, H = 256;
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -333,9 +387,10 @@ function paintAtlas() {
     g.fillStyle = '#2a1806'; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill();
     glow(x - 40, y - 50, 70, 'rgba(255,255,240,0.35)');
   });
-  // 6, 7: bare glass, lit warm and cool
-  cell(6, () => { g.fillStyle = lin(0, 0, W, H, [[0, '#fff0c4'], [0.45, '#f0a840'], [1, '#7a3c0e']]); g.fillRect(0, 0, W, H); dabs(30, 0, 0, W, H, ['#fff6d8'], 80, 6); });
-  cell(7, () => { g.fillStyle = lin(0, 0, W, H, [[0, '#eef4ff'], [0.5, '#8ea6ec'], [1, '#22306a']]); g.fillRect(0, 0, W, H); dabs(30, 0, 0, W, H, ['#ffffff'], 80, 6); });
+  // 6, 7: the pillar and the ship again; 8, 9: bare glass, lit warm and cool
+  for (const [to, from] of [[6, 2], [7, 3]]) g.drawImage(c, (from % 2) * W, Math.floor(from / 2) * H, W, H, (to % 2) * W, Math.floor(to / 2) * H, W, H);
+  cell(8, () => { g.fillStyle = lin(0, 0, W, H, [[0, '#fff0c4'], [0.45, '#f0a840'], [1, '#7a3c0e']]); g.fillRect(0, 0, W, H); dabs(30, 0, 0, W, H, ['#fff6d8'], 80, 6); });
+  cell(9, () => { g.fillStyle = lin(0, 0, W, H, [[0, '#eef4ff'], [0.5, '#8ea6ec'], [1, '#22306a']]); g.fillRect(0, 0, W, H); dabs(30, 0, 0, W, H, ['#ffffff'], 80, 6); });
   return c;
 }
 
@@ -356,13 +411,90 @@ export function warpLook(tw, glassQ, speed) {
   // the far lens: at first a part of the glass (as big as the trailer has it at 45 s), then held, like the stars, at infinity
   const L0 = 0.62 * Math.tanh(0.45 * glassQ / 0.62);
   const rush = sm(tw / 2.6), bloom = Math.pow(sm((tw - 3.2) / 2.65), 1.4);
-  const lensQ = (L0 + 0.32 * rush) * (1 + 0.8 * bloom * bloom);
+  const lensQ = (L0 + 0.32 * rush) * (1 + 0.3 * bloom * bloom);      // the white burst takes over from it, round, not a diamond
   const pass = tw > 0 ? Math.min(tw / 3.0, 0.93) : 0;          // THE GATE's rings come at you and go by
-  // the white burst's reach (view-ray units: the frame's edge is ~1.3 up, ~2.4 across): from the lens's size at 5.3 s it grows
-  // fast, its spikes and the streaks between them still reaching the edges at 5.8 s
-  const burst = tw < 4.0 ? 0 : 0.9 * Math.exp((tw - 5.3) * 1.25) * sm((tw - 4.0) / 0.8);
-  return { speed, lensQ, burst, ringQ: 1.22 * L0 / (1 - pass), ringA: 1 - sm((tw - 1.7) / 1.2), bloom, beam: 1 - bloom * 0.6,
+  // the white burst's reach (view-ray units: the frame's edge is ~1.3 up, ~2.4 across): an oval over the lens by 4.4 s (the trailer, 50 s),
+  // a large one by 5.2 s (51 s), most of the frame by 5.8 s with the stars still streaking at the edges (51.7 s), the whole frame only at 5.9-6.0 s
+  const burst = tw < 3.4 ? 0 : 0.55 * Math.exp((tw - 4.4) * 0.7) * sm((tw - 3.4) / 1.0) + 0.6 * sm((tw - 5.8) / 0.2);
+  return { speed, lensQ, burst, ringQ: 1.22 * L0 / (1 - pass), ringA: 1 - sm((tw - 1.7) / 1.2), bloom, beam: 1 - bloom * 0.6, bigOn: sm((tw - 0.7) / 1.0),
     streakLen: Math.min(0.95, 0.28 + 0.06 * speed), density: 1 };
+}
+
+// where the pull's camera stands (m from the glass) and its lens, at second t of the pull: js/ending.js updatePull's dolly-zoom,
+// then in (linesEnd: when the last line left; 17.5 with no recordings)
+const DEG = Math.PI / 180;
+const easeIO = (x) => { x = Math.min(1, Math.max(0, x)); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+export function pullCamera(t, linesEnd = 17.5) {
+  const fov0 = 60, fov1 = 106, d0 = 0.95 - linesEnd * 0.004;
+  const fov = fov0 + (fov1 - fov0) * easeIO((t - 0.6) / 5.0);
+  const dz = d0 * Math.tan(fov0 * DEG / 2) / Math.tan(fov * DEG / 2);
+  return { d: dz * Math.pow(0.045 / dz, drawIn((t - 5.6) / (THROUGH - 5.6))), fov };
+}
+// the tunnel's flow when the pull starts (the glimpse's 3.5 s at 0.25 m/s) and at second t of it, stepped at 60 Hz as a frame does
+export const PULL_FLOW0 = 3.5 * 0.25;
+export function pullFlow(t) { let f = PULL_FLOW0, s = 0; const dt = 1 / 60; while (s + dt < t) { s += dt; f += warpSpeed(s) * dt; } return f; }
+
+// The streaks and panes, placed once (seeded, so the picture and the sound agree). The first two panes are the great ones that
+// frame the screen at 7.25 s as the trailer has them at 45.2 s: the pyramid on the left, the moon on the right, upper middle,
+// tall walls running into the distance; they then slide out past the edges as you are drawn in (the trailer, 45-48 s).
+const HERO_T = 7.25, HERO_CAMZ = 0.117;          // the moment they frame the screen, and where the camera stands then
+const HEROES = [            // x, y of the middle (m), its depth at HERO_T (m), width, height, atlas cell, yaw (0 faces you)
+  [-4.72, 1.66, 3.0, 3.72, 2.87, 0, 0.20],
+  [5.03, 1.52, 3.0, 3.05, 3.76, 1, 0.20],
+];
+let LAYOUT = null;
+export function paneLayout() {
+  if (LAYOUT) return LAYOUT;
+  let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const NS = 2600, sa = new Float32Array(NS * 4);
+  for (let i = 0; i < NS; i++) { sa[i * 4] = rnd() * Math.PI * 2; sa[i * 4 + 1] = 0.12 + Math.pow(rnd(), 0.7) * 1.5; sa[i * 4 + 2] = rnd() * WL; sa[i * 4 + 3] = rnd(); }
+  const NHERO = HEROES.length, NB = 16, NSH = 110, NP = NHERO + NB + NSH;
+  const pa = new Float32Array(NP * 4), pq = new Float32Array(NP * 4), ph = new Float32Array(NP);
+  const flowAtHero = pullFlow(HERO_T);
+  HEROES.forEach(([x, y, D, wd, h, cell, yaw], i) => {
+    pa.set([x, y, HERO_CAMZ - D - HERO_K * flowAtHero, wd], i * 4); pq.set([h, cell, 1.0, 0.97], i * 4); ph[i] = 1 + yaw;
+  });
+  // the big panes sit on the left and right walls, mostly (as in the trailer); a few above and below. They hold the worlds ahead
+  // (cells 2-7); the small ones are bare lit glass
+  const sideAngles = [Math.PI * 0.97, 0.03, Math.PI * 1.08, -0.1, Math.PI * 0.88, 0.14, Math.PI * 0.62, Math.PI * 1.38];
+  const bigCells = [2, 3, 4, 5, 6, 7];
+  for (let j = 0; j < NB + NSH; j++) {
+    const i = NHERO + j, big = j < NB;
+    pa[i * 4] = big ? sideAngles[j % sideAngles.length] + (rnd() - 0.5) * 0.12 : rnd() * Math.PI * 2;
+    pa[i * 4 + 1] = big ? 0.62 + rnd() * 0.25 : 0.5 + rnd() * 0.9;
+    pa[i * 4 + 2] = big ? (j / NB) * WL + rnd() * 0.4 : rnd() * WL;
+    pa[i * 4 + 3] = big ? 0.9 + rnd() * 0.5 : 0.07 + rnd() * 0.22;
+    pq[i * 4] = big ? pa[i * 4 + 3] * 0.42 : 0.03 + rnd() * 0.08;
+    pq[i * 4 + 1] = big ? bigCells[j % bigCells.length] : 8 + (rnd() < 0.6 ? 0 : 1);
+    pq[i * 4 + 2] = big ? 0.9 : 0.45 + rnd() * 0.7;
+    pq[i * 4 + 3] = big ? 0.94 : 0.5;              // opacity: the past is solid, bare glass half seen
+    ph[i] = big ? -1 : 0;
+  }
+  return (LAYOUT = { NS, sa, NP, NHERO, NB, pa, pq, ph });
+}
+
+// When things fly past you, in pull seconds, for the sound (js/warp_sound.js): each big pane as it crosses you (side -1 left,
+// +1 right, by the wall it is on), the two great panes as they slide out past the frame's edges, THE GATE's rings as they go
+// past the frame (their size reaches the frame's edge at about 1.3-2.1 s after THROUGH).
+export function warpFlyBys(linesEnd = 17.5) {
+  const L = paneLayout(), out = [];
+  const dt = 1 / 120, end = THROUGH + WARP_LEN;
+  let flow = PULL_FLOW0;
+  const prev = new Float32Array(L.NP).fill(-1);
+  for (let t = 0; t < end; t += dt) {
+    flow += warpSpeed(t) * dt;
+    const camZ = t < THROUGH ? pullCamera(t, linesEnd).d : 0.045;
+    for (let i = 0; i < L.NHERO + L.NB; i++) {
+      const a = L.pa[i * 4], z0 = L.pa[i * 4 + 2];
+      let rel; const great = L.ph[i] > 0.5;
+      if (great) rel = z0 + HERO_K * flow - camZ + 1.2;              // the great panes: as their middle comes within 1.2 m
+      else rel = ((z0 + flow - camZ + (WL - MARGIN)) % WL + WL) % WL - (WL - MARGIN);
+      if (prev[i] < 0 && rel >= 0 && rel - prev[i] < 1.0) out.push({ t: +t.toFixed(3), side: great ? Math.sign(a) : Math.sign(Math.cos(a)) || 1, kind: great ? 'great' : 'pane' });
+      prev[i] = rel;
+    }
+  }
+  out.push({ t: THROUGH + 1.7, side: 0, kind: 'rings' });
+  return out.sort((a, b) => a.t - b.t);
 }
 
 export class Warp {
@@ -383,45 +515,36 @@ export class Warp {
     const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
       vertexShader: bgVert, fragmentShader: bgFrag, uniforms: this.bgU, depthTest: false, depthWrite: false, blending: THREE.NoBlending }));
     bg.frustumCulled = false; bg.renderOrder = 0; bg.material.name = 'M_WarpSpace'; this.scene.add(bg);
-    // streaks
-    let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const NS = 2600;
+    // streaks and panes: where each one sits (paneLayout, shared with warpFlyBys so the sound knows when they pass)
+    const L = paneLayout();
     const sg = new THREE.InstancedBufferGeometry();
     sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
     sg.setIndex([0, 1, 2, 0, 2, 3]);
-    const sa = new Float32Array(NS * 4);
-    for (let i = 0; i < NS; i++) { sa[i * 4] = rnd() * Math.PI * 2; sa[i * 4 + 1] = 0.12 + Math.pow(rnd(), 0.7) * 1.5; sa[i * 4 + 2] = rnd() * WL; sa[i * 4 + 3] = rnd(); }
-    sg.setAttribute('aS', new THREE.InstancedBufferAttribute(sa, 4));
-    sg.instanceCount = NS;
+    sg.setAttribute('aS', new THREE.InstancedBufferAttribute(L.sa, 4));
+    sg.instanceCount = L.NS;
     this.streakU = { ...shared, pxA: { value: 0.001 }, nearFade: { value: 0 }, gain: { value: 0.8 } };
     const streaks = new THREE.Mesh(sg, new THREE.ShaderMaterial({ vertexShader: streakVert, fragmentShader: streakFrag, uniforms: this.streakU,
       depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, transparent: true }));
     streaks.frustumCulled = false; streaks.renderOrder = 2; streaks.material.name = 'M_WarpStreaks'; this.scene.add(streaks);
-    // panes: the big ones hold the past, the small ones are bare lit glass
+    // panes: the paintings (our art, loaded; the canvas paintings until it comes, or if it never does)
     this.atlasCanvas = paintAtlas();
     this.atlas = new THREE.CanvasTexture(this.atlasCanvas); this.atlas.generateMipmaps = true; this.atlas.minFilter = THREE.LinearMipmapLinearFilter; this.atlas.anisotropy = 4;
+    this.atlasSource = 'canvas';
+    try {
+      new THREE.TextureLoader().load(PANES_URL, (tex) => {
+        tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.anisotropy = 4;     // colour stays raw: the shader linearizes
+        this.paneU.atlas.value = tex; this.atlasSource = 'art';
+        try { this.r.initTexture(tex); } catch (e) { /* uploaded on first use */ }
+      }, undefined, () => { console.warn('[warp] pane paintings did not load; the canvas paintings stay'); });
+    } catch (e) { /* the canvas paintings stay */ }
     const pg = new THREE.InstancedBufferGeometry();
     pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
     pg.setIndex([0, 1, 2, 0, 2, 3]);
-    const NB = 16, NSH = 110, NP = NB + NSH;
-    const pa = new Float32Array(NP * 4), pq = new Float32Array(NP * 4);
-    // the big panes sit on the left and right walls, mostly (as in the trailer); a few above and below
-    const sideAngles = [Math.PI * 0.97, 0.03, Math.PI * 1.08, -0.1, Math.PI * 0.88, 0.14, Math.PI * 0.62, Math.PI * 1.38];
-    for (let i = 0; i < NP; i++) {
-      const big = i < NB;
-      pa[i * 4] = big ? sideAngles[i % sideAngles.length] + (rnd() - 0.5) * 0.12 : rnd() * Math.PI * 2;
-      pa[i * 4 + 1] = big ? 0.62 + rnd() * 0.25 : 0.5 + rnd() * 0.9;
-      pa[i * 4 + 2] = big ? (i / NB) * WL + rnd() * 0.4 : rnd() * WL;
-      pa[i * 4 + 3] = big ? 0.9 + rnd() * 0.5 : 0.05 + rnd() * 0.16;
-      pq[i * 4] = big ? pa[i * 4 + 3] * 0.42 : 0.03 + rnd() * 0.08;
-      pq[i * 4 + 1] = big ? i % 6 : 6 + (rnd() < 0.6 ? 0 : 1);
-      pq[i * 4 + 2] = big ? 0.9 : 0.25 + rnd() * 0.6;
-      pq[i * 4 + 3] = big ? 0.94 : 0.5;              // opacity: the past is solid, bare glass half seen
-    }
-    pg.setAttribute('aP', new THREE.InstancedBufferAttribute(pa, 4));
-    pg.setAttribute('aQ', new THREE.InstancedBufferAttribute(pq, 4));
-    pg.instanceCount = NP;
-    this.paneU = { ...shared, atlas: { value: this.atlas }, gain: { value: 1.0 }, fade: { value: 1.0 }, lensQ: this.bgU.lensQ };
+    pg.setAttribute('aP', new THREE.InstancedBufferAttribute(L.pa, 4));
+    pg.setAttribute('aQ', new THREE.InstancedBufferAttribute(L.pq, 4));
+    pg.setAttribute('aH', new THREE.InstancedBufferAttribute(L.ph, 1));
+    pg.instanceCount = L.NP;
+    this.paneU = { ...shared, atlas: { value: this.atlas }, gain: { value: 1.0 }, fade: { value: 1.0 }, lensQ: this.bgU.lensQ, heroFlow: { value: PULL_FLOW0 }, bigOn: { value: 1 } };
     const panes = new THREE.Mesh(pg, new THREE.ShaderMaterial({ vertexShader: paneVert, fragmentShader: paneFrag, uniforms: this.paneU,
       depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor }));
@@ -440,6 +563,8 @@ export class Warp {
     const u = this.bgU;
     if (o.speed !== undefined) this.shared.speed.value = o.speed;
     if (o.flow !== undefined) { this.flow = o.flow; this.shared.flow.value = o.flow; u.flowT.value = o.flow; }
+    if (o.heroFlow !== undefined && Number.isFinite(o.heroFlow)) this.paneU.heroFlow.value = o.heroFlow;
+    if (o.bigOn !== undefined && Number.isFinite(o.bigOn)) this.paneU.bigOn.value = o.bigOn;
     if (o.time !== undefined) u.time.value = o.time;
     for (const k of ['lensQ', 'ringQ', 'ringA', 'bloom', 'beam', 'streakLen', 'density', 'burst']) if (o[k] !== undefined && Number.isFinite(o[k])) u[k].value = o[k];
     if (o.clipZ !== undefined) this.shared.clipZ.value = o.clipZ;
@@ -466,7 +591,7 @@ export class Warp {
   }
   // at load: compile everything and draw it once small, so the first frame of the warp costs nothing new
   warm(w = 64, h = 36, target = null) {
-    this.r.initTexture(this.atlas);
+    this.r.initTexture(this.paneU.atlas.value);
     this.render({ position: new THREE.Vector3(0, 0, 0.5), quaternion: new THREE.Quaternion(), fov: 60, aspect: w / h }, w, h);
     const prev = this.r.getRenderTarget();
     // the blit is drawn into the pipeline's HDR target (programs are keyed on the target): drawn there once, now

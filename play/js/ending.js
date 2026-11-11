@@ -10,7 +10,8 @@
 import * as THREE from 'three';
 import * as MARKS from './marks.js';
 import { UNGRADE_GLSL, gradeUniforms } from './cabinet/seven/glass.js';
-import { Warp, UNGRADE_HDR, THROUGH, WARP_LEN, warpSpeed, warpLook, drawIn } from './warp.js';
+import { Warp, UNGRADE_HDR, THROUGH, WARP_LEN, warpSpeed, warpLook, drawIn, PULL_FLOW0 } from './warp.js';
+import { startWarpSound } from './warp_sound.js';
 
 export const NAMELESS = 'nameless';
 const DEG = Math.PI / 180;
@@ -472,7 +473,7 @@ export class Ending {
   state() {
     const w = this.warpInfo;
     return { phase: this.phase, t: +this.t.toFixed(2), T: +this.T.toFixed(2), face: this.faceSource, fov: +this.ctx.camera.fov.toFixed(1),
-      warp: w ? { beat: w.beat, through: this.through, speed: +w.speed.toFixed(2), lens: +w.lensQ.toFixed(3), rings: +w.ringQ.toFixed(3), bloom: +w.bloom.toFixed(3) } : null, voices: this.vlog.slice() };
+      warp: w ? { beat: w.beat, through: this.through, speed: +w.speed.toFixed(2), lens: +w.lensQ.toFixed(3), rings: +w.ringQ.toFixed(3), bloom: +w.bloom.toFixed(3) } : null, voices: this.vlog.slice(), sound: this.warpSnd ? this.warpSnd.info : null, panes: this.warp.atlasSource };
   }
   // what main.js draws this frame in place of the arcade: once you are through the glass, the warp full screen
   view() { return this.through ? { scene: this.warp.blitScene, camera: this.warp.blitCam } : null; }
@@ -595,7 +596,7 @@ export class Ending {
       case 'white': {
         this.drive(dt, 'white', this.warpInfo ? this.warpInfo.speed : 12, WARP_LEN);
         if (this.hum) this.hum.setVolume(Math.max(0, this.humVol * (1 - t / 1.5)));
-        if (t >= 3.0) { this.phase = 'end'; if (this.hum) { try { this.hum.stop(); } catch (e) { /* stopped */ } } this.ctx.onEnd(); }
+        if (t >= 3.0) { this.phase = 'end'; if (this.hum) { try { this.hum.stop(); } catch (e) { /* stopped */ } } if (this.warpSnd) this.warpSnd.stop(0.4); this.ctx.onEnd(); }
         break;
       }
     }
@@ -612,8 +613,11 @@ export class Ending {
     mesh.material = this.tunnel;
   }
   startPull() {
+    this.pullFlow = PULL_FLOW0;          // the great panes keep the pull's clock, so they frame the screen at 7.25 s whatever the lines took
     this.humVol = 0.45;
     this.hum = this.play('handshake/crt_hum.mp3', 0.0, 0.5, true);
+    // the warp's own sound (js/warp_sound.js), the whole pull and the white scheduled now, into the listener (its master volume)
+    try { const L = this.ctx.listener; this.warpSnd = L ? startWarpSound(L.context, L.getInput(), { linesEnd: this.linesEnd }) : null; } catch (e) { this.warpSnd = null; }
     if (this.glowDef) this.glowBase = { i: this.glowDef.intensity, r: this.glowDef.range, c: this.glowDef.color.clone() };
     this.ctx.camera.near = 0.008; this.ctx.camera.updateProjectionMatrix();
   }
@@ -662,7 +666,7 @@ export class Ending {
   // the warp, one frame: its state from the beat, its camera from yours (through the glass) or held (once through), drawn
   drive(dt, beat, speed, tw) {
     const W = this.warp, cam = this.ctx.camera, pipe = this.ctx.pipe;
-    this.flow += speed * dt;
+    this.flow += speed * dt; this.pullFlow = (this.pullFlow === undefined ? PULL_FLOW0 : this.pullFlow) + speed * dt;
     let glassQ = this.glassQ || this.half.y / 0.95, pose = this.warpPose;
     if (!this.through) {
       // where you stand, in the tube's frame (x right, y up, z out of the glass)
@@ -672,7 +676,7 @@ export class Ending {
       pose = this.warpPose = { position: p, quaternion: this.frameQi.clone().multiply(cam.quaternion), fov: cam.fov, aspect: cam.aspect };
     }
     const look = warpLook(tw, glassQ, speed);
-    W.set({ ...look, time: this.T, flow: this.flow, clipZ: this.through ? 1e3 : 0, glow: 1 });
+    W.set({ ...look, time: this.T, flow: this.flow, heroFlow: this.pullFlow, clipZ: this.through ? 1e3 : 0, glow: 1 });
     const w = pipe.rtScene ? pipe.rtScene.width : 640, h = pipe.rtScene ? pipe.rtScene.height : 360;
     W.render(pose, w, h);
     const tu = this.tunnel.uniforms;

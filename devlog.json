@@ -1,7 +1,7 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.8",
+ "version": "v0.8.1",
  "updated": "2026-11-11",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
@@ -45,6 +45,21 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.8.1",
+   "date": "2026-11-11",
+   "title": "The pull, finished",
+   "items": [
+    {
+     "h": "The pull, finished",
+     "t": "The end of the chapter has its own sound now, and more to see on the way through. Play it to the end."
+    },
+    {
+     "h": "The delivery",
+     "t": "The men no longer jump when they turn behind the van, and they only stoop inside the van, not walking beside it."
+    }
+   ]
+  },
   {
    "version": "v0.8",
    "date": "2026-11-11",

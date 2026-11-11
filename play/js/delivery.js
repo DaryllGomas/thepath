@@ -200,16 +200,16 @@ export class Delivery {
     s = Math.min(c.total, Math.max(0, s)); let i = 1; while (i < c.len.length - 1 && c.len[i] < s) i++;
     const a = c.pts[i - 1], b = c.pts[i], k = (s - c.len[i - 1]) / Math.max(1e-6, c.len[i] - c.len[i - 1]);
     const p = a.clone().lerp(b, Math.min(1, Math.max(0, k)));
-    const d = b.clone().sub(a).setY(0); if (d.lengthSq() < 1e-8) d.set(0, 0, -1); d.normalize();
-    // smooth the heading a touch over neighbouring samples
-    const a2 = c.pts[Math.max(0, i - 2)], b2 = c.pts[Math.min(c.pts.length - 1, i + 1)];
-    const d2 = b2.clone().sub(a2).setY(0).normalize(); if (d2.lengthSq() > 0.5) d.lerp(d2, 0.5).normalize();
+    // the heading blends the central-difference tangents of the two samples around p, so it turns smoothly (a per-segment heading stepped
+    // at every sample point, and the pusher, standing behind the handles, swung about a hand-width at each step round a bend)
+    const tan = (j) => { const u = c.pts[Math.max(0, j - 1)], w = c.pts[Math.min(c.pts.length - 1, j + 1)]; const t = w.clone().sub(u).setY(0); if (t.lengthSq() < 1e-8) t.set(0, 0, -1); return t.normalize(); };
+    const kk = Math.min(1, Math.max(0, k)); const d = tan(i - 1).lerp(tan(i), kk); if (d.lengthSq() < 1e-6) d.copy(tan(i)); d.normalize();
     return { p, d };
   }
   routeIn() {
     const g = this.groundY, f = -36.99, nz = this.spot.z;
-    return [new THREE.Vector3(RX + 1.25, g, LANE_Z), new THREE.Vector3(RX - 0.5, g, LANE_Z), new THREE.Vector3(STOP_X - 3.35, g, LANE_Z - 0.2),
-      new THREE.Vector3(80.4, g, -161.8), new THREE.Vector3(82, g, -165.4), new THREE.Vector3(82, f, -168.6),
+    return [new THREE.Vector3(RX + 1.25, g, LANE_Z), new THREE.Vector3(RX - 0.5, g, LANE_Z), new THREE.Vector3(STOP_X - 4.9, g, LANE_Z),
+      new THREE.Vector3(STOP_X - 4.9, g, -162.4), new THREE.Vector3(80.4, g, -162.4), new THREE.Vector3(82, g, -165.4), new THREE.Vector3(82, f, -168.6),
       new THREE.Vector3(AISLE_X, f, -170.4), new THREE.Vector3(AISLE_X, f, nz + 2.4), new THREE.Vector3(this.spot.x + 0.3, f, nz + 1.35)];
   }
   // the road's height under a point near the van: the cargo floor is SILL above it, with a short step over the rear lip
@@ -219,6 +219,10 @@ export class Delivery {
   }
   // (the lane band's edge eases out over half a metre: a hard edge popped the men upright in one frame as the route bent away)
   stoopOf(p) { return (1 - smooth((Math.abs(p.z - LANE_Z) - 0.8) / 0.5)) * smooth((p.x - (RX - 0.9)) / 0.9); }
+
+  // the crouch itself: a man ducks only while he is actually under the cargo roof (the van's rear face RX on, inside its walls), easing in
+  // over a third of a metre at the rear lip and out at the side walls; the lane band above (stoopOf) still drives the truck's tilt and the walking pace
+  crouchOf(p) { return (1 - smooth((Math.abs(p.z - LANE_Z) - 0.9) / 0.3)) * smooth((p.x - (RX - 0.3)) / 0.5); }
 
   start(onDoors, onDone) {
     if (this.t >= 0) return;
@@ -448,7 +452,9 @@ export class Delivery {
     const p1 = mid.clone().addScaledVector(dirH, -back); p1.y = this.floorOf(p1, this.groundY + (a.p.y - this.groundY));
     // (floor under his feet along the route: the route carries the sill step)
     const mv1 = this.moveOf2(m1, p1);
-    const st1 = this.stoopOf(p1);
+    // he ducks under the roof, and while he stands on the loading lip above the truck's wheels (the handles then sit low at his knees); never beside the van
+    const lipH = (p1.y - dpos.y) / 0.5;
+    const st1 = Math.max(this.crouchOf(p1), this.crouchOf(mid), clamp01(lipH) * (1 - smooth((Math.abs(p1.z - LANE_Z) - 0.9) / 0.3)));
     const reach1 = [hd.hL, hd.hR];
     this.place(m1, p1, yawTo(dirH), mv1, still ? 0 : wk, { stoop: st1, lean: 0.12 * (1 - st1), reach: reach1, reachW: [1, 1], stepUp: this.stepUpAt(p1) });
     // helper: alongside (left of travel), a little ahead of the handles' line; hand on the cabinet's flank while it travels
@@ -459,7 +465,7 @@ export class Delivery {
     const q = this.sample(A, Math.max(0, s - lag)); const sideQ = new THREE.Vector3().crossVectors(up, q.d).normalize();
     const p2 = q.p.clone().addScaledVector(sideQ, lat); p2.y = this.floorOf(p2, this.groundY + (q.p.y - this.groundY));
     if (!arriving && Math.abs(p2.z - LANE_Z) < 1.15) p2.z = LANE_Z - 0.45;          // inside the cargo they stand one behind the other: keep him on his own side of the truck
-    const mv2 = this.moveOf2(m2, p2); const st2 = this.stoopOf(p2);
+    const mv2 = this.moveOf2(m2, p2); const st2 = this.crouchOf(p2);
     let reach2 = [null, null];
     if (arriving) { this.tilt.updateWorldMatrix(true, true); const pt = this.cab.localToWorld(new THREE.Vector3(this.cabHalfW + 0.02, Math.min(this.cabH * 0.62, 1.0), 0.0)); reach2 = [null, pt]; }
     this.place(m2, p2, yawTo(new THREE.Vector3(ah.d.x, 0, ah.d.z)), mv2, still ? 0 : wk, { stoop: st2, lean: 0.03, reach: reach2, reachW: [1, arriving ? 1 : 0], stepUp: this.stepUpAt(p2) });
