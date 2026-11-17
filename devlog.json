@@ -1,8 +1,8 @@
 {
  "game": "the-path",
  "title": "THE PATH",
- "version": "v0.8.1",
- "updated": "2026-11-11",
+ "version": "v0.8.2",
+ "updated": "2026-11-17",
  "now": [
   "A way on from the end of the first chapter, into the worlds beyond.",
   "A full start-to-finish pass on the first chapter with fresh eyes, fixing whatever trips you up.",
@@ -45,6 +45,17 @@
   }
  ],
  "releases": [
+  {
+   "version": "v0.8.2",
+   "date": "2026-11-17",
+   "title": "The van's headlights",
+   "items": [
+    {
+     "h": "The delivery",
+     "t": "The black van's headlight beams and lamp rings now sit on its headlamps. They were floating above the hood."
+    }
+   ]
+  },
   {
    "version": "v0.8.1",
    "date": "2026-11-11",

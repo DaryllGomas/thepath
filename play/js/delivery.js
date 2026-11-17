@@ -97,7 +97,9 @@ export class Delivery {
       vanNode.add(this.bodyG);
       if (head) {
         head.material = head.material.clone(); head.material.emissive = new THREE.Color(0xfff2d0); head.material.emissiveIntensity = 3; this.headMat = head.material;
-        // two lamp centres, a lens ring each, and a cone from each
+        // two lamp centres, a lens ring each, and a cone from each. They hang on the Headlights mesh itself, in its own space (cx, cy and hb are
+        // read from its geometry): on its parent they sat 0.5 m above the lamps once the body moved onto bodyG (11-17, Daryll: "the lights are
+        // broke. they are higher than the van"). tools/van_lights.mjs measures it.
         const p = head.geometry.attributes.position; head.geometry.computeBoundingBox(); const hb = head.geometry.boundingBox;
         const hw = head.getWorldPosition(new THREE.Vector3());
         this.lamps = [];
@@ -106,8 +108,8 @@ export class Delivery {
           const cx = pts.reduce((a, q) => a + q[0], 0) / (pts.length || 1), cy = pts.reduce((a, q) => a + q[1], 0) / (pts.length || 1);
           const r = Math.max(0.08, (pts.length ? Math.max(...pts.map((q) => Math.hypot(q[0] - cx, q[1] - cy))) : 0.13));
           const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.12, 0.014, 6, 24), new THREE.MeshStandardMaterial({ color: 0xcfd2d8, metalness: 1, roughness: 0.25, envMap: env, envMapIntensity: 1.6 }));
-          ring.position.set(cx, cy, hb.max.z + 0.002); head.parent.add(ring);
-          const cone = beamCone(11, 1.9); cone.position.set(cx, cy, hb.max.z + 0.03); cone.rotation.x = 0.045; head.parent.add(cone);
+          ring.position.set(cx, cy, hb.max.z + 0.002); head.add(ring);
+          const cone = beamCone(11, 1.9); cone.position.set(cx, cy, hb.max.z + 0.03); cone.rotation.x = 0.045; head.add(cone);
           this.lamps.push({ ring, cone, cx, cy });
         }
       }
